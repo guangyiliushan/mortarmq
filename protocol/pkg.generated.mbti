@@ -1,0 +1,87 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/protocol"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub const HALF_FRAME_TIMEOUT_SECONDS : UInt = 10
+
+pub const KEEPALIVE_SECONDS : UInt = 30
+
+pub const MAX_ERR_MESSAGE : UInt = 512
+
+pub const MAX_FRAME_LEN : UInt = 0x01000000
+
+pub const MAX_KEY_LEN : UInt = 255
+
+pub const MAX_TOPIC_LEN : UInt = 255
+
+pub const MAX_VALUE_LEN : UInt = 0x00FFFC00
+
+pub const WIRE_VERSION : UInt = 1
+
+// Errors
+
+// Types and methods
+pub(all) enum ErrCode {
+  BadLength
+  UnknownOp
+  MalformedPayload
+  UnsupportedVersion
+  NotAuthenticated
+  AuthFailed
+  AuthTimeout
+  UnknownTopic
+  UnknownPartition
+  Internal
+  InvalidTopic
+  SeqGap
+  SeqExpired
+  ProducerEpochStale
+  ProducerSeqInvalid
+  StaleGeneration
+  NotOwner
+  StaleOwner
+  UnknownDelivery
+  GroupMemberLimit
+  GroupAssignmentLimit
+  UnknownMember
+  MaxWaitingPulls
+  DlqPathOverflow
+  DlqUnavailable
+  TopicExistsMismatch
+  GroupExistsMismatch
+  MetadataReadOnly
+  MetadataQuarantined
+  UnknownGroup
+  MutationFenced
+  Backpressure
+  QuotaExceeded
+  RateLimited
+  StorageHighWatermark
+  MessageExceedsCredit
+  NoCredit
+  SlowConsumer
+  QuorumLost
+  ReadOnlyDegraded
+  InSyncReplicasNotEnough
+  FollowerLag
+  StaleLeaderEpoch
+  LeaseExpired
+  CatchupRequired
+  LogGap
+  DivergentCommitted
+  QuorumRecovered
+  UncleanElectionRejected
+} derive(Eq, @debug.Debug)
+pub fn ErrCode::equal(Self, Self) -> Bool
+pub fn ErrCode::from_u16(UInt) -> Self?
+pub fn ErrCode::not_equal(Self, Self) -> Bool
+pub fn ErrCode::to_repr(Self) -> @debug.Repr
+pub fn ErrCode::to_u16(Self) -> UInt
+
+// Type aliases
+
+// Traits

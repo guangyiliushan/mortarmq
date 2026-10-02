@@ -1,0 +1,150 @@
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:   # dry-run: runs the five gates, publishing stays gated on a tag
+
+# Default to read-only. `github-release` is the only job that writes, and it
+# raises its own permissions below rather than granting them workflow-wide.
+permissions:
+  contents: read
+
+# Releases are not something you want cancelled halfway by a newer push.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gates:
+    name: gates / ${{ matrix.os }}
+    # The five release gates (aligned with moonbitlang/async publish.yml),
+    # plus the compliance-floor assertion that ci.yml also runs.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: disable auto CRLF (windows)
+        if: matrix.os == 'windows-latest'
+        run: git config --global core.autocrlf false
+
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: set up MSVC (windows, native FFI)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+
+      - name: install moon
+        uses: $/.github/actions/install-moon
+
+      - name: assert moonc >= compliance floor
+        shell: bash
+        run: bash .github/scripts/assert-moonc.sh
+
+      - name: moon version (audit evidence)
+        run: moon version --all
+
+      - name: moon update
+        run: moon update
+
+      - name: gate 1 — check --deny-warn
+        run: moon check --deny-warn --target all
+
+      - name: gate 2 — moon info + diff
+        run: |
+          moon info --target wasm,wasm-gc,js,native
+          git diff --exit-code
+
+      - name: gate 3 — fmt + diff
+        run: |
+          moon fmt
+          git diff --exit-code
+
+      - name: gate 4 — test (native)
+        run: moon test
+
+      - name: gate 5 — test (wasm target)
+        run: moon test --target wasm
+
+  publish-mooncakes:
+    name: publish to mooncakes.io
+    needs: [gates]
+    # Nothing to publish without a tag: a manual dispatch would otherwise try
+    # to publish whatever branch it was run from.
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The credential lives in a dedicated environment so it can be locked down
+    # (required reviewers, restricted branches) without touching the workflow.
+    environment: release
+    steps:
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: install moon
+        uses: $/.github/actions/install-moon
+
+      # `moon publish` resolves the module graph too, and a fresh runner ships
+      # an empty registry index. See the note above gate 1.
+      - name: moon update
+        run: moon update
+
+      - name: publish (the token exists only for this step and is deleted right after)
+        run: |
+          # Owner-only file: the credential must not be world-readable even for
+          # the few seconds it is on disk.
+          umask 077
+          printf '%s' "$MOONCAKES_TOKEN" > "$HOME/.moon/credentials.json"
+          trap 'rm -f "$HOME/.moon/credentials.json"' EXIT
+          moon publish
+        env:
+          MOONCAKES_TOKEN: ${{ secrets.MOONCAKES_TOKEN }}
+
+  github-release:
+    name: GitHub Release
+    needs: [gates]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write   # create the GitHub Release and upload assets
+    steps:
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: install moon
+        uses: $/.github/actions/install-moon
+
+      - name: "package the broker artifacts for three platforms (placeholder: replace with the real build commands once the broker builds exist)"
+        run: |
+          mkdir -p dist
+          echo "placeholder broker-linux" > dist/broker-linux
+          echo "placeholder broker-windows" > dist/broker-windows.exe
+          echo "placeholder broker-macos" > dist/broker-macos
+          # Apache License 2.0 section 4(d): every distribution that carries
+          # moonbitlang/core must carry its NOTICE. The release assets are the
+          # only place this project ships a binary to a recipient.
+          cp NOTICE dist/NOTICE
+
+      # `gh` ships on the runner, so this needs no third-party release action
+      # in the one job that holds write access. Idempotent: a re-run replaces
+      # the assets instead of failing on an existing release.
+      - name: create or update the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes
+          fi

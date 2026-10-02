@@ -1,0 +1,1 @@
+// Placeholder package: segment log engine -- append+CRC, sparse index, checkpoint, quarantine.
