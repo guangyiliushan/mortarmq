@@ -1,0 +1,34 @@
+name: install moon
+description: >
+  Install the MoonBit toolchain and put it on PATH. Owns the one Windows step
+  no later step can work around: appending the toolchain bin directory to
+  GITHUB_PATH, which is the only way a subsequent step sees `moon`. MSVC and
+  line-ending handling stay in the calling workflow.
+
+# The channel comes from the ambient MOONBIT_INSTALL_VERSION environment
+# variable rather than an input: workflow-level `env` already carries the pin,
+# the nightly job overrides it with `nightly`, and an empty value means the
+# latest stable release. Reading one variable keeps every caller identical.
+# An empty value is not passed to the Unix installer, because the official
+# stable install takes no argument at all.
+
+runs:
+  using: composite
+  steps:
+    - name: install moon (unix)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: | # zizmor: ignore[github-env] writes only the literal runner home .moon/bin; this action is never reachable from pull_request_target or workflow_run
+        if [ -n "${MOONBIT_INSTALL_VERSION:-}" ]; then
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s "$MOONBIT_INSTALL_VERSION"
+        else
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+        fi
+        echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+    - name: install moon (windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: | # zizmor: ignore[github-env] writes only the literal runner home .moon/bin; this action is never reachable from pull_request_target or workflow_run
+        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser; irm https://cli.moonbitlang.com/install/powershell.ps1 | iex
+        "C:\Users\runneradmin\.moon\bin" | Out-File -FilePath $env:GITHUB_PATH -Append

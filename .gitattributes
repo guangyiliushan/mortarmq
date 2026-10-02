@@ -1,0 +1,6 @@
+# LF everywhere: the fmt and info diff gates fail on any CRLF, so normalize here instead of in CI.
+* text=auto eol=lf
+*.png binary
+*.pdf binary
+*.ico binary
+*.woff binary

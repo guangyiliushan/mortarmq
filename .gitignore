@@ -1,0 +1,127 @@
+# MoonBit 
+# Build output and the dependency cache. The generated .mbti interface files
+# are deliberately NOT ignored: the `moon info` diff is a merge gate, so a
+# committed .mbti is the record of an intentional public-interface change.
+_build/
+target/
+.mooncakes/
+
+# Node and the documentation site 
+node_modules/
+dist/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+demo/dist/
+coverage/
+.nyc_output/
+.npm/
+.yarn/
+.pnpm-store/
+.eslintcache
+*.tsbuildinfo
+
+# Logs, caches and scratch
+*.log
+logs/
+.cache/
+*.cache
+tmp/
+*.pid
+*.swp
+*.swo
+*.swn
+*~
+*.orig
+*.rej
+
+# Local runtime state
+# Broker data_dir and anything a locally running daemon writes while you test.
+data/
+
+# Environment and credentials
+# Nothing that unlocks anything is ever committed. The negations keep the
+# documented templates trackable.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+service-account*.json
+
+# macOS 
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
+.fseventsd
+.apdisk
+.AppleDouble/
+.LSOverride/
+.DocumentRevisions-V100/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+*.lnk
+
+# Linux 
+.directory
+.Trash-0/
+
+# Editors and IDEs
+# `.vscode/*` rather than `.vscode/` so the shared extension list can still be
+# re-included below; excluding the directory itself would make that impossible.
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.fleet/
+.history/
+.netrwhist
+\#*\#
+.\#*
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# AI coding assistants 
+# Local machine state only. Shareable project configuration stays committable —
+# the negations are the line between the two, and the entry-point documents
+# (AGENTS.md, CLAUDE.md) are never matched by any rule here.
+.claude/*
+!.claude/settings.json
+!.claude/commands/
+!.claude/skills/
+CLAUDE.local.md
+.cursor/
+.aider*
+.continue/
+.windsurf/
+.roo/
+.cline/
+.gemini/
+.qwen/
+.amazonq/
+.trae/
+.junie/
+.factory/
+.opencode/
+.codex/
+.goose/
+.tabnine/
+.codeium/
+.zed/
+.zcode/
+.ai/
+.agents/
+
+# Generated artifacts
+# Written on demand by a local script; useful on disk, never part of the repo.
+CHANGELOG.md

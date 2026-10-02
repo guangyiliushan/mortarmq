@@ -1,0 +1,36 @@
+# Keeps every pinned action and npm dependency moving without a human in the
+# loop. Action pins are full commit SHAs (see CONTRIBUTING.md section 5 and the
+# zizmor gate in ci.yml), so this is what stops them going stale.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Do not adopt a release the day it appears; a compromised action gets at
+    # least a week of exposure before Dependabot opens a PR. Only default-days
+    # is set here: Dependabot rejects the semver-* cooldown keys for the
+    # github-actions ecosystem, because action tags are not a semver range it
+    # can grade (the npm entry below does set semver-major-days).
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
+      include: "scope"
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Do not adopt a release the day it appears; a compromised action or npm
+    # package gets at least a week of exposure before Dependabot opens a PR.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    commit-message:
+      prefix: build
+      include: "scope"

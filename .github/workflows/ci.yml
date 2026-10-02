@@ -1,0 +1,345 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege at the top. Every job here needs read access only; the
+# release workflow raises its own where publishing demands it.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Empty = latest stable. Pin a concrete version (e.g. 0.10.x) during the
+  # competition audit window so the toolchain cannot drift under a re-run.
+  MOONBIT_INSTALL_VERSION: ""
+  # Competition compliance line. The toolchain has no native >= assertion, so
+  # this is enforced by .github/scripts/assert-moonc.sh rather than eyeballed
+  # from the `moon version --all` log.
+  MOONC_VERSION_FLOOR: "0.10.14"
+
+jobs:
+  lint:
+    name: lint
+    # Keeps this repository's own conventions enforced instead of aspirational:
+    # workflow syntax, workflow security posture, and resolvable doc references
+    # (CONTRIBUTING.md section 1.2). The remaining prose rules -- English-only
+    # source, no plan markers -- are review-enforced (section 2.3).
+    # The job name stays short on purpose: it is a required check, and renaming
+    # it costs a green run plus a manual re-selection in branch protection.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: set up Node 24 LTS (runs the doc reference gate)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: actionlint
+        uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
+
+      - name: install zizmor
+        run: python3 -m pip install --quiet --user zizmor==1.30.1
+
+      - name: zizmor (auditor persona)
+        run: |
+          zizmor_bin="$(command -v zizmor || echo "$HOME/.local/bin/zizmor")"
+          "$zizmor_bin" --persona=auditor .github
+
+      - name: doc reference gate (CONTRIBUTING section 1.2)
+        run: node .github/scripts/check-doc-refs.mjs
+
+  stable:
+    name: stable / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: disable auto CRLF (windows)
+        if: matrix.os == 'windows-latest'
+        run: git config --global core.autocrlf false
+
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # This job never pushes. Keeping the token out of .git/config means a
+          # compromised build step cannot reuse it.
+          persist-credentials: false
+
+      - name: set up Node 24 LTS (host for the js and wasm-gc test runs)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: set up MSVC (windows, native FFI)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+
+      - name: install moon
+        uses: $/.github/actions/install-moon
+
+      - name: assert moonc >= compliance floor
+        shell: bash
+        run: bash .github/scripts/assert-moonc.sh
+
+      - name: moon version (audit evidence)
+        run: moon version --all && moonrun --version
+
+      # A fresh runner ships an empty registry index, so resolving
+      # `moonbitlang/async` fails until it is refreshed. `moon update` touches
+      # only that index -- it does not move the toolchain, so the moonc version
+      # asserted above stays put. Every job that resolves the module graph runs
+      # this; do not drop it from a new job.
+      - name: moon update
+        run: moon update
+
+      - name: gate 1 — moon check (all targets, warnings are errors)
+        run: moon check --deny-warn --target all
+
+      - name: gate 2 — moon build (all targets)
+        run: moon build --target all
+
+      - name: gate 3 — moon info x4 targets + diff
+        run: |
+          moon info --target wasm,wasm-gc,js,native
+          git diff --exit-code
+
+      - name: gate 4 — moon fmt + diff
+        run: |
+          moon fmt
+          git diff --exit-code
+
+      - name: gate 5 — moon test (native)
+        run: moon test
+
+      - name: gate 6 — moon test (release)
+        run: moon test --release
+
+      - name: gate 7 — moon test (js)
+        run: moon test --target js
+
+  nightly:
+    name: nightly drift warning / ${{ matrix.os }}
+    # Toolchain drift early warning: a separate job allowed to fail so it never
+    # blocks a PR (mirrors moonbitlang/async nightly-build).
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    timeout-minutes: 20
+    env:
+      MOONBIT_INSTALL_VERSION: nightly
+    steps:
+      - name: disable auto CRLF (windows)
+        if: matrix.os == 'windows-latest'
+        run: git config --global core.autocrlf false
+
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: set up Node 24 LTS
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: set up MSVC (windows, native FFI)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+
+      - name: install moon (nightly channel)
+        uses: $/.github/actions/install-moon
+
+      - name: moon version
+        run: moon version --all && moonrun --version
+
+      # Empty registry index on a fresh runner; see the note in `stable`.
+      - name: moon update
+        run: moon update
+
+      - name: moon check (all targets)
+        run: moon check --deny-warn --target all
+
+      - name: moon test
+        run: moon test
+
+  wasm-gc:
+    name: wasm-gc pure core
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: set up Node 24 LTS (host for the wasm-gc load smoke test)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: install moon
+        uses: $/.github/actions/install-moon
+
+      # Empty registry index on a fresh runner; see the note in `stable`.
+      - name: moon update
+        run: moon update
+
+      - name: moon check (wasm-gc)
+        run: moon check --deny-warn --target wasm-gc
+
+      - name: moon test (wasm-gc)
+        run: moon test --target wasm-gc
+
+      - name: upload wasm artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wasm-gc-build
+          path: target/wasm-gc/release/build/**/*.wasm
+          if-no-files-found: warn
+          retention-days: 7   # throwaway smoke artifact; do not store it for 90 days
+
+  coverage:
+    name: coverage / ${{ matrix.os }}
+    strategy:
+      # Keep the other leg alive when one fails: losing half the coverage data
+      # would defeat the flaky-evidence discipline in CONTRIBUTING section 5.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: disable auto CRLF (windows)
+        if: matrix.os == 'windows-latest'
+        run: git config --global core.autocrlf false
+
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: set up MSVC (windows, native FFI)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+
+      - name: install moon
+        uses: $/.github/actions/install-moon
+
+      # Empty registry index on a fresh runner; see the note in `stable`.
+      - name: moon update
+        run: moon update
+
+      - name: run tests with coverage
+        run: |
+          moon version --all
+          moon test --enable-coverage
+
+      - name: upload coverage data
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-data-${{ matrix.os }}
+          path: _build/moonbit_coverage_*
+          retention-days: 7
+
+  coverage-report:
+    name: coverage report
+    needs: [coverage]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: install moon
+        uses: $/.github/actions/install-moon
+
+      # Empty registry index on a fresh runner; see the note in `stable`.
+      # Without it this job's rebuild step cannot resolve `moonbitlang/async`.
+      - name: moon update
+        run: moon update
+
+      - name: download Windows coverage data
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-data-windows
+          path: _build
+
+      - name: strip CRLF from the Windows coverage data
+        run: |
+          shopt -s nullglob
+          for f in _build/moonbit_coverage_*; do
+            sed -i 's/\r//g' "$f"
+          done
+
+      - name: download Linux coverage data
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-data-ubuntu-latest
+          path: _build
+
+      - name: rebuild with coverage and report
+        run: |
+          moon test --enable-coverage --build-only
+          report="$(moon coverage report -f summary)"
+          echo "$report"
+          {
+            echo "## Coverage summary"
+            echo '```text'
+            echo "$report"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  docs:
+    name: docs build (dead-link gate)
+    # CONTRIBUTING section 6.3 promises that `npm run docs:build` runs in CI.
+    # docs-site.yml only fires on a push to main for docs paths, so without
+    # this job a pull request could break the site and nobody would find out.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: set up Node 24 LTS
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: install docs toolchain
+        run: npm ci --no-fund --no-audit
+
+      - name: build docs (a dead link fails the build)
+        run: npm run docs:build
+
+      - name: the published site carries the Inter license (OFL 1.1 clause 2)
+        run: |
+          if [ ! -f docs/.vitepress/dist/OFL.txt ]; then
+            echo "docs/public/OFL.txt did not reach the build output."
+            echo "Inter is redistributed with this site, so clause 2 of the"
+            echo "SIL Open Font License requires the license text to travel with it."
+            exit 1
+          fi
+
