@@ -16,9 +16,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Empty = latest stable. Pin a concrete version (e.g. 0.10.x) during the
-  # competition audit window so the toolchain cannot drift under a re-run.
-  MOONBIT_INSTALL_VERSION: ""
+  # Stable CI pins the audited moon release; the floor stays at the competition
+  # minimum and is asserted separately by assert-moonc.sh.
+  MOONBIT_INSTALL_VERSION: "0.1.20260920"
   # Competition compliance line. The toolchain has no native >= assertion, so
   # this is enforced by .github/scripts/assert-moonc.sh rather than eyeballed
   # from the `moon version --all` log.
