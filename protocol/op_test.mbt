@@ -1,4 +1,4 @@
-/// Black-box contract tests for the complete wire operation byte domain.
+/// Exercise the complete operation-byte domain at its assigned/reserved boundary.
 
 ///|
 test "operation table maps exactly the fifteen assigned bytes" {

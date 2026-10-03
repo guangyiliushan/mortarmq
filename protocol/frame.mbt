@@ -1,4 +1,4 @@
-/// Frame boundary codec for the v0 wire protocol.
+/// Decode v0 wire frames at complete-frame boundaries without copying payload.
 ///
 /// A frame is `u32_be length || u8 op || payload[length - 1]`. The length counts
 /// the operation byte and payload, not the four length bytes. Decoding borrows
@@ -7,12 +7,24 @@
 /// frame boundaries.
 
 ///|
-/// The result of feeding the accumulated connection read buffer to the decoder.
+/// Classify the decoder outcome so callers can wait, consume a borrowed
+/// payload, or close on a wire error without interpreting reserved bytes.
 ///
 /// `Need` is the number of additional bytes required before the decoder can
 /// make another decision. `Frame` borrows the operation payload only until the
 /// underlying read buffer is mutated. `DecodeError` carries a wire error code
 /// and always requires the connection to be handled at a policy boundary.
+///
+/// # Example
+///
+/// ```mbt check
+/// test {
+///   match @protocol.decode_frame(b"") {
+///     @protocol.Need(more) => assert_eq(more, 4)
+///     _ => fail("expected Need for empty input")
+///   }
+/// }
+/// ```
 pub enum DecodeResult {
   Need(Int)
   Frame(Op, BytesView)
@@ -36,9 +48,24 @@ fn read_u32_be(data : BytesView, offset : Int) -> UInt {
 /// Decode from the accumulated read buffer without copying the payload.
 ///
 /// A short prefix returns the exact missing byte count. A zero or oversized
-/// length returns `BAD_LENGTH`; an unknown operation returns `UNKNOWN_OP`.
-/// Both conditions close the connection because the byte stream has no
+/// length returns `BAD_LENGTH`; an unknown operation is rejected once its fifth
+/// header byte is visible, before waiting for a potentially oversized payload.
+/// Both error classes close the connection because the byte stream has no
 /// resynchronisation point.
+///
+/// # Example
+///
+/// ```mbt check
+/// test {
+///   match @protocol.decode_frame(b"\x00\x00\x00\x01\x07") {
+///     @protocol.Frame(op, payload) => {
+///       assert_eq(op, @protocol.Ping)
+///       assert_eq(payload.length(), 0)
+///     }
+///     _ => fail("expected the minimum frame to decode")
+///   }
+/// }
+/// ```
 pub fn decode_frame(data : BytesView) -> DecodeResult {
   let available = data.length()
   if available < 4 {
@@ -48,33 +75,16 @@ pub fn decode_frame(data : BytesView) -> DecodeResult {
   if body_length < 1U || body_length > MAX_FRAME_LEN {
     return DecodeError(BadLength)
   }
+  if available < 5 {
+    return Need(1)
+  }
+  let op = match Op::from_byte(data[4]) {
+    Some(op) => op
+    None => return DecodeError(UnknownOp)
+  }
   let body_length = body_length.reinterpret_as_int()
   if available < 4 + body_length {
     return Need(4 + body_length - available)
   }
-  match Op::from_byte(data[4]) {
-    Some(op) => Frame(op, data[5:4 + body_length])
-    None => DecodeError(UnknownOp)
-  }
-}
-
-///|
-/// Encode one complete frame.
-///
-/// The length prefix counts the operation byte and payload, matching
-/// `decode_frame`. The payload bound is checked before adding the operation
-/// byte, so a caller-supplied oversized view can never overflow intermediate
-/// arithmetic. Oversized payloads return `BAD_LENGTH` instead of a programmer
-/// failure panic.
-pub fn encode_frame(op : Op, payload : BytesView) -> Result[Bytes, ErrCode] {
-  let payload_length = payload.length()
-  if payload_length < 0 || payload_length >= MAX_FRAME_LEN.reinterpret_as_int() {
-    return Err(BadLength)
-  }
-  let body_length = 1 + payload_length
-  let buf = Buffer()
-  buf.write_int_be(body_length)
-  buf.write_byte(op.to_byte())
-  buf.write_bytes(payload)
-  Ok(buf.contents())
+  Frame(op, data[5:4 + body_length])
 }

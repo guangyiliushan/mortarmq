@@ -1,4 +1,6 @@
-/// Operation bytes for the v0 wire protocol.
+///|
+/// Defines the operation-byte namespace for the v0 wire protocol and keeps
+/// reserved values outside the decoded domain.
 ///
 /// The low nibble is fully assigned: `0x01` through `0x09` are the request and
 /// common-response operations, while `0x0A` through `0x0F` carry delivery,
@@ -10,8 +12,15 @@
 ///
 /// Adding an operation requires a new wire version. Published operation bytes
 /// never change meaning and retired values are never reused.
-
-///|
+///
+/// # Example
+///
+/// ```mbt check
+/// test {
+///   assert_eq(@protocol.Op::from_byte(0x01), Some(@protocol.Connect))
+///   assert_eq(@protocol.Op::from_byte(0x10), None)
+/// }
+/// ```
 pub(all) enum Op {
   Connect
   Declare

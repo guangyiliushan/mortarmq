@@ -8,5 +8,5 @@ Public API lookup for client authors and second-party developers.
 
 - `protocol` package: wire-protocol constants (8 items such as `MAX_FRAME_LEN`) and the segmented `ErrCode` registry (`ErrCode::from_u16` / `ErrCode#to_u16`).
 - `protocol` package: `Op` maps the fifteen assigned operation bytes through `Op::from_byte` / `Op#to_byte`; every reserved byte returns `None`.
-- `protocol` package: `decode_frame` returns `Need`, a borrowing `Frame`, or `DecodeError`; `encode_frame` returns `Result[Bytes, ErrCode]`.
+- `protocol` package: `decode_frame` returns `Need`, a borrowing `Frame`, or `DecodeError`; unknown operations are rejected as soon as the five-byte header is visible.
 - Remaining packages are filled in by `moon doc` once implemented.
