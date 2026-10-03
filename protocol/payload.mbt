@@ -170,6 +170,21 @@ pub(all) struct CreditPayload {
 } derive(Eq, Debug)
 
 ///|
+/// Model the operation payload belonging to each of the fifteen v0 operations.
+///
+/// Use `decode_wire_payload` with the frame's operation byte, or
+/// `encode_wire_payload` to produce the payload for a constructor.
+///
+/// # Example
+///
+/// ```mbt check
+/// test {
+///   match @protocol.decode_wire_payload(@protocol.Ping, b"") {
+///     Ok(@protocol.WirePayload::Ping) => assert_eq(true, true)
+///     _ => fail("expected PING")
+///   }
+/// }
+/// ```
 pub(all) enum WirePayload {
   Connect(ConnectPayload)
   Declare(DeclarePayload)

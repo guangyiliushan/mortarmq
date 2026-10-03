@@ -87,6 +87,76 @@ run_self_test() {
   printf 'self-test passed: %d valid and %d invalid subjects\n' "${#valid[@]}" "${#invalid[@]}"
 }
 
+run_range_self_test() {
+  local script_dir checker temp
+  script_dir=$(cd "$(dirname "$0")" && pwd)
+  checker="$script_dir/$(basename "$0")"
+  temp=$(mktemp -d) || return 1
+
+  (
+    set -e
+    cd "$temp"
+    git init -q -b main
+    git config user.name "Commit Checker Test"
+    git config user.email "commit-checker-test@example.invalid"
+
+    printf 'base\n' > file.txt
+    git add file.txt
+    git commit -q -m 'ci(infra): create range test base'
+
+    printf 'valid\n' > file.txt
+    git add file.txt
+    git commit -q -m 'feat(a01): valid range subject'
+    local valid_head
+    valid_head=$(git rev-parse HEAD)
+
+    local range_base
+    range_base=$(git rev-parse HEAD~1)
+    if bash "$checker" "$range_base" HEAD >/dev/null 2>&1; then
+      printf 'range self-test passed\n'
+    else
+      printf 'range self-test rejected a valid range\n' >&2
+      exit 1
+    fi
+
+    if bash "$checker" main main >/dev/null 2>&1; then
+      printf 'same-SHA self-test unexpectedly passed\n' >&2
+      exit 1
+    fi
+    printf 'same-SHA self-test passed\n'
+
+    printf 'invalid\n' > file.txt
+    git add file.txt
+    git commit -q -m 'invalid subject'
+    if bash "$checker" main HEAD >/dev/null 2>&1; then
+      printf 'range self-test accepted an invalid commit\n' >&2
+      exit 1
+    fi
+    printf 'invalid-range self-test passed\n'
+
+    printf 'fixed\n' > file.txt
+    git add file.txt
+    git commit -q -m 'fix(a01): valid fallback subject'
+    local fixed_head
+    fixed_head=$(git rev-parse HEAD)
+    if PUSH_BEFORE=0000000000000000000000000000000000000000 PUSH_AFTER="$fixed_head" bash "$checker" >/dev/null 2>&1; then
+      printf 'fallback self-test passed\n'
+    else
+      printf 'fallback self-test rejected a valid latest commit\n' >&2
+      exit 1
+    fi
+
+    if PUSH_BEFORE=main PUSH_AFTER="$fixed_head" bash "$checker" >/dev/null 2>&1; then
+      printf 'push-range self-test accepted an invalid commit\n' >&2
+      exit 1
+    fi
+    printf 'push-range self-test passed\n'
+  )
+  local status=$?
+  rm -rf "$temp"
+  return "$status"
+}
+
 validate_commit_stream() {
   local sha subject reason failures=0 count=0
 
@@ -153,6 +223,7 @@ select_github_range() {
 
 if [ "$#" -eq 1 ] && [ "$1" = "--self-test" ]; then
   run_self_test
+  run_range_self_test
 elif [ "$#" -eq 2 ]; then
   check_range "$1" "$2"
 elif [ "$#" -eq 0 ]; then

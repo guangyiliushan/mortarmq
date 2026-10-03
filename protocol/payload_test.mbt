@@ -785,3 +785,22 @@ test "extension payloads accept every valid discriminant" {
     }),
   )
 }
+
+///|
+test "PUB accepts the maximum value length" {
+  let value = Bytes::makei(@protocol.MAX_VALUE_LEN.reinterpret_as_int(), _index => {
+    b'v'
+  })
+  expect_roundtrip(
+    @protocol.Op::Pub,
+    @protocol.WirePayload::Pub({
+      topic_id: 1,
+      partition: 0,
+      producer_id: 1UL,
+      producer_seq: 1UL,
+      flags: 0,
+      key: b"",
+      value,
+    }),
+  )
+}
