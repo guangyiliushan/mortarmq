@@ -24,6 +24,8 @@ All green before merge. `ci.yml` is the authority for command text, versions and
 | `actionlint` | `lint` | invalid workflow syntax (config: `.github/actionlint.yaml`) |
 | `zizmor --persona=auditor .github` | `lint` | over-broad permissions, unpinned actions, credential leakage |
 | `node .github/scripts/check-doc-refs.mjs` | `lint` | a section pointer that no longer resolves, or a required check in §2.1 that drifted from `ci.yml` |
+| `bash .github/scripts/check-commit-messages.sh --self-test` | `lint` | a checker regression in subject parsing or rejection behavior |
+| `bash .github/scripts/check-commit-messages.sh` | `lint` | missing scope, invalid type/scope, oversized subject, merge subject, or an empty selected commit range |
 | gate 1 · `moon check --deny-warn --target all` | `stable` | stale doc tests, deprecated syntax, unused code |
 | gate 2 · `moon build --target all` | `stable` | targets `check` alone never compiles |
 | gate 3 · `moon info` ×4 targets + diff | `stable` | public interface drift (`.mbti`) |
