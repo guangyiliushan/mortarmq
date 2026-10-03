@@ -93,6 +93,11 @@ check_range() {
   sha_exists "$base" || { printf 'base SHA is missing or unreachable: %s\n' "$base" >&2; return 1; }
   sha_exists "$head" || { printf 'head SHA is missing or unreachable: %s\n' "$head" >&2; return 1; }
 
+  local log_args=("$base..$head")
+  if [[ "$base" = "$head" ]]; then
+    log_args=(-1 "$head")
+  fi
+
   while read -r sha subject; do
     count=$((count + 1))
     if reason=$(validate_subject "$subject"); then
@@ -102,7 +107,7 @@ check_range() {
       printf '  subject: %s\n' "$subject"
       failures=$((failures + 1))
     fi
-  done < <(git log --format='%H %s' "$base..$head")
+  done < <(git log "${log_args[@]}" --format='%H %s')
 
   if ((count == 0)); then
     printf 'commit range contains no commits: %s..%s\n' "$base" "$head" >&2
