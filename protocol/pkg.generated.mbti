@@ -82,6 +82,29 @@ pub fn ErrCode::not_equal(Self, Self) -> Bool
 pub fn ErrCode::to_repr(Self) -> @debug.Repr
 pub fn ErrCode::to_u16(Self) -> UInt
 
+pub(all) enum Op {
+  Connect
+  Declare
+  Pub
+  Sub
+  Ack
+  Nack
+  Ping
+  Err
+  Ok
+  Msg
+  Pull
+  Heartbeat
+  Notice
+  ControlAck
+  Credit
+} derive(Eq, @debug.Debug)
+pub fn Op::equal(Self, Self) -> Bool
+pub fn Op::from_byte(Byte) -> Self?
+pub fn Op::not_equal(Self, Self) -> Bool
+pub fn Op::to_byte(Self) -> Byte
+pub fn Op::to_repr(Self) -> @debug.Repr
+
 // Type aliases
 
 // Traits
