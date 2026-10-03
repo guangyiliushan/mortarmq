@@ -17,7 +17,7 @@
 ///
 /// ```mbt check
 /// test {
-///   assert_eq(@protocol.Op::from_byte(0x01), Some(@protocol.Connect))
+///   assert_eq(@protocol.Op::from_byte(0x01), Some(@protocol.Op::Connect))
 ///   assert_eq(@protocol.Op::from_byte(0x10), None)
 /// }
 /// ```
@@ -52,7 +52,7 @@ pub extend Op with @moonbitlang/core/debug.Debug::{to_repr}
 ///
 /// ```mbt check
 /// test {
-///   assert_eq(@protocol.Connect.to_byte(), 0x01)
+///   assert_eq(@protocol.Op::Connect.to_byte(), 0x01)
 /// }
 /// ```
 pub fn Op::to_byte(self : Op) -> Byte {
@@ -85,7 +85,7 @@ pub fn Op::to_byte(self : Op) -> Byte {
 ///
 /// ```mbt check
 /// test {
-///   assert_eq(@protocol.Op::from_byte(0x0F), Some(@protocol.Credit))
+///   assert_eq(@protocol.Op::from_byte(0x0F), Some(@protocol.Op::Credit))
 ///   assert_eq(@protocol.Op::from_byte(0x10), None)
 /// }
 /// ```

@@ -22,11 +22,61 @@ pub const MAX_VALUE_LEN : UInt = 0x00FFFC00
 
 pub const WIRE_VERSION : UInt = 1
 
+pub fn decode_core_payload(Op, BytesView) -> Result[CorePayload, ErrCode]
+
 pub fn decode_frame(BytesView) -> DecodeResult
+
+pub fn encode_core_payload(CorePayload) -> Result[Bytes, ErrCode]
 
 // Errors
 
 // Types and methods
+pub(all) struct AckPayload {
+  subscription_id : UInt16
+  topic_id : UInt16
+  partition : UInt16
+  sequence : UInt64
+  delivery_id : UInt64
+  ownership_epoch : UInt64
+  flags : UInt16
+} derive(Eq, @debug.Debug)
+pub fn AckPayload::equal(Self, Self) -> Bool
+pub fn AckPayload::not_equal(Self, Self) -> Bool
+pub fn AckPayload::to_repr(Self) -> @debug.Repr
+
+pub(all) struct ConnectPayload {
+  protocol_version : Byte
+  client_flags : UInt16
+  token : Bytes
+} derive(Eq, @debug.Debug)
+pub fn ConnectPayload::equal(Self, Self) -> Bool
+pub fn ConnectPayload::not_equal(Self, Self) -> Bool
+pub fn ConnectPayload::to_repr(Self) -> @debug.Repr
+
+pub(all) enum CorePayload {
+  Connect(ConnectPayload)
+  Declare(DeclarePayload)
+  Pub(PubPayload)
+  Sub(SubPayload)
+  Ack(AckPayload)
+  Nack(NackPayload)
+  Ping
+  Err(ErrPayload)
+  Ok(OkPayload)
+} derive(Eq, @debug.Debug)
+pub fn CorePayload::equal(Self, Self) -> Bool
+pub fn CorePayload::not_equal(Self, Self) -> Bool
+pub fn CorePayload::to_repr(Self) -> @debug.Repr
+
+pub(all) struct DeclarePayload {
+  topic : Bytes
+  partition_count : UInt16
+  flags : UInt16
+} derive(Eq, @debug.Debug)
+pub fn DeclarePayload::equal(Self, Self) -> Bool
+pub fn DeclarePayload::not_equal(Self, Self) -> Bool
+pub fn DeclarePayload::to_repr(Self) -> @debug.Repr
+
 pub enum DecodeResult {
   Need(Int)
   Frame(Op, BytesView)
@@ -90,6 +140,37 @@ pub fn ErrCode::not_equal(Self, Self) -> Bool
 pub fn ErrCode::to_repr(Self) -> @debug.Repr
 pub fn ErrCode::to_u16(Self) -> UInt
 
+pub(all) struct ErrPayload {
+  code : ErrCode
+  request_op : Op
+  message : Bytes
+} derive(Eq, @debug.Debug)
+pub fn ErrPayload::equal(Self, Self) -> Bool
+pub fn ErrPayload::not_equal(Self, Self) -> Bool
+pub fn ErrPayload::to_repr(Self) -> @debug.Repr
+
+pub(all) struct NackPayload {
+  subscription_id : UInt16
+  topic_id : UInt16
+  partition : UInt16
+  sequence : UInt64
+  delivery_id : UInt64
+  ownership_epoch : UInt64
+  reason : Byte
+  flags : UInt16
+} derive(Eq, @debug.Debug)
+pub fn NackPayload::equal(Self, Self) -> Bool
+pub fn NackPayload::not_equal(Self, Self) -> Bool
+pub fn NackPayload::to_repr(Self) -> @debug.Repr
+
+pub(all) struct OkPayload {
+  request_op : Op
+  result : Bytes
+} derive(Eq, @debug.Debug)
+pub fn OkPayload::equal(Self, Self) -> Bool
+pub fn OkPayload::not_equal(Self, Self) -> Bool
+pub fn OkPayload::to_repr(Self) -> @debug.Repr
+
 pub(all) enum Op {
   Connect
   Declare
@@ -112,6 +193,32 @@ pub fn Op::from_byte(Byte) -> Self?
 pub fn Op::not_equal(Self, Self) -> Bool
 pub fn Op::to_byte(Self) -> Byte
 pub fn Op::to_repr(Self) -> @debug.Repr
+
+pub(all) struct PubPayload {
+  topic_id : UInt16
+  partition : UInt16
+  producer_id : UInt64
+  producer_seq : UInt64
+  flags : UInt16
+  key : Bytes
+  value : Bytes
+} derive(Eq, @debug.Debug)
+pub fn PubPayload::equal(Self, Self) -> Bool
+pub fn PubPayload::not_equal(Self, Self) -> Bool
+pub fn PubPayload::to_repr(Self) -> @debug.Repr
+
+pub(all) struct SubPayload {
+  group : Bytes
+  topic_id : UInt16
+  partition : UInt16
+  start_policy : Byte
+  credit_count : UInt16
+  credit_bytes : UInt
+  flags : UInt16
+} derive(Eq, @debug.Debug)
+pub fn SubPayload::equal(Self, Self) -> Bool
+pub fn SubPayload::not_equal(Self, Self) -> Bool
+pub fn SubPayload::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
