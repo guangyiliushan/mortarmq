@@ -27,9 +27,8 @@ pub extend StorageFault with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 /// Fixed fields preceding one record's key and value bytes.
 ///
-/// `record_len` is derived from the two length fields and therefore is not part
-/// of the in-memory DTO. `record_crc32c` is supplied by the write path after
-/// the key/value bytes are available.
+/// `record_len` and `record_crc32c` are derived by the write path and are not
+/// part of the in-memory DTO.
 pub(all) struct RecordHeader {
   flags : UInt16
   key_length : UInt16
@@ -40,7 +39,6 @@ pub(all) struct RecordHeader {
   timestamp_unix_ms : UInt64
   leader_epoch : UInt
   replication_flags : Byte
-  record_crc32c : UInt
 } derive(Eq, Debug)
 
 ///|
@@ -50,66 +48,63 @@ pub extend RecordHeader with Eq::{not_equal, equal}
 pub extend RecordHeader with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-priv struct HeaderCursor {
-  data : BytesView
-  mut offset : Int
-}
-
-///|
-fn HeaderCursor::take(
-  self : HeaderCursor,
-  length : Int,
-) -> Result[BytesView, StorageFault] {
-  let remaining = self.data.length() - self.offset
-  if length < 0 || length > remaining {
+fn header_uint16(
+  data : BytesView,
+  offset : Int,
+) -> Result[UInt16, StorageFault] {
+  if offset + 2 > data.length() {
     return Err(Malformed)
   }
-  let view = self.data[self.offset:self.offset + length]
-  self.offset = self.offset + length
-  Ok(view)
+  Ok(((data[offset].to_uint() << 8) | data[offset + 1].to_uint()).to_uint16())
 }
 
 ///|
-fn HeaderCursor::uint16(self : HeaderCursor) -> Result[UInt16, StorageFault] {
-  match self.take(2) {
-    Ok(data) => Ok(((data[0].to_uint() << 8) | data[1].to_uint()).to_uint16())
-    Err(code) => Err(code)
+fn header_uint(data : BytesView, offset : Int) -> Result[UInt, StorageFault] {
+  if offset + 4 > data.length() {
+    return Err(Malformed)
   }
+  Ok(
+    (data[offset].to_uint() << 24) +
+    (data[offset + 1].to_uint() << 16) +
+    (data[offset + 2].to_uint() << 8) +
+    data[offset + 3].to_uint(),
+  )
 }
 
 ///|
-fn HeaderCursor::uint(self : HeaderCursor) -> Result[UInt, StorageFault] {
-  match self.take(4) {
-    Ok(data) =>
-      Ok(
-        (data[0].to_uint() << 24) +
-        (data[1].to_uint() << 16) +
-        (data[2].to_uint() << 8) +
-        data[3].to_uint(),
-      )
-    Err(code) => Err(code)
+fn header_uint64(
+  data : BytesView,
+  offset : Int,
+) -> Result[UInt64, StorageFault] {
+  if offset + 8 > data.length() {
+    return Err(Malformed)
   }
+  let mut value = 0UL
+  for index in 0..<=7 {
+    value = (value << 8) | data[offset + index].to_uint64()
+  }
+  Ok(value)
 }
 
 ///|
-fn HeaderCursor::uint64(self : HeaderCursor) -> Result[UInt64, StorageFault] {
-  match self.take(8) {
-    Ok(data) => {
-      let mut value = 0UL
-      for index in 0..<=7 {
-        value = (value << 8) | data[index].to_uint64()
+fn crc32c(data : BytesView) -> UInt {
+  let mut crc = 0xFFFFFFFFU
+  for byte in data {
+    crc = crc ^ byte.to_uint()
+    for _index in 0..<8 {
+      let low_bit = crc & 1U
+      if low_bit != 0U {
+        crc = (crc >> 1) ^ 0x82F63B78U
+      } else {
+        crc = crc >> 1
       }
-      Ok(value)
     }
-    Err(code) => Err(code)
   }
+  crc ^ 0xFFFFFFFFU
 }
 
 ///|
-/// Validate the leading `MMQS`, format, and header-version bytes of a segment.
-///
-/// This is the segment-level identity check; v0 record headers do not repeat
-/// magic or format version in every record.
+/// Validate segment magic and both v0 header-version bytes.
 pub fn validate_segment_identity(
   data : BytesView,
 ) -> Result[Unit, StorageFault] {
@@ -128,169 +123,15 @@ pub fn validate_segment_identity(
 }
 
 ///|
-/// Decode and validate the fixed fields of a 56-byte record header.
-///
-/// The input must contain the complete record (`4 + record_len` bytes), so
-/// length consistency and protocol value bounds are checked at the trust
-/// boundary before recovery or append code sees the header.
-///
-/// # Example
-///
-/// ```mbt check
-/// test {
-///   let bytes = @storage.encode_record_header(
-///     @storage.RecordHeader::new(
-///       flags=0,
-///       key_length=0,
-///       value_length=5,
-///       sequence=1UL,
-///       producer_id=2UL,
-///       producer_seq=3UL,
-///       timestamp_unix_ms=4UL,
-///       leader_epoch=0,
-///       replication_flags=0,
-///       record_crc32c=6,
-///     ),
-///     b"",
-///     b"value",
-///   )
-///   match @storage.decode_record_header(bytes[:]) {
-///     Ok(header) => assert_eq(header.sequence, 1UL)
-///     Err(_) => fail("expected record header")
-///   }
-/// }
-/// ```
-pub fn decode_record_header(
-  data : BytesView,
-) -> Result[RecordHeader, StorageFault] {
-  if data.length() < RECORD_HEADER_BYTES {
-    return Err(Malformed)
-  }
-  let cursor = { data, offset: 0, }
-  let record_length = match cursor.uint() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let record_crc32c = match cursor.uint() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let flags = match cursor.uint16() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let key_length = match cursor.uint16() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let value_length = match cursor.uint() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let sequence = match cursor.uint64() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let producer_id = match cursor.uint64() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let producer_seq = match cursor.uint64() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let timestamp_unix_ms = match cursor.uint64() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let leader_epoch = match cursor.uint() {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  let replication_flags = match cursor.take(1) {
-    Ok(value) => value[0]
-    Err(code) => return Err(code)
-  }
-  let reserved = match cursor.take(3) {
-    Ok(value) => value
-    Err(code) => return Err(code)
-  }
-  if record_length != 52U + key_length.to_uint() + value_length {
-    return Err(Malformed)
-  }
-  if value_length > MAX_RECORD_VALUE_BYTES {
-    return Err(Malformed)
-  }
-  let reserved_flag_bits = flags.to_uint() & 0xFFFCU
-  if reserved_flag_bits != 0U {
-    return Err(Malformed)
-  }
-  if replication_flags > 3 {
-    return Err(Malformed)
-  }
-  for byte in reserved {
-    if byte != 0 {
-      return Err(Malformed)
-    }
-  }
-  if data.length() < 4 + record_length.reinterpret_as_int() {
-    return Err(Malformed)
-  }
-  if cursor.offset != RECORD_HEADER_BYTES {
-    return Err(Malformed)
-  }
-  Ok({
-    flags,
-    key_length,
-    value_length,
-    sequence,
-    producer_id,
-    producer_seq,
-    timestamp_unix_ms,
-    leader_epoch,
-    replication_flags,
-    record_crc32c,
-  })
-}
+/// Compute CRC32C over every byte after the stored CRC field.
 
 ///|
-/// Encode exact header fields and key/value bytes into a v0 record.
-///
-/// The caller supplies the CRC after key/value bytes because the frozen CRC
-/// scope is every byte after the four-byte CRC field.
-///
-/// # Example
-///
-/// ```mbt check
-/// test {
-///   let bytes = @storage.encode_record_header(
-///     @storage.RecordHeader::new(
-///       flags=0,
-///       key_length=0,
-///       value_length=5,
-///       sequence=1UL,
-///       producer_id=2UL,
-///       producer_seq=3UL,
-///       timestamp_unix_ms=4UL,
-///       leader_epoch=0,
-///       replication_flags=0,
-///       record_crc32c=6,
-///     ),
-///     b"",
-///     b"value",
-///   )
-///   assert_eq(bytes.length(), 61)
-/// }
-/// ```
-pub fn encode_record_header(
+fn record_suffix(
   header : RecordHeader,
   key : BytesView,
   value : BytesView,
 ) -> Bytes {
   let buf = Buffer()
-  let record_length = 52 + key.length() + value.length()
-  buf.write_uint_be(record_length.reinterpret_as_uint())
-  buf.write_uint_be(header.record_crc32c)
   buf.write_uint16_be(header.flags)
   buf.write_uint16_be(header.key_length)
   buf.write_uint_be(header.value_length)
@@ -307,6 +148,137 @@ pub fn encode_record_header(
 }
 
 ///|
+/// Decode and validate the fixed fields of a complete v0 record.
+///
+/// The input must contain exactly `4 + record_len` bytes. Length consistency,
+/// protocol value bounds, reserved bits, reserved bytes, and CRC are checked at
+/// this trust boundary.
+pub fn decode_record_header(
+  data : BytesView,
+) -> Result[RecordHeader, StorageFault] {
+  if data.length() < RECORD_HEADER_BYTES {
+    return Err(Malformed)
+  }
+  let record_length = match header_uint(data, 0) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let stored_crc32c = match header_uint(data, 4) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let flags = match header_uint16(data, 8) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let key_length = match header_uint16(data, 10) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let value_length = match header_uint(data, 12) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let sequence = match header_uint64(data, 16) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let producer_id = match header_uint64(data, 24) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let producer_seq = match header_uint64(data, 32) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let timestamp_unix_ms = match header_uint64(data, 40) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let leader_epoch = match header_uint(data, 48) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  let replication_flags = data[52]
+  if replication_flags > 3 {
+    return Err(Malformed)
+  }
+  if data[53] != 0 || data[54] != 0 || data[55] != 0 {
+    return Err(Malformed)
+  }
+  if record_length != 52U + key_length.to_uint() + value_length {
+    return Err(Malformed)
+  }
+  if value_length > MAX_RECORD_VALUE_BYTES {
+    return Err(Malformed)
+  }
+  let reserved_flag_bits = flags.to_uint() & 0xFFFCU
+  if reserved_flag_bits != 0U {
+    return Err(Malformed)
+  }
+  if data.length() != 4 + record_length.reinterpret_as_int() {
+    return Err(Malformed)
+  }
+  let crc_data = data[8:4 + record_length.reinterpret_as_int()]
+  if stored_crc32c != crc32c(crc_data) {
+    return Err(Malformed)
+  }
+  Ok({
+    flags,
+    key_length,
+    value_length,
+    sequence,
+    producer_id,
+    producer_seq,
+    timestamp_unix_ms,
+    leader_epoch,
+    replication_flags,
+  })
+}
+
+///|
+/// Encode a validated header, key, and value into a CRC-protected record.
+///
+/// The CRC is calculated here so callers cannot publish a stale checksum.
+/// `flags` bit0 must agree with key presence; bits1 is tombstone and bits2+ are
+/// reserved. The replication kind must be 0-3.
+pub fn encode_record_header(
+  header : RecordHeader,
+  key : BytesView,
+  value : BytesView,
+) -> Result[Bytes, StorageFault] {
+  if header.key_length.to_int() != key.length() {
+    return Err(Malformed)
+  }
+  if header.value_length != value.length().reinterpret_as_uint() {
+    return Err(Malformed)
+  }
+  if header.value_length > MAX_RECORD_VALUE_BYTES {
+    return Err(Malformed)
+  }
+  let key_present_bit = header.flags.to_uint() & 1U
+  let key_present = key_present_bit != 0U
+  if key_present != (key.length() > 0) {
+    return Err(Malformed)
+  }
+  let reserved_flag_bits = header.flags.to_uint() & 0xFFFCU
+  if reserved_flag_bits != 0U {
+    return Err(Malformed)
+  }
+  if header.replication_flags > 3 {
+    return Err(Malformed)
+  }
+  let suffix = record_suffix(header, key, value)
+  let crc = crc32c(suffix)
+  let buf = Buffer()
+  let record_length = 52 + key.length() + value.length()
+  buf.write_uint_be(record_length.reinterpret_as_uint())
+  buf.write_uint_be(crc)
+  buf.write_bytes(suffix)
+  Ok(buf.contents())
+}
+
+///|
 /// Construct a v0 header with zero reserved and replication-normal fields.
 pub fn RecordHeader::new(
   flags~ : UInt16,
@@ -318,7 +290,6 @@ pub fn RecordHeader::new(
   timestamp_unix_ms~ : UInt64,
   leader_epoch~ : UInt,
   replication_flags~ : Byte,
-  record_crc32c~ : UInt,
 ) -> RecordHeader {
   {
     flags,
@@ -330,6 +301,5 @@ pub fn RecordHeader::new(
     timestamp_unix_ms,
     leader_epoch,
     replication_flags,
-    record_crc32c,
   }
 }

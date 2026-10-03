@@ -12,4 +12,5 @@ Public API lookup for client authors and second-party developers.
 - `protocol` package: `WirePayload` covers request, response, and server-push payloads for all fifteen operations; `decode_wire_payload` / `encode_wire_payload` check field order, bounds, trailing bytes, and op matching.
 - `storage` package: the v0 record header uses the frozen 56-byte layout; `decode_record_header` checks length consistency, value bounds, reserved bytes, and replication kind.
 - `storage` package: `validate_segment_identity` checks `MMQS`, format version, and header version.
+- `storage` package: `encode_record_header` calculates CRC32C; `decode_record_header` verifies CRC, key-present consistency, lengths, value bounds, reserved bits, and replication kind.
 - Remaining packages are filled in by `moon doc` once implemented.

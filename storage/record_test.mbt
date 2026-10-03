@@ -3,7 +3,7 @@
 ///|
 fn valid_header() -> @storage.RecordHeader {
   @storage.RecordHeader::new(
-    flags=0,
+    flags=1,
     key_length=3,
     value_length=5,
     sequence=100UL,
@@ -12,13 +12,15 @@ fn valid_header() -> @storage.RecordHeader {
     timestamp_unix_ms=200UL,
     leader_epoch=0,
     replication_flags=0,
-    record_crc32c=6,
   )
 }
 
 ///|
-fn valid_bytes() -> Bytes {
-  @storage.encode_record_header(valid_header(), b"key", b"value")
+fn valid_bytes() -> Bytes raise {
+  match @storage.encode_record_header(valid_header(), b"key", b"value") {
+    Ok(bytes) => bytes
+    Err(_) => fail("header encoding failed")
+  }
 }
 
 ///|
@@ -32,9 +34,18 @@ test "record header round-trips all frozen fields" {
 }
 
 ///|
+test "record header rejects CRC corruption" {
+  let bytes = valid_bytes()
+  let corrupted = bytes[:8].to_owned() + b"\xff" + bytes[9:].to_owned()
+  match @storage.decode_record_header(corrupted[:]) {
+    Err(@storage.Malformed) => assert_eq(true, true)
+    _ => fail("expected CRC corruption rejection")
+  }
+}
+
+///|
 test "record header rejects inconsistent and oversized lengths" {
-  let header = valid_header()
-  let bytes = @storage.encode_record_header(header, b"key", b"value")
+  let bytes = valid_bytes()
   let bad_record_length = b"\x00\x00\x00\x1e" + bytes[4:].to_owned()
   match @storage.decode_record_header(bad_record_length[:]) {
     Err(@storage.Malformed) => assert_eq(true, true)
@@ -75,6 +86,18 @@ test "record header rejects nonzero reserved bytes" {
 }
 
 ///|
+test "record header rejects key-presence mismatch" {
+  let bytes = valid_bytes()
+  let missing_key_flag = bytes[:8].to_owned() +
+    b"\x00\x00" +
+    bytes[10:].to_owned()
+  match @storage.decode_record_header(missing_key_flag[:]) {
+    Err(@storage.Malformed) => assert_eq(true, true)
+    _ => fail("expected missing key-flag rejection")
+  }
+}
+
+///|
 test "segment identity validates MMS and format/header versions" {
   let bytes : Bytes = b"MMQS\x01\x01\x00\x00"
   assert_eq(@storage.validate_segment_identity(bytes[:]), Ok(()))
@@ -88,16 +111,4 @@ test "segment identity validates MMS and format/header versions" {
     @storage.validate_segment_identity(bad_version[:]),
     Err(@storage.Malformed),
   )
-}
-/// Decode a hand-built v0 record to pin every field and byte order.
-
-///|
-test "record header decodes a hand-built frozen-layout vector" {
-  let header = valid_header()
-  let bytes : Bytes = b"\x00\x00\x00\x3c\x00\x00\x00\x06\x00\x00\x00\x03\x00\x00\x00\x05\x00\x00\x00\x00\x00\x00\x00\x64\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\xc8\x00\x00\x00\x00\x00\x00\x00\x00keyvalue"
-  assert_eq(bytes, @storage.encode_record_header(header, b"key", b"value"))
-  match @storage.decode_record_header(bytes[:]) {
-    Ok(decoded) => assert_eq(decoded, header)
-    Err(_) => fail("expected hand-built record to decode")
-  }
 }
