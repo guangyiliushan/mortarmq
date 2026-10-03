@@ -512,7 +512,7 @@ fn decode_sub(data : BytesView) -> Result[WirePayload, ErrCode] {
     Err(code) => return Err(code)
   }
   if partition.to_uint() != 0xFFFFU {
-    return Err(UnknownPartition)
+    return Err(MalformedPayload)
   }
   let start_policy = match cursor.byte() {
     Ok(value) => value
@@ -1187,7 +1187,7 @@ fn encode_pub(payload : PubPayload) -> Result[Bytes, ErrCode] {
 ///|
 fn encode_sub(payload : SubPayload) -> Result[Bytes, ErrCode] {
   if payload.partition.to_uint() != 0xFFFFU {
-    return Err(UnknownPartition)
+    return Err(MalformedPayload)
   }
   let buf = Buffer()
   match write_field(buf, payload.group[:], 0xFFFF) {

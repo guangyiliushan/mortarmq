@@ -176,8 +176,8 @@ test "PUB rejects a key above the protocol maximum" {
 test "SUB rejects a concrete partition in v0" {
   let payload : Bytes = b"\x00\x01g\x00\x07\x00\x00\x00\x00\x00\x10\x00\x01\x00\x00"
   match @protocol.decode_wire_payload(@protocol.Op::Sub, payload[:]) {
-    Err(@protocol.UnknownPartition) => assert_eq(true, true)
-    _ => fail("expected concrete-partition rejection")
+    Err(@protocol.MalformedPayload) => assert_eq(true, true)
+    _ => fail("expected reserved-partition rejection")
   }
 }
 
@@ -202,6 +202,21 @@ test "PING rejects trailing bytes" {
     Err(@protocol.MalformedPayload) => assert_eq(true, true)
     _ => fail("expected PING trailing-byte failure")
   }
+}
+
+///|
+test "ERR accepts the maximum diagnostic boundary" {
+  let message = Bytes::makei(@protocol.MAX_ERR_MESSAGE.reinterpret_as_int(), _index => {
+    b'a'
+  })
+  expect_roundtrip(
+    @protocol.Op::Err,
+    @protocol.WirePayload::Err({
+      code: @protocol.Internal,
+      request_op: @protocol.Op::Pub,
+      message,
+    }),
+  )
 }
 
 ///|
@@ -335,6 +350,40 @@ test "PUB rejects an oversized key before taking bytes" {
 }
 
 ///|
+test "PUB rejects the first value length above MAX_VALUE_LEN" {
+  let buf = Buffer()
+  buf.write_uint16_be(1)
+  buf.write_uint16_be(0)
+  buf.write_uint64_be(1UL)
+  buf.write_uint64_be(1UL)
+  buf.write_uint16_be(0)
+  buf.write_uint16_be(0)
+  buf.write_uint_be(@protocol.MAX_VALUE_LEN + 1U)
+  let bytes = buf.contents()
+  match @protocol.decode_wire_payload(@protocol.Op::Pub, bytes[:]) {
+    Err(@protocol.MalformedPayload) => assert_eq(true, true)
+    _ => fail("expected MAX_VALUE_LEN + 1 rejection")
+  }
+}
+
+///|
+test "PUB rejects negative reinterpreted u32 value lengths" {
+  let buf = Buffer()
+  buf.write_uint16_be(1)
+  buf.write_uint16_be(0)
+  buf.write_uint64_be(1UL)
+  buf.write_uint64_be(1UL)
+  buf.write_uint16_be(0)
+  buf.write_uint16_be(0)
+  buf.write_uint_be(0x80000000U)
+  let bytes = buf.contents()
+  match @protocol.decode_wire_payload(@protocol.Op::Pub, bytes[:]) {
+    Err(@protocol.MalformedPayload) => assert_eq(true, true)
+    _ => fail("expected high u32 value-length rejection")
+  }
+}
+
+///|
 test "PUB rejects an oversized value length without materializing it" {
   let buf = Buffer()
   buf.write_uint16_be(1)
@@ -446,6 +495,38 @@ test "extension HEARTBEAT payload round-trips" {
       membership_epoch: 2,
       assignment_epoch: 3,
       state: 0,
+    }),
+  )
+}
+
+///|
+test "extension NOTICE accepts ASSIGN and REVOKE kinds" {
+  expect_roundtrip(
+    @protocol.Op::Notice,
+    @protocol.WirePayload::Notice({
+      notice_id: 1UL,
+      kind: 0,
+      group_id: 2,
+      membership_epoch: 3,
+      assignment_epoch: 4,
+      ownership_epoch: 5UL,
+      topic_id: 6,
+      partition: 7,
+      member_id: 8UL,
+    }),
+  )
+  expect_roundtrip(
+    @protocol.Op::Notice,
+    @protocol.WirePayload::Notice({
+      notice_id: 1UL,
+      kind: 1,
+      group_id: 2,
+      membership_epoch: 3,
+      assignment_epoch: 4,
+      ownership_epoch: 5UL,
+      topic_id: 6,
+      partition: 7,
+      member_id: 8UL,
     }),
   )
 }
