@@ -1,0 +1,98 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/harness"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+pub(all) suberror HarnessFault {
+  PathMissing
+  PeerPartitioned
+  DiskFull
+} derive(Eq, @debug.Debug)
+pub fn HarnessFault::equal(Self, Self) -> Bool
+pub fn HarnessFault::not_equal(Self, Self) -> Bool
+pub fn HarnessFault::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct DiskCapabilities {
+  file_fsync : Bool
+  atomic_rename : Bool
+  dir_fsync : Bool
+} derive(Eq, @debug.Debug)
+pub fn DiskCapabilities::equal(Self, Self) -> Bool
+pub fn DiskCapabilities::not_equal(Self, Self) -> Bool
+pub fn DiskCapabilities::to_repr(Self) -> @debug.Repr
+
+pub(all) struct FakeClock {
+  // private fields
+} derive(@debug.Debug)
+pub fn FakeClock::advance_to(Self, UInt64) -> Unit
+pub fn FakeClock::fired_deadlines(Self) -> Array[UInt64]
+pub fn FakeClock::new() -> Self
+pub async fn FakeClock::now_ms(Self) -> UInt64
+pub fn FakeClock::pending_count(Self) -> Int
+pub async fn FakeClock::sleep_until(Self, UInt64) -> Bool
+pub fn FakeClock::to_repr(Self) -> @debug.Repr
+pub impl Clock for FakeClock
+
+pub(all) struct FakeDisk {
+  // private fields
+} derive(@debug.Debug)
+pub fn FakeDisk::capabilities(Self) -> DiskCapabilities
+pub async fn FakeDisk::fsync(Self, Bytes) -> Result[Unit, HarnessFault]
+pub fn FakeDisk::new() -> Self
+pub async fn FakeDisk::read(Self, Bytes) -> Result[Bytes, HarnessFault]
+pub async fn FakeDisk::rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
+pub fn FakeDisk::set_disk_full(Self, Bool) -> Unit
+pub fn FakeDisk::snapshot(Self) -> Array[(Bytes, Bytes)]
+pub fn FakeDisk::to_repr(Self) -> @debug.Repr
+pub async fn FakeDisk::write(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
+pub impl Disk for FakeDisk
+
+pub(all) struct FakeNet {
+  // private fields
+} derive(@debug.Debug)
+pub fn FakeNet::new() -> Self
+pub fn FakeNet::partition(Self, UInt16) -> Unit
+pub async fn FakeNet::receive(Self, UInt16) -> Bytes?
+pub async fn FakeNet::send(Self, UInt16, Bytes) -> Result[Unit, HarnessFault]
+pub fn FakeNet::sent_messages(Self) -> Array[(UInt16, Bytes)]
+pub fn FakeNet::to_repr(Self) -> @debug.Repr
+pub impl Net for FakeNet
+
+pub(all) struct SplitMix64 {
+  // private fields
+} derive(@debug.Debug)
+pub fn SplitMix64::new(UInt64) -> Self
+pub fn SplitMix64::next_u64(Self) -> UInt64
+pub fn SplitMix64::to_repr(Self) -> @debug.Repr
+pub impl Rng for SplitMix64
+
+// Type aliases
+
+// Traits
+pub(open) trait Clock {
+  async fn now_ms(Self) -> UInt64
+  async fn sleep_until(Self, UInt64) -> Bool
+}
+
+pub(open) trait Disk {
+  async fn write(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
+  async fn read(Self, Bytes) -> Result[Bytes, HarnessFault]
+  async fn fsync(Self, Bytes) -> Result[Unit, HarnessFault]
+  async fn rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
+  fn capabilities(Self) -> DiskCapabilities
+}
+
+pub(open) trait Net {
+  async fn send(Self, UInt16, Bytes) -> Result[Unit, HarnessFault]
+  async fn receive(Self, UInt16) -> Bytes?
+}
+
+pub(open) trait Rng {
+  fn next_u64(Self) -> UInt64
+}
