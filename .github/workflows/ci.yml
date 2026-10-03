@@ -39,6 +39,7 @@ jobs:
       - name: check out sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: set up Node 24 LTS (runs the doc reference gate)
@@ -59,6 +60,17 @@ jobs:
 
       - name: doc reference gate (CONTRIBUTING section 1.2)
         run: node .github/scripts/check-doc-refs.mjs
+
+      - name: commit subject checker self-test
+        run: bash .github/scripts/check-commit-messages.sh --self-test
+
+      - name: commit subject gate (PR or pushed commits)
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.event.after }}
+        run: bash .github/scripts/check-commit-messages.sh
 
   stable:
     name: stable / ${{ matrix.os }}
