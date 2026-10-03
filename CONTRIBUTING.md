@@ -10,7 +10,7 @@ Sections 2, 3 and 4 are **constraints, not suggestions** — they keep contribut
 
 ### 1.1 Environment
 
-- MoonBit toolchain `moonc >= 0.10.14` (the competition compliance line). The toolchain has no native `>=` assertion, so CI runs `bash .github/scripts/assert-moonc.sh` and fails hard instead of leaving the version to be read out of a log. Set `MOONBIT_INSTALL_VERSION` during an audit window so a re-run cannot drift the toolchain.
+- Stable and release CI pin MoonBit to `moonc 0.10.14`; nightly CI is the separate drift probe. The toolchain has no native `>=` assertion, so CI also runs `bash .github/scripts/assert-moonc.sh` and fails hard instead of leaving the version to be read out of a log.
   - Install: <https://cli.moonbitlang.com> · verify with `moon version --all`
 - Node 24 LTS: docs site (VitePress) and demo tooling only. It is not a MoonBit dependency, and no runtime code depends on an npm package.
 - Windows dev machines: `git config --global core.autocrlf false` — CRLF breaks the `fmt` / `info` diff gates. `.gitattributes` also enforces LF.

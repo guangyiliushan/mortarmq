@@ -15,6 +15,11 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+# Release gates use the same audited compiler as stable CI.
+env:
+  MOONBIT_INSTALL_VERSION: "0.1.20260920"
+  MOONC_VERSION_FLOOR: "0.10.14"
+
 jobs:
   gates:
     name: gates / ${{ matrix.os }}
