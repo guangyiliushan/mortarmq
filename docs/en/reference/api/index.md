@@ -10,4 +10,6 @@ Public API lookup for client authors and second-party developers.
 - `protocol` package: `Op` maps the fifteen assigned operation bytes through `Op::from_byte` / `Op#to_byte`; every reserved byte returns `None`.
 - `protocol` package: `decode_frame` returns `Need`, a borrowing `Frame`, or `DecodeError`; unknown operations are rejected as soon as the five-byte header is visible.
 - `protocol` package: `WirePayload` covers request, response, and server-push payloads for all fifteen operations; `decode_wire_payload` / `encode_wire_payload` check field order, bounds, trailing bytes, and op matching.
+- `storage` package: the v0 record header uses the frozen 56-byte layout; `decode_record_header` checks length consistency, value bounds, reserved bytes, and replication kind.
+- `storage` package: `validate_segment_identity` checks `MMQS`, format version, and header version.
 - Remaining packages are filled in by `moon doc` once implemented.
