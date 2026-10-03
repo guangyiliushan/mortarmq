@@ -87,16 +87,8 @@ run_self_test() {
   printf 'self-test passed: %d valid and %d invalid subjects\n' "${#valid[@]}" "${#invalid[@]}"
 }
 
-check_range() {
-  local base=$1 head=$2 sha subject reason failures=0 count=0
-
-  sha_exists "$base" || { printf 'base SHA is missing or unreachable: %s\n' "$base" >&2; return 1; }
-  sha_exists "$head" || { printf 'head SHA is missing or unreachable: %s\n' "$head" >&2; return 1; }
-
-  local log_args=("$base..$head")
-  if [[ "$base" = "$head" ]]; then
-    log_args=(-1 "$head")
-  fi
+validate_commit_stream() {
+  local sha subject reason failures=0 count=0
 
   while read -r sha subject; do
     count=$((count + 1))
@@ -107,10 +99,10 @@ check_range() {
       printf '  subject: %s\n' "$subject"
       failures=$((failures + 1))
     fi
-  done < <(git log "${log_args[@]}" --format='%H %s')
+  done
 
   if ((count == 0)); then
-    printf 'commit range contains no commits: %s..%s\n' "$base" "$head" >&2
+    printf 'commit selection contains no commits\n' >&2
     return 1
   fi
   if ((failures != 0)); then
@@ -118,6 +110,23 @@ check_range() {
     return 1
   fi
   printf 'commit subject gate passed: %d commit(s)\n' "$count"
+}
+
+check_range() {
+  local base=$1 head=$2
+
+  sha_exists "$base" || { printf 'base SHA is missing or unreachable: %s\n' "$base" >&2; return 1; }
+  sha_exists "$head" || { printf 'head SHA is missing or unreachable: %s\n' "$head" >&2; return 1; }
+
+  validate_commit_stream < <(git log --format='%H %s' "$base..$head")
+}
+
+check_single() {
+  local head=$1
+
+  sha_exists "$head" || { printf 'head SHA is missing or unreachable: %s\n' "$head" >&2; return 1; }
+
+  validate_commit_stream < <(git log -1 --format='%H %s' "$head")
 }
 
 select_github_range() {
@@ -132,10 +141,10 @@ select_github_range() {
     check_range "$push_before" "$push_after"
   elif sha_exists "$push_after"; then
     printf 'push fallback: latest pushed commit %s\n' "$push_after" >&2
-    check_range "$push_after" "$push_after"
+    check_single "$push_after"
   elif sha_exists HEAD; then
     printf 'event fallback: latest HEAD commit\n' >&2
-    check_range HEAD HEAD
+    check_single HEAD
   else
     printf 'no reachable commit to check\n' >&2
     return 1
