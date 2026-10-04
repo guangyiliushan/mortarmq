@@ -13,4 +13,5 @@
 - `storage` 包：v0 记录头使用 56 字节冻结布局；`decode_record_header` 校验长度一致、value 上限、保留位与 replication kind。
 - `storage` 包：`validate_segment_identity` 校验 `MMQS`、format version 和 header version。
 - `storage` 包：`encode_record_header` 计算 CRC32C；`decode_record_header` 验证 CRC、key-present 一致性、长度、value 上限、保留位和 replication kind。
-- 其余各包随实现落地由 `moon doc` 补入。
+- `harness` 包：提供确定性 `FakeClock`、`FakeNet`、`FakeDisk` 与 `SplitMix64`，覆盖虚拟时间、FIFO 投递、能力感知故障和可复现随机数。
+- client、broker、storage runtime、cluster、tools、bench 等接口随实现落地由 `moon doc` 补入。

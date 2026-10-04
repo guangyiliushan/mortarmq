@@ -13,4 +13,5 @@ Public API lookup for client authors and second-party developers.
 - `storage` package: the v0 record header uses the frozen 56-byte layout; `decode_record_header` checks length consistency, value bounds, reserved bytes, and replication kind.
 - `storage` package: `validate_segment_identity` checks `MMQS`, format version, and header version.
 - `storage` package: `encode_record_header` calculates CRC32C; `decode_record_header` verifies CRC, key-present consistency, lengths, value bounds, reserved bits, and replication kind.
-- Remaining packages are filled in by `moon doc` once implemented.
+- `harness` package: deterministic `FakeClock`, `FakeNet`, `FakeDisk`, and `SplitMix64` seams for virtual time, FIFO delivery, capability-aware faults, and reproducible randomness.
+- Client, broker, storage-runtime, cluster, tooling, and benchmark surfaces are filled in by `moon doc` once implemented.
