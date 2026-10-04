@@ -5,8 +5,9 @@ on:
     tags: ['v*.*.*']
   workflow_dispatch:   # dry-run: runs the five gates, publishing stays gated on a tag
 
-# Default to read-only. `github-release` is the only job that writes, and it
-# raises its own permissions below rather than granting them workflow-wide.
+# GitHub permissions stay read-only. A tagged run intentionally fails at
+# broker packaging until real per-platform artifacts exist; Mooncakes is then
+# skipped rather than publishing half of a release.
 permissions:
   contents: read
 

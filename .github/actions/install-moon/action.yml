@@ -36,4 +36,4 @@ runs:
         Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
         # The official installer reads MOONBIT_INSTALL_VERSION itself.
         Invoke-RestMethod https://cli.moonbitlang.com/install/powershell.ps1 | Invoke-Expression
-        "C:\Users\runneradmin\.moon\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+        Join-Path -Path $env:USERPROFILE -ChildPath ".moon\bin" | Out-File -FilePath $env:GITHUB_PATH -Append

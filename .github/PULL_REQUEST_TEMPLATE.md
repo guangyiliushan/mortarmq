@@ -1,11 +1,3 @@
----
-name: MortarMQ change review
-about: Reviewable slice for code, docs, workflow, or infrastructure changes
-title: ''
-labels: []
-assignees: []
----
-
 ## Summary
 
 <!-- What changed, why now, and the user-visible or operational behavior? -->
@@ -13,13 +5,13 @@ assignees: []
 ## Scope
 
 - [ ] This PR contains one concern.
-- [ ] Every commit is a valid Conventional Commit with required attribution.
+- [ ] Every commit is a valid Conventional Commit and carries reviewable AI attribution.
 - [ ] The diff is reviewable in one sitting; unrelated changes are split out.
 
 ## Quality gates
 
 - [ ] `moon check --deny-warn --target all` passes.
-- [ ] `moon fmt --check` passes.
+- [ ] `moon fmt` followed by `git diff --exit-code` passes.
 - [ ] Public-interface and formatting diffs are committed.
 - [ ] Required tests pass for the affected targets.
 
@@ -30,6 +22,6 @@ assignees: []
 
 ## Compliance
 
-- [ ] First contribution: I read [ICLA.md](./ICLA.md) and confirm the CLA.  
+- [ ] First contribution: I read [ICLA.md](./ICLA.md) and confirm the CLA.
       Skip this box only if this account already has a merged CLA-covered PR.
 - [ ] No secrets, generated artifacts, vendored code, or machine-specific paths are included.
