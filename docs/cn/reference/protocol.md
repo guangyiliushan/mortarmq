@@ -19,6 +19,7 @@ valid range: 1..=MAX_FRAME_LEN
 | `MAX_KEY_LEN` | 255 B | Key cap (UTF-8 not enforced) |
 | `MAX_TOPIC_LEN` | 255 B | Topic-name cap (UTF-8) |
 | `MAX_ERR_MESSAGE` | 512 B | Cap on ERR diagnostic text |
+| `MAX_OK_RESULT_LEN` | 16 MiB − 6 B (16777210) | Cap on OK result; reserves the op byte, `request_op`, and `result_len` |
 | `WIRE_VERSION` | 1 | First field of CONNECT |
 | Keepalive | 30 s | The server closes the connection after 1.5×30 s without a complete frame (semantics aligned with MQTT §3.1.2.10) |
 | Half-frame timeout | 10 s | Close on timeout; never attempt resynchronization |

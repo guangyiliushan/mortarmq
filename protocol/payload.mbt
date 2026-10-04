@@ -714,6 +714,9 @@ fn decode_ok(data : BytesView) -> Result[WirePayload, ErrCode] {
     Ok(value) => value.reinterpret_as_int()
     Err(code) => return Err(code)
   }
+  if result_length > MAX_OK_RESULT_LEN.reinterpret_as_int() {
+    return Err(MalformedPayload)
+  }
   let result = match cursor.take(result_length) {
     Ok(value) => value.to_owned()
     Err(code) => return Err(code)
@@ -1261,6 +1264,10 @@ fn encode_error(payload : ErrPayload) -> Result[Bytes, ErrCode] {
 
 ///|
 fn encode_ok(payload : OkPayload) -> Result[Bytes, ErrCode] {
+  match checked_len(payload.result[:], MAX_OK_RESULT_LEN.reinterpret_as_int()) {
+    Ok(_) => ()
+    Err(code) => return Err(code)
+  }
   let buf = Buffer()
   buf.write_byte(payload.request_op.to_byte())
   write_fixed_field(buf, payload.result[:])

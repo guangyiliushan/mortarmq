@@ -787,6 +787,40 @@ test "extension payloads accept every valid discriminant" {
 }
 
 ///|
+test "OK accepts the frame-maximum result length" {
+  let result = Bytes::makei(@protocol.MAX_OK_RESULT_LEN.reinterpret_as_int(), _index => {
+    b'o'
+  })
+  expect_roundtrip(
+    @protocol.Op::Ok,
+    @protocol.WirePayload::Ok({ request_op: @protocol.Op::Declare, result, }),
+  )
+}
+
+///|
+test "OK rejects the first frame-boundary overflow" {
+  let buf = Buffer()
+  buf.write_byte(@protocol.Op::Declare.to_byte())
+  buf.write_uint_be(@protocol.MAX_OK_RESULT_LEN + 1U)
+  let bytes = buf.contents()
+  match @protocol.decode_wire_payload(@protocol.Op::Ok, bytes[:]) {
+    Err(@protocol.MalformedPayload) => assert_eq(true, true)
+    _ => fail("expected OK frame-boundary rejection")
+  }
+  let result = Bytes::makei(
+    @protocol.MAX_OK_RESULT_LEN.reinterpret_as_int() + 1,
+    _index => b'o',
+  )
+  match
+    @protocol.encode_wire_payload(
+      @protocol.WirePayload::Ok({ request_op: @protocol.Op::Declare, result, }),
+    ) {
+    Err(@protocol.MalformedPayload) => assert_eq(true, true)
+    _ => fail("expected oversized OK encoding rejection")
+  }
+}
+
+///|
 test "PUB accepts the maximum value length" {
   let value = Bytes::makei(@protocol.MAX_VALUE_LEN.reinterpret_as_int(), _index => {
     b'v'

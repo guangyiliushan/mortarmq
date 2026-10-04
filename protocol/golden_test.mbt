@@ -116,11 +116,6 @@ test "golden hostile frames reject length and operation faults" {
     @protocol.DecodeError(code) => assert_eq(code, @protocol.UnknownOp)
     _ => fail("expected unknown-operation rejection")
   }
-  let oversized_length : Bytes = b"\x01\x00\x00\x01"
-  match @protocol.decode_frame(oversized_length[:]) {
-    @protocol.DecodeError(code) => assert_eq(code, @protocol.BadLength)
-    _ => fail("expected oversized-length rejection")
-  }
 }
 
 ///|

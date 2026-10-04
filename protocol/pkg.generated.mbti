@@ -16,6 +16,8 @@ pub const MAX_FRAME_LEN : UInt = 0x01000000
 
 pub const MAX_KEY_LEN : UInt = 255
 
+pub const MAX_OK_RESULT_LEN : UInt = 0x00FFFFFA
+
 pub const MAX_TOPIC_LEN : UInt = 255
 
 pub const MAX_VALUE_LEN : UInt = 0x00FFFC00

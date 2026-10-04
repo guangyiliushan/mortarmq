@@ -54,9 +54,27 @@ pub const MAX_TOPIC_LEN : UInt = 255U
 ///|
 /// Maximum length of an `ERR` diagnostic message in bytes: 512.
 ///
-/// Longer diagnostics are truncated by the sender. The text is advisory:
+/// Longer diagnostics are rejected by the sender. The text is advisory:
 /// clients branch on the numeric code and never on the message.
 pub const MAX_ERR_MESSAGE : UInt = 512U
+
+///|
+/// Maximum `OK` result length in bytes: 16 MiB - 6.
+///
+/// The frame cap includes the operation byte, and an `OK` payload spends one
+/// byte on `request_op` plus four bytes on `result_len`. A sender therefore
+/// rejects a larger result instead of producing a frame that no receiver can
+/// accept.
+///
+/// Example:
+///
+/// ```mbt check
+/// test {
+///   assert_eq(@protocol.MAX_OK_RESULT_LEN, 0x00FFFFFAU)
+///   assert_eq(@protocol.MAX_FRAME_LEN - @protocol.MAX_OK_RESULT_LEN, 6U)
+/// }
+/// ```
+pub const MAX_OK_RESULT_LEN : UInt = 0x00FFFFFAU
 
 ///|
 /// Protocol version carried in the first `CONNECT` field: 1.
