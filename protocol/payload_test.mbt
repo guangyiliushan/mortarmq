@@ -410,10 +410,10 @@ test "OK rejects an oversized result length without materializing it" {
 }
 
 ///|
-test "core payload codec rejects extension operations" {
+test "MSG rejects an empty payload as truncation" {
   match @protocol.decode_wire_payload(@protocol.Op::Msg, b"") {
     Err(@protocol.MalformedPayload) => assert_eq(true, true)
-    _ => fail("expected extension-operation rejection")
+    _ => fail("expected MSG truncation rejection")
   }
 }
 

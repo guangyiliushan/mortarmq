@@ -116,10 +116,19 @@ test "golden hostile frames reject length and operation faults" {
     @protocol.DecodeError(code) => assert_eq(code, @protocol.UnknownOp)
     _ => fail("expected unknown-operation rejection")
   }
-  let oversized_length : Bytes = b"\x02\x00\x00\x00"
+  let oversized_length : Bytes = b"\x01\x00\x00\x01"
   match @protocol.decode_frame(oversized_length[:]) {
     @protocol.DecodeError(code) => assert_eq(code, @protocol.BadLength)
     _ => fail("expected oversized-length rejection")
+  }
+}
+
+///|
+test "golden max-plus-one frame is rejected at the length boundary" {
+  let max_plus_one : Bytes = b"\x01\x00\x00\x01"
+  match @protocol.decode_frame(max_plus_one[:]) {
+    @protocol.DecodeError(code) => assert_eq(code, @protocol.BadLength)
+    _ => fail("expected literal MAX_FRAME_LEN + 1 rejection")
   }
 }
 

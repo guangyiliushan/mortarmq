@@ -60,7 +60,7 @@ test "decoder requests the full body for the exact maximum length" {
 
 ///|
 test "decoder rejects a length above the protocol maximum" {
-  let oversized_length : Bytes = b"\x02\x00\x00\x00"
+  let oversized_length : Bytes = b"\x01\x00\x00\x01"
   match @protocol.decode_frame(oversized_length[:]) {
     @protocol.DecodeError(code) => assert_eq(code, @protocol.BadLength)
     _ => fail("expected BAD_LENGTH above MAX_FRAME_LEN")
