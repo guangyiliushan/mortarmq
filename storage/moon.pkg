@@ -1,3 +1,4 @@
 import {
+  "guangyiliushan/mortarmq/protocol",
   "moonbitlang/core/debug",
 }

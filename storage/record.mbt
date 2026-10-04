@@ -1,12 +1,14 @@
-/// Fixed v0 layouts for storage segment identity and append-only record headers.
+/// Validate the frozen v0 on-disk record boundary.
+///
+/// A record is `u32_be record_len || u32_be crc32c || 48-byte header suffix ||
+/// key || value`. The fixed header is exactly 56 bytes including the two
+/// leading length/CRC fields; `record_len` is `52 + key_len + value_len` and
+/// CRC32C covers every byte after the stored CRC. Field order and widths are
+/// part of the v0 on-disk contract and never change in place.
 
 ///|
-/// Segment magic shared by every v0 storage file.
+/// Segment magic for v0 record segment files; checkpoints use their own magic.
 const SEGMENT_MAGIC : Bytes = b"MMQS"
-
-///|
-/// Maximum value bytes permitted by the A01 wire protocol.
-const MAX_RECORD_VALUE_BYTES : UInt = 0x00FFFC00U
 
 ///|
 /// Exact encoded size of a v0 record header.
@@ -87,6 +89,7 @@ fn header_uint64(
 }
 
 ///|
+// ponytail: bit-by-bit CRC is correct but O(8n); table/native CRC when measured segment throughput needs it.
 fn crc32c(data : BytesView) -> UInt {
   let mut crc = 0xFFFFFFFFU
   for byte in data {
@@ -209,7 +212,7 @@ pub fn decode_record_header(
   if record_length != 52U + key_length.to_uint() + value_length {
     return Err(Malformed)
   }
-  if value_length > MAX_RECORD_VALUE_BYTES {
+  if value_length > @protocol.MAX_VALUE_LEN {
     return Err(Malformed)
   }
   let key_present = (flags.to_uint() & 1U) != 0U
@@ -257,7 +260,7 @@ pub fn encode_record_header(
   if header.value_length != value.length().reinterpret_as_uint() {
     return Err(Malformed)
   }
-  if header.value_length > MAX_RECORD_VALUE_BYTES {
+  if header.value_length > @protocol.MAX_VALUE_LEN {
     return Err(Malformed)
   }
   let key_present_bit = header.flags.to_uint() & 1U
@@ -272,6 +275,7 @@ pub fn encode_record_header(
   if header.replication_flags > 3 {
     return Err(Malformed)
   }
+  // ponytail: suffix and final buffers copy payload bytes twice; stream into one mutable block if real append throughput requires it.
   let suffix = record_suffix(header, key, value)
   let crc = crc32c(suffix)
   let buf = Buffer()
@@ -283,7 +287,10 @@ pub fn encode_record_header(
 }
 
 ///|
-/// Construct a v0 header with zero reserved and replication-normal fields.
+/// Materialize caller-provided v0 header fields without normalizing them.
+///
+/// Encode and decode perform the actual trust-boundary validation; this
+/// constructor exists only as an explicit literal constructor for tests.
 pub fn RecordHeader::new(
   flags~ : UInt16,
   key_length~ : UInt16,

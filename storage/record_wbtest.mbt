@@ -1,3 +1,5 @@
+/// Pin CRC32C behavior and the byte-exact frozen v0 record encoder contract.
+
 ///|
 test "CRC32C known answer" {
   assert_eq(crc32c(b"123456789"), 0xE3069283U)
