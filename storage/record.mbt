@@ -212,6 +212,10 @@ pub fn decode_record_header(
   if value_length > MAX_RECORD_VALUE_BYTES {
     return Err(Malformed)
   }
+  let key_present = (flags.to_uint() & 1U) != 0U
+  if key_present != (key_length.to_int() > 0) {
+    return Err(Malformed)
+  }
   let reserved_flag_bits = flags.to_uint() & 0xFFFCU
   if reserved_flag_bits != 0U {
     return Err(Malformed)
