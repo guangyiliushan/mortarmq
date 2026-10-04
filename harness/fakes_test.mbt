@@ -1,7 +1,7 @@
-/// Exercise deterministic fakes at the CL1/CL2 and fault-seam boundaries.
+/// Exercise deterministic fakes at their time, network, disk, and RNG seams.
 
 ///|
-async test "CL1 does not fire timers early and preserves monotonic time" {
+async test "timers do not fire early and preserve monotonic time" {
   let clock = @harness.FakeClock::new()
   assert_eq(@harness.Clock::now_ms(clock), 0UL)
   assert_eq(@harness.Clock::sleep_until(clock, 20), false)
@@ -20,7 +20,7 @@ async test "CL1 does not fire timers early and preserves monotonic time" {
 }
 
 ///|
-async test "CL2 fires matured timers without wall-clock spinning" {
+async test "matured timers fire without wall-clock spinning" {
   let clock = @harness.FakeClock::new()
   assert_eq(@harness.Clock::sleep_until(clock, 10), false)
   clock.advance_to(20)
@@ -30,17 +30,18 @@ async test "CL2 fires matured timers without wall-clock spinning" {
 }
 
 ///|
-async test "fake net consumes FIFO delivery and rejects partitioned peers" {
+async test "fake net consumes FIFO delivery and partitions without side effects" {
   let net = @harness.FakeNet::new()
-  ignore(@harness.Net::send(net, 1, b"one"))
-  ignore(@harness.Net::send(net, 2, b"two"))
-  ignore(@harness.Net::send(net, 1, b"three"))
-  assert_eq(net.sent_messages(), [(1, b"one"), (2, b"two"), (1, b"three")])
+  assert_eq(@harness.Net::send(net, 1, b"one"), Ok(()))
+  assert_eq(@harness.Net::send(net, 2, b"two"), Ok(()))
+  assert_eq(@harness.Net::send(net, 1, b"three"), Ok(()))
   net.partition(3)
   assert_eq(
     @harness.Net::send(net, 3, b"blocked"),
     Err(@harness.PeerPartitioned),
   )
+  assert_eq(@harness.Net::receive(net, 3), None)
+  assert_eq(net.sent_messages(), [(1, b"one"), (2, b"two"), (1, b"three")])
   assert_eq(@harness.Net::receive(net, 1), Some(b"one"))
   assert_eq(@harness.Net::receive(net, 1), Some(b"three"))
   assert_eq(@harness.Net::receive(net, 1), None)
@@ -55,9 +56,12 @@ async test "fake disk persists, syncs, renames, and reports Windows limits" {
   assert_eq(capabilities.file_fsync, true)
   assert_eq(capabilities.atomic_rename, true)
   assert_eq(capabilities.dir_fsync, false)
-  ignore(@harness.Disk::write(disk, b"checkpoint.tmp", b"state"))
-  ignore(@harness.Disk::fsync(disk, b"checkpoint.tmp"))
-  ignore(@harness.Disk::rename(disk, b"checkpoint.tmp", b"checkpoint"))
+  assert_eq(@harness.Disk::write(disk, b"checkpoint.tmp", b"state"), Ok(()))
+  assert_eq(@harness.Disk::fsync(disk, b"checkpoint.tmp"), Ok(()))
+  assert_eq(
+    @harness.Disk::rename(disk, b"checkpoint.tmp", b"checkpoint"),
+    Ok(()),
+  )
   assert_eq(@harness.Disk::read(disk, b"checkpoint"), Ok(b"state"))
   assert_eq(@harness.Disk::read(disk, b"missing"), Err(@harness.PathMissing))
   assert_eq(@harness.Disk::fsync(disk, b"missing"), Err(@harness.PathMissing))
@@ -76,22 +80,24 @@ async test "fake disk persists, syncs, renames, and reports Windows limits" {
 ///|
 async test "fake disk supports overwrite, replacement, and same-path rename" {
   let disk = @harness.FakeDisk::new()
-  ignore(@harness.Disk::write(disk, b"data", b"first"))
-  ignore(@harness.Disk::write(disk, b"data", b"second"))
+  assert_eq(@harness.Disk::write(disk, b"data", b"first"), Ok(()))
+  assert_eq(@harness.Disk::write(disk, b"data", b"second"), Ok(()))
   assert_eq(@harness.Disk::read(disk, b"data"), Ok(b"second"))
-  ignore(@harness.Disk::write(disk, b"temp", b"next"))
-  ignore(@harness.Disk::rename(disk, b"temp", b"data"))
+  assert_eq(@harness.Disk::write(disk, b"temp", b"next"), Ok(()))
+  assert_eq(@harness.Disk::rename(disk, b"temp", b"data"), Ok(()))
   assert_eq(@harness.Disk::read(disk, b"data"), Ok(b"next"))
   assert_eq(@harness.Disk::read(disk, b"temp"), Err(@harness.PathMissing))
-  ignore(@harness.Disk::rename(disk, b"data", b"data"))
+  assert_eq(@harness.Disk::rename(disk, b"data", b"data"), Ok(()))
   assert_eq(@harness.Disk::read(disk, b"data"), Ok(b"next"))
 }
 
 ///|
-test "splitmix64 produces the same sequence for the same seed" {
-  let first = @harness.SplitMix64::new(20261003UL)
-  let second = @harness.SplitMix64::new(20261003UL)
-  for _index in 0..<8 {
-    assert_eq(@harness.Rng::next_u64(first), @harness.Rng::next_u64(second))
-  }
+test "splitmix64 matches its algorithm known answers" {
+  let rng = @harness.SplitMix64::new(20261003UL)
+  assert_eq(@harness.Rng::next_u64(rng), 0x656EA6977F37C42DUL)
+  assert_eq(@harness.Rng::next_u64(rng), 0x8ECCE72B4E28C62AUL)
+  assert_eq(@harness.Rng::next_u64(rng), 0x3725375D1F884F82UL)
+  let other = @harness.SplitMix64::new(20261004UL)
+  let differing = @harness.Rng::next_u64(rng) != @harness.Rng::next_u64(other)
+  assert_eq(differing, true)
 }

@@ -2,7 +2,7 @@
 ///
 /// Production adapters live outside this package. The fake implementations in
 /// this package are the only clock, network, disk, and random sources allowed
-/// in M1 tests.
+/// in simulation tests.
 
 ///|
 /// Report the three disk capabilities observed on supported Windows paths.
