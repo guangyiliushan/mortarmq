@@ -199,6 +199,16 @@ check_single() {
   validate_commit_stream < <(git log -1 --format='%H %s' "$head")
 }
 
+check_fallback() {
+  local head=$1 parent
+
+  if parent=$(git rev-parse --verify --quiet "${head}^"); then
+    check_range "$parent" "$head"
+  else
+    check_single "$head"
+  fi
+}
+
 select_github_range() {
   local pr_base="${PR_BASE:-}" pr_head="${PR_HEAD:-}"
   local push_before="${PUSH_BEFORE:-}" push_after="${PUSH_AFTER:-}"
@@ -210,11 +220,11 @@ select_github_range() {
     printf 'push range: %s..%s\n' "$push_before" "$push_after" >&2
     check_range "$push_before" "$push_after"
   elif sha_exists "$push_after"; then
-    printf 'push fallback: latest pushed commit %s\n' "$push_after" >&2
-    check_single "$push_after"
+    printf 'push fallback: checking HEAD~..HEAD for %s\n' "$push_after" >&2
+    check_fallback "$push_after"
   elif sha_exists HEAD; then
-    printf 'event fallback: latest HEAD commit\n' >&2
-    check_single HEAD
+    printf 'event fallback: checking HEAD~..HEAD\n' >&2
+    check_fallback HEAD
   else
     printf 'no reachable commit to check\n' >&2
     return 1

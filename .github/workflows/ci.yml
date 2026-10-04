@@ -102,7 +102,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
       - name: install moon
-        uses: $/.github/actions/install-moon
+        uses: ./.github/actions/install-moon
 
       - name: assert moonc >= compliance floor
         shell: bash
@@ -177,7 +177,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
       - name: install moon (nightly channel)
-        uses: $/.github/actions/install-moon
+        uses: ./.github/actions/install-moon
 
       - name: moon version
         run: moon version --all && moonrun --version
@@ -208,7 +208,7 @@ jobs:
           node-version: '24'
 
       - name: install moon
-        uses: $/.github/actions/install-moon
+        uses: ./.github/actions/install-moon
 
       # Empty registry index on a fresh runner; see the note in `stable`.
       - name: moon update
@@ -253,7 +253,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
       - name: install moon
-        uses: $/.github/actions/install-moon
+        uses: ./.github/actions/install-moon
 
       # Empty registry index on a fresh runner; see the note in `stable`.
       - name: moon update
@@ -283,7 +283,7 @@ jobs:
           persist-credentials: false
 
       - name: install moon
-        uses: $/.github/actions/install-moon
+        uses: ./.github/actions/install-moon
 
       # Empty registry index on a fresh runner; see the note in `stable`.
       # Without it this job's rebuild step cannot resolve `moonbitlang/async`.

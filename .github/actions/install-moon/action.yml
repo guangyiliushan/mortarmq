@@ -30,5 +30,10 @@ runs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: | # zizmor: ignore[github-env] writes only the literal runner home .moon/bin; this action is never reachable from pull_request_target or workflow_run
-        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser; irm https://cli.moonbitlang.com/install/powershell.ps1 | iex
+        if (-not $env:MOONBIT_INSTALL_VERSION) {
+          $env:MOONBIT_INSTALL_VERSION = "latest"
+        }
+        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+        # The official installer reads MOONBIT_INSTALL_VERSION itself.
+        Invoke-RestMethod https://cli.moonbitlang.com/install/powershell.ps1 | Invoke-Expression
         "C:\Users\runneradmin\.moon\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
