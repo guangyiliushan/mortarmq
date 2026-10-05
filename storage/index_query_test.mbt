@@ -155,7 +155,7 @@ test "point read hits the first, middle, and last indexed record" {
       Some(entry) => entry
       None => fail("expected an indexed sequence to hit")
     }
-    match @storage.read_record_at(segment[:], entry) {
+    match @storage.read_record_header_at(segment[:], entry) {
       Ok(header) => {
         assert_eq(header.sequence, sequence)
         assert_eq(header.timestamp_unix_ms, entry.timestamp_unix_ms)
@@ -214,7 +214,7 @@ test "point read rejects record extents outside the segment bytes" {
     record_len=0U,
   )
   assert_eq(
-    @storage.read_record_at(segment[:], beyond),
+    @storage.read_record_header_at(segment[:], beyond),
     Err(@storage.Malformed),
   )
   let overrun = @storage.IndexEntry::new(
@@ -224,7 +224,7 @@ test "point read rejects record extents outside the segment bytes" {
     record_len=4U,
   )
   assert_eq(
-    @storage.read_record_at(segment[:], overrun),
+    @storage.read_record_header_at(segment[:], overrun),
     Err(@storage.Malformed),
   )
   let short = @storage.IndexEntry::new(
@@ -233,7 +233,10 @@ test "point read rejects record extents outside the segment bytes" {
     file_offset=0U,
     record_len=10U,
   )
-  assert_eq(@storage.read_record_at(segment[:], short), Err(@storage.Malformed))
+  assert_eq(
+    @storage.read_record_header_at(segment[:], short),
+    Err(@storage.Malformed),
+  )
 }
 
 ///|
@@ -248,7 +251,7 @@ test "point read detects an index entry anchored at a different record" {
     record_len=first.length().reinterpret_as_uint(),
   )
   assert_eq(
-    @storage.read_record_at(segment[:], misanchored),
+    @storage.read_record_header_at(segment[:], misanchored),
     Err(@storage.Malformed),
   )
   let honest = @storage.IndexEntry::new(
@@ -257,7 +260,7 @@ test "point read detects an index entry anchored at a different record" {
     file_offset=0U,
     record_len=first.length().reinterpret_as_uint(),
   )
-  match @storage.read_record_at(segment[:], honest) {
+  match @storage.read_record_header_at(segment[:], honest) {
     Ok(header) => assert_eq(header.sequence, 1UL)
     Err(_) => fail("expected the honestly anchored record to decode")
   }
@@ -299,7 +302,7 @@ async test "randomized point reads over a stored segment hit every indexed seque
       Some(entry) => entry
       None => fail("randomized point read missed an indexed sequence")
     }
-    match @storage.read_record_at(stored_segment[:], entry) {
+    match @storage.read_record_header_at(stored_segment[:], entry) {
       Ok(header) => {
         assert_eq(header.sequence, sequence)
         hits += 1

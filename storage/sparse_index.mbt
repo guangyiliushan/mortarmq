@@ -134,19 +134,19 @@ pub fn decode_index_entry(data : BytesView) -> Result[IndexEntry, StorageFault] 
   if data.length() != INDEX_ENTRY_BYTES {
     return Err(Malformed)
   }
-  let sequence = match header_uint64(data, 0) {
+  let sequence = match read_u64_be(data, 0) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let timestamp_unix_ms = match header_uint64(data, 8) {
+  let timestamp_unix_ms = match read_u64_be(data, 8) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let file_offset = match header_uint(data, 16) {
+  let file_offset = match read_u32_be(data, 16) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let record_len = match header_uint(data, 20) {
+  let record_len = match read_u32_be(data, 20) {
     Ok(value) => value
     Err(code) => return Err(code)
   }

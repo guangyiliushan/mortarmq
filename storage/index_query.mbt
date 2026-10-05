@@ -145,13 +145,13 @@ pub fn lookup_index_entry(
 ///     file_offset=0U,
 ///     record_len=record.length().reinterpret_as_uint(),
 ///   )
-///   match @storage.read_record_at(record[:], entry) {
+///   match @storage.read_record_header_at(record[:], entry) {
 ///     Ok(decoded) => assert_eq(decoded.sequence, 1UL)
 ///     Err(_) => fail("expected the anchored record to decode")
 ///   }
 /// }
 /// ```
-pub fn read_record_at(
+pub fn read_record_header_at(
   records : BytesView,
   entry : IndexEntry,
 ) -> Result[RecordHeader, StorageFault] {
