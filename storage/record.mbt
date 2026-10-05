@@ -15,9 +15,12 @@ const SEGMENT_MAGIC : Bytes = b"MMQS"
 pub const RECORD_HEADER_BYTES : Int = 56
 
 ///|
-/// Report malformed on-disk storage bytes without leaking an OS error.
+/// Report storage failures without leaking an OS error.
 pub(all) suberror StorageFault {
   Malformed
+  /// Wrap a disk fault raised while reading recovery inputs; recovery fails
+  /// closed instead of guessing over durable state it cannot read.
+  DiskFault(@harness.HarnessFault)
 } derive(Eq, Debug)
 
 ///|
