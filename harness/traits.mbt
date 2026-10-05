@@ -67,5 +67,5 @@ pub(open) trait Disk {
 ///|
 /// Produce reproducible random values without host entropy.
 pub(open) trait Rng {
-  fn next_u64(Self) -> UInt64
+  fn next_uint64(Self) -> UInt64
 }

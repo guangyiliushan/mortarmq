@@ -5,8 +5,9 @@
 /// publish leaves either the complete previous bytes or the complete new
 /// bytes -- so recovery always starts from one of exactly two durable
 /// starting points. From the checkpoint's `durable_offset` the segment body
-/// is walked as a concatenation of v0 records (`u32_be record_len ||
-/// u32_be crc32c || 48-byte header suffix || key || value`), folding each
+/// is walked as a concatenation of v0 records (`4-byte big-endian
+/// record_len || 4-byte big-endian crc32c || 48-byte header suffix || key ||
+/// value`), folding each
 /// complete record into the recovered state: the sequence becomes
 /// `record.sequence + 1` and the offset advances past the record. Sequences
 /// are UInt64 and the increment wraps at the maximum, which no real sequence
@@ -181,7 +182,7 @@ pub async fn recover_segment(
       // Trailing bytes too few to hold a length prefix: torn write tail.
       break
     }
-    let record_length = match header_uint(view, position) {
+    let record_length = match read_uint_be(view, position) {
       Ok(value) => value
       Err(code) => return Err(code)
     }

@@ -70,7 +70,7 @@ pub(all) struct SplitMix64 {
   // private fields
 } derive(@debug.Debug)
 pub fn SplitMix64::new(UInt64) -> Self
-pub fn SplitMix64::next_u64(Self) -> UInt64
+pub fn SplitMix64::next_uint64(Self) -> UInt64
 pub fn SplitMix64::to_repr(Self) -> @debug.Repr
 pub impl Rng for SplitMix64
 
@@ -96,5 +96,5 @@ pub(open) trait Net {
 }
 
 pub(open) trait Rng {
-  fn next_u64(Self) -> UInt64
+  fn next_uint64(Self) -> UInt64
 }

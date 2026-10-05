@@ -319,7 +319,7 @@ fn Cursor::byte(self : Cursor) -> Result[Byte, ErrCode] {
 }
 
 ///|
-fn Cursor::uint16(self : Cursor) -> Result[UInt16, ErrCode] {
+fn Cursor::read_uint16_be(self : Cursor) -> Result[UInt16, ErrCode] {
   match self.take(2) {
     Ok(data) => Ok(((data[0].to_uint() << 8) | data[1].to_uint()).to_uint16())
     Err(code) => Err(code)
@@ -327,7 +327,7 @@ fn Cursor::uint16(self : Cursor) -> Result[UInt16, ErrCode] {
 }
 
 ///|
-fn Cursor::uint(self : Cursor) -> Result[UInt, ErrCode] {
+fn Cursor::read_uint_be(self : Cursor) -> Result[UInt, ErrCode] {
   match self.take(4) {
     Ok(data) =>
       Ok(
@@ -341,7 +341,7 @@ fn Cursor::uint(self : Cursor) -> Result[UInt, ErrCode] {
 }
 
 ///|
-fn Cursor::uint64(self : Cursor) -> Result[UInt64, ErrCode] {
+fn Cursor::read_uint64_be(self : Cursor) -> Result[UInt64, ErrCode] {
   match self.take(8) {
     Ok(data) => {
       let mut value = 0UL
@@ -373,7 +373,7 @@ fn checked_len(value : BytesView, maximum : Int) -> Result[Int, ErrCode] {
 
 ///|
 fn Cursor::key_value(self : Cursor) -> Result[(Bytes, Bytes), ErrCode] {
-  let key_length = match self.uint16() {
+  let key_length = match self.read_uint16_be() {
     Ok(value) => value.to_int()
     Err(code) => return Err(code)
   }
@@ -384,7 +384,7 @@ fn Cursor::key_value(self : Cursor) -> Result[(Bytes, Bytes), ErrCode] {
     Ok(value) => value.to_owned()
     Err(code) => return Err(code)
   }
-  let value_length = match self.uint() {
+  let value_length = match self.read_uint_be() {
     Ok(value) => {
       if value > MAX_VALUE_LEN {
         return Err(MalformedPayload)
@@ -410,11 +410,11 @@ fn decode_connect(data : BytesView) -> Result[WirePayload, ErrCode] {
   if version.to_uint() != WIRE_VERSION {
     return Err(UnsupportedVersion)
   }
-  let client_flags = match cursor.uint16() {
+  let client_flags = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let token_length = match cursor.uint16() {
+  let token_length = match cursor.read_uint16_be() {
     Ok(value) => value.to_int()
     Err(code) => return Err(code)
   }
@@ -422,7 +422,7 @@ fn decode_connect(data : BytesView) -> Result[WirePayload, ErrCode] {
     Ok(value) => value.to_owned()
     Err(code) => return Err(code)
   }
-  let reserved = match cursor.uint() {
+  let reserved = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -438,7 +438,7 @@ fn decode_connect(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_declare(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let topic_length = match cursor.uint16() {
+  let topic_length = match cursor.read_uint16_be() {
     Ok(value) => value.to_int()
     Err(code) => return Err(code)
   }
@@ -449,11 +449,11 @@ fn decode_declare(data : BytesView) -> Result[WirePayload, ErrCode] {
     Ok(value) => value.to_owned()
     Err(code) => return Err(code)
   }
-  let partition_count = match cursor.uint16() {
+  let partition_count = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let flags = match cursor.uint16() {
+  let flags = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -466,23 +466,23 @@ fn decode_declare(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_pub(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let topic_id = match cursor.uint16() {
+  let topic_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let partition = match cursor.uint16() {
+  let partition = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let producer_id = match cursor.uint64() {
+  let producer_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let producer_seq = match cursor.uint64() {
+  let producer_seq = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let flags = match cursor.uint16() {
+  let flags = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -510,7 +510,7 @@ fn decode_pub(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_sub(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let group_length = match cursor.uint16() {
+  let group_length = match cursor.read_uint16_be() {
     Ok(value) => value.to_int()
     Err(code) => return Err(code)
   }
@@ -518,11 +518,11 @@ fn decode_sub(data : BytesView) -> Result[WirePayload, ErrCode] {
     Ok(value) => value.to_owned()
     Err(code) => return Err(code)
   }
-  let topic_id = match cursor.uint16() {
+  let topic_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let partition = match cursor.uint16() {
+  let partition = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -533,15 +533,15 @@ fn decode_sub(data : BytesView) -> Result[WirePayload, ErrCode] {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let credit_count = match cursor.uint16() {
+  let credit_count = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let credit_bytes = match cursor.uint() {
+  let credit_bytes = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let flags = match cursor.uint16() {
+  let flags = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -565,31 +565,31 @@ fn decode_sub(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_ack(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let subscription_id = match cursor.uint16() {
+  let subscription_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let topic_id = match cursor.uint16() {
+  let topic_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let partition = match cursor.uint16() {
+  let partition = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let sequence = match cursor.uint64() {
+  let sequence = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let delivery_id = match cursor.uint64() {
+  let delivery_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let ownership_epoch = match cursor.uint64() {
+  let ownership_epoch = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let flags = match cursor.uint16() {
+  let flags = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -613,27 +613,27 @@ fn decode_ack(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_nack(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let subscription_id = match cursor.uint16() {
+  let subscription_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let topic_id = match cursor.uint16() {
+  let topic_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let partition = match cursor.uint16() {
+  let partition = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let sequence = match cursor.uint64() {
+  let sequence = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let delivery_id = match cursor.uint64() {
+  let delivery_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let ownership_epoch = match cursor.uint64() {
+  let ownership_epoch = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -641,7 +641,7 @@ fn decode_nack(data : BytesView) -> Result[WirePayload, ErrCode] {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let flags = match cursor.uint16() {
+  let flags = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -666,9 +666,9 @@ fn decode_nack(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_error(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let code = match cursor.uint16() {
+  let code = match cursor.read_uint16_be() {
     Ok(value) =>
-      match ErrCode::from_u16(value.to_uint()) {
+      match ErrCode::from_uint16(value.to_uint()) {
         Some(code) => code
         None => return Err(MalformedPayload)
       }
@@ -682,7 +682,7 @@ fn decode_error(data : BytesView) -> Result[WirePayload, ErrCode] {
     Some(op) => op
     None => return Err(MalformedPayload)
   }
-  let message_length = match cursor.uint16() {
+  let message_length = match cursor.read_uint16_be() {
     Ok(value) => value.to_int()
     Err(code) => return Err(code)
   }
@@ -710,7 +710,7 @@ fn decode_ok(data : BytesView) -> Result[WirePayload, ErrCode] {
     Some(op) => op
     None => return Err(MalformedPayload)
   }
-  let result_length = match cursor.uint() {
+  let result_length = match cursor.read_uint_be() {
     Ok(value) => value.reinterpret_as_int()
     Err(code) => return Err(code)
   }
@@ -747,43 +747,43 @@ fn decode_ok(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_msg(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let subscription_id = match cursor.uint16() {
+  let subscription_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let topic_id = match cursor.uint16() {
+  let topic_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let partition = match cursor.uint16() {
+  let partition = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let sequence = match cursor.uint64() {
+  let sequence = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let delivery_id = match cursor.uint64() {
+  let delivery_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let attempt = match cursor.uint16() {
+  let attempt = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let ownership_epoch = match cursor.uint64() {
+  let ownership_epoch = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let producer_id = match cursor.uint64() {
+  let producer_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let producer_seq = match cursor.uint64() {
+  let producer_seq = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let flags = match cursor.uint16() {
+  let flags = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -816,47 +816,47 @@ fn decode_msg(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_pull(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let subscription_id = match cursor.uint16() {
+  let subscription_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let member_id = match cursor.uint64() {
+  let member_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let membership_epoch = match cursor.uint() {
+  let membership_epoch = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let assignment_epoch = match cursor.uint() {
+  let assignment_epoch = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let epoch_count = match cursor.uint16() {
+  let epoch_count = match cursor.read_uint16_be() {
     Ok(value) => value.to_int()
     Err(code) => return Err(code)
   }
   let ownership_epochs : Array[UInt64] = []
   for _index in 0..<epoch_count {
-    let epoch = match cursor.uint64() {
+    let epoch = match cursor.read_uint64_be() {
       Ok(value) => value
       Err(code) => return Err(code)
     }
     ownership_epochs.push(epoch)
   }
-  let max_msgs = match cursor.uint16() {
+  let max_msgs = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let max_bytes = match cursor.uint() {
+  let max_bytes = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let wait_ms = match cursor.uint16() {
+  let wait_ms = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let min_bytes = match cursor.uint() {
+  let min_bytes = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -882,19 +882,19 @@ fn decode_pull(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_heartbeat(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let subscription_id = match cursor.uint16() {
+  let subscription_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let member_id = match cursor.uint64() {
+  let member_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let membership_epoch = match cursor.uint() {
+  let membership_epoch = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let assignment_epoch = match cursor.uint() {
+  let assignment_epoch = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -923,7 +923,7 @@ fn decode_heartbeat(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_notice(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let notice_id = match cursor.uint64() {
+  let notice_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -934,31 +934,31 @@ fn decode_notice(data : BytesView) -> Result[WirePayload, ErrCode] {
   if kind.to_uint() > 1U {
     return Err(MalformedPayload)
   }
-  let group_id = match cursor.uint16() {
+  let group_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let membership_epoch = match cursor.uint() {
+  let membership_epoch = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let assignment_epoch = match cursor.uint() {
+  let assignment_epoch = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let ownership_epoch = match cursor.uint64() {
+  let ownership_epoch = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let topic_id = match cursor.uint16() {
+  let topic_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let partition = match cursor.uint16() {
+  let partition = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let member_id = match cursor.uint64() {
+  let member_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -984,7 +984,7 @@ fn decode_notice(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_control_ack(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let notice_id = match cursor.uint64() {
+  let notice_id = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -995,19 +995,19 @@ fn decode_control_ack(data : BytesView) -> Result[WirePayload, ErrCode] {
   if notice_kind.to_uint() > 1U {
     return Err(MalformedPayload)
   }
-  let group_id = match cursor.uint16() {
+  let group_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let membership_epoch = match cursor.uint() {
+  let membership_epoch = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let assignment_epoch = match cursor.uint() {
+  let assignment_epoch = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let ownership_epoch = match cursor.uint64() {
+  let ownership_epoch = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -1038,15 +1038,15 @@ fn decode_control_ack(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///|
 fn decode_credit(data : BytesView) -> Result[WirePayload, ErrCode] {
   let cursor = { data, offset: 0, }
-  let subscription_id = match cursor.uint16() {
+  let subscription_id = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let membership_epoch = match cursor.uint() {
+  let membership_epoch = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let ownership_epoch = match cursor.uint64() {
+  let ownership_epoch = match cursor.read_uint64_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -1057,15 +1057,15 @@ fn decode_credit(data : BytesView) -> Result[WirePayload, ErrCode] {
   if mode.to_uint() > 1U {
     return Err(MalformedPayload)
   }
-  let credit_count = match cursor.uint16() {
+  let credit_count = match cursor.read_uint16_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let credit_bytes = match cursor.uint() {
+  let credit_bytes = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let reserved = match cursor.uint() {
+  let reserved = match cursor.read_uint_be() {
     Ok(value) => value
     Err(code) => return Err(code)
   }
@@ -1255,7 +1255,7 @@ fn encode_error(payload : ErrPayload) -> Result[Bytes, ErrCode] {
     Err(code) => return Err(code)
   }
   let buf = Buffer()
-  buf.write_uint16_be(payload.code.to_u16().to_uint16())
+  buf.write_uint16_be(payload.code.to_uint16().to_uint16())
   buf.write_byte(payload.request_op.to_byte())
   buf.write_uint16_be(payload.message.length().to_uint16())
   buf.write_bytes(payload.message[:])

@@ -113,10 +113,11 @@ async test "fake disk kill point fails the armed and every later mutation" {
 ///|
 test "splitmix64 matches its algorithm known answers" {
   let rng = @harness.SplitMix64::new(20261003UL)
-  assert_eq(@harness.Rng::next_u64(rng), 0x656EA6977F37C42DUL)
-  assert_eq(@harness.Rng::next_u64(rng), 0x8ECCE72B4E28C62AUL)
-  assert_eq(@harness.Rng::next_u64(rng), 0x3725375D1F884F82UL)
+  assert_eq(@harness.Rng::next_uint64(rng), 0x656EA6977F37C42DUL)
+  assert_eq(@harness.Rng::next_uint64(rng), 0x8ECCE72B4E28C62AUL)
+  assert_eq(@harness.Rng::next_uint64(rng), 0x3725375D1F884F82UL)
   let other = @harness.SplitMix64::new(20261004UL)
-  let differing = @harness.Rng::next_u64(rng) != @harness.Rng::next_u64(other)
+  let differing = @harness.Rng::next_uint64(rng) !=
+    @harness.Rng::next_uint64(other)
   assert_eq(differing, true)
 }

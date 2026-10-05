@@ -11,7 +11,7 @@ fn expect_golden_payload(
       assert_eq(decoded_op, op)
       match @protocol.decode_wire_payload(decoded_op, payload) {
         Ok(decoded_payload) => assert_eq(decoded_payload, expected)
-        Err(code) => fail("golden payload failed with \{code.to_u16()})")
+        Err(code) => fail("golden payload failed with \{code.to_uint16()})")
       }
     }
     _ => fail("expected a complete golden frame")

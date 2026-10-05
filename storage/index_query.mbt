@@ -164,7 +164,7 @@ pub fn lookup_index_view(
   while size > 1 {
     let half = size / 2
     let pivot = (base + half - 1) * INDEX_ENTRY_BYTES
-    let pivot_sequence = match read_u64_be(data, pivot) {
+    let pivot_sequence = match read_uint64_be(data, pivot) {
       Ok(value) => value
       Err(code) => return Err(code)
     }
@@ -177,7 +177,7 @@ pub fn lookup_index_view(
     return Ok(None)
   }
   let start = base * INDEX_ENTRY_BYTES
-  let found_sequence = match read_u64_be(data, start) {
+  let found_sequence = match read_uint64_be(data, start) {
     Ok(value) => value
     Err(code) => return Err(code)
   }

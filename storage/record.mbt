@@ -1,7 +1,8 @@
 /// Validate the frozen v0 on-disk record boundary.
 ///
-/// A record is `u32_be record_len || u32_be crc32c || 48-byte header suffix ||
-/// key || value`. The fixed header is exactly 56 bytes including the two
+/// A record is `4-byte big-endian record_len || 4-byte big-endian crc32c ||
+/// 48-byte header suffix || key || value`. The fixed header is exactly 56
+/// bytes including the two
 /// leading length/CRC fields; `record_len` is `52 + key_len + value_len` and
 /// CRC32C covers every byte after the stored CRC. Field order and widths are
 /// part of the v0 on-disk contract and never change in place.
@@ -58,7 +59,10 @@ pub extend RecordHeader with Eq::{not_equal, equal}
 pub extend RecordHeader with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-fn read_u16_be(data : BytesView, offset : Int) -> Result[UInt16, StorageFault] {
+fn read_uint16_be(
+  data : BytesView,
+  offset : Int,
+) -> Result[UInt16, StorageFault] {
   if offset + 2 > data.length() {
     return Err(Malformed)
   }
@@ -66,7 +70,7 @@ fn read_u16_be(data : BytesView, offset : Int) -> Result[UInt16, StorageFault] {
 }
 
 ///|
-fn read_u32_be(data : BytesView, offset : Int) -> Result[UInt, StorageFault] {
+fn read_uint_be(data : BytesView, offset : Int) -> Result[UInt, StorageFault] {
   if offset + 4 > data.length() {
     return Err(Malformed)
   }
@@ -79,7 +83,10 @@ fn read_u32_be(data : BytesView, offset : Int) -> Result[UInt, StorageFault] {
 }
 
 ///|
-fn read_u64_be(data : BytesView, offset : Int) -> Result[UInt64, StorageFault] {
+fn read_uint64_be(
+  data : BytesView,
+  offset : Int,
+) -> Result[UInt64, StorageFault] {
   if offset + 8 > data.length() {
     return Err(Malformed)
   }
@@ -164,43 +171,43 @@ pub fn decode_record_header(
   if data.length() < RECORD_HEADER_BYTES {
     return Err(Malformed)
   }
-  let record_length = match read_u32_be(data, 0) {
+  let record_length = match read_uint_be(data, 0) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let stored_crc32c = match read_u32_be(data, 4) {
+  let stored_crc32c = match read_uint_be(data, 4) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let flags = match read_u16_be(data, 8) {
+  let flags = match read_uint16_be(data, 8) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let key_length = match read_u16_be(data, 10) {
+  let key_length = match read_uint16_be(data, 10) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let value_length = match read_u32_be(data, 12) {
+  let value_length = match read_uint_be(data, 12) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let sequence = match read_u64_be(data, 16) {
+  let sequence = match read_uint64_be(data, 16) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let producer_id = match read_u64_be(data, 24) {
+  let producer_id = match read_uint64_be(data, 24) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let producer_seq = match read_u64_be(data, 32) {
+  let producer_seq = match read_uint64_be(data, 32) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let timestamp_unix_ms = match read_u64_be(data, 40) {
+  let timestamp_unix_ms = match read_uint64_be(data, 40) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let leader_epoch = match read_u32_be(data, 48) {
+  let leader_epoch = match read_uint_be(data, 48) {
     Ok(value) => value
     Err(code) => return Err(code)
   }

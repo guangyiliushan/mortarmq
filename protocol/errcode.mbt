@@ -1,8 +1,9 @@
-/// Error codes sent on the wire as a u16, grouped into four disjoint ranges.
+/// Error codes sent on the wire as a 2-byte big-endian unsigned value,
+/// grouped into four disjoint ranges.
 ///
 /// `0x0xxx` protocol and session; `0x2xxx` metadata; `0x4xxx` backpressure and
 /// quota; `0x6xxx` replication. The ranges never overlap, and a value inside
-/// them that was never assigned decodes to `None` rather than to a guess — so
+/// them that was never assigned decodes to `None` rather than to a guess ??so
 /// a code added later can never be misread as an older one.
 ///
 /// # Stability
@@ -12,7 +13,7 @@
 
 ///|
 pub(all) enum ErrCode {
-  // ── 0x0xxx protocol and session ──
+  // ?�?� 0x0xxx protocol and session ?�?�
   BadLength // 0x0001 close the connection; fix the client
   UnknownOp // 0x0002 close the connection; upgrade the client / wire_version
   MalformedPayload // 0x0003 close the connection
@@ -38,14 +39,14 @@ pub(all) enum ErrCode {
   MaxWaitingPulls // 0x0027 wait for the in-flight PULLs
   DlqPathOverflow // 0x0030 enter quarantine; human intervention required
   DlqUnavailable // 0x0031 back off and retry (the source is not dropped)
-  // ── 0x2xxx metadata domain ──
+  // ?�?� 0x2xxx metadata domain ?�?�
   TopicExistsMismatch // 0x2001 same name, different config; fix the parameters or pick another name
   GroupExistsMismatch // 0x2002 as above, for groups
   MetadataReadOnly // 0x2003 failover or quarantine in progress; retry later
   MetadataQuarantined // 0x2004 manual handling required
   UnknownGroup // 0x2005 SUB first to create the group
   MutationFenced // 0x2006 mutation_id / epoch expired; start the mutation over
-  // ── 0x4xxx backpressure and quota domain ──
+  // ?�?� 0x4xxx backpressure and quota domain ?�?�
   Backpressure // 0x4001 back off and retry
   QuotaExceeded // 0x4002 slow down
   RateLimited // 0x4003 back off and retry
@@ -53,7 +54,7 @@ pub(all) enum ErrCode {
   MessageExceedsCredit // 0x4005 raise credit_bytes
   NoCredit // 0x4006 send CREDIT
   SlowConsumer // 0x4007 close the connection; cut consume lag or reconnect
-  // ── 0x6xxx replication domain ──
+  // ?�?� 0x6xxx replication domain ?�?�
   QuorumLost // 0x6001
   ReadOnlyDegraded // 0x6002
   InSyncReplicasNotEnough // 0x6003
@@ -74,20 +75,20 @@ pub extend ErrCode with Eq::{not_equal, equal}
 pub extend ErrCode with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-/// Encode as the u16 that goes on the wire.
+/// Encode as the 16-bit value that goes on the wire.
 ///
-/// Every constructor maps to exactly one value, and `from_u16` maps that value
-/// back to the same constructor. The pairing is a bijection — the property test
+/// Every constructor maps to exactly one value, and `from_uint16` maps that value
+/// back to the same constructor. The pairing is a bijection ??the property test
 /// in this package checks it over the whole `UInt` space, not over a sample.
 ///
 /// # Example
 ///
 /// ```mbt check
 /// test {
-///   assert_eq(@protocol.BadLength.to_u16(), 0x0001U)
+///   assert_eq(@protocol.BadLength.to_uint16(), 0x0001U)
 /// }
 /// ```
-pub fn ErrCode::to_u16(self : ErrCode) -> UInt {
+pub fn ErrCode::to_uint16(self : ErrCode) -> UInt {
   match self {
     BadLength => 0x0001U
     UnknownOp => 0x0002U
@@ -142,7 +143,7 @@ pub fn ErrCode::to_u16(self : ErrCode) -> UInt {
 }
 
 ///|
-/// Decode a u16 received on the wire.
+/// Decode a 16-bit value received on the wire.
 ///
 /// Returns `None` for every value that is not registered, including values
 /// that fall inside a range but were never assigned. Returning a neighbour
@@ -153,11 +154,11 @@ pub fn ErrCode::to_u16(self : ErrCode) -> UInt {
 ///
 /// ```mbt check
 /// test {
-///   assert_eq(@protocol.ErrCode::from_u16(0x0001U), Some(@protocol.BadLength))
-///   assert_eq(@protocol.ErrCode::from_u16(0x000CU), None)
+///   assert_eq(@protocol.ErrCode::from_uint16(0x0001U), Some(@protocol.BadLength))
+///   assert_eq(@protocol.ErrCode::from_uint16(0x000CU), None)
 /// }
 /// ```
-pub fn ErrCode::from_u16(code : UInt) -> ErrCode? {
+pub fn ErrCode::from_uint16(code : UInt) -> ErrCode? {
   match code {
     0x0001U => Some(BadLength)
     0x0002U => Some(UnknownOp)

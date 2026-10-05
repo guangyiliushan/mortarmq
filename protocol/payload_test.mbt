@@ -7,11 +7,11 @@ fn expect_roundtrip(
 ) -> Unit raise {
   let bytes = match @protocol.encode_wire_payload(payload) {
     Ok(bytes) => bytes
-    Err(code) => fail("encoding failed with \{code.to_u16()})")
+    Err(code) => fail("encoding failed with \{code.to_uint16()})")
   }
   match @protocol.decode_wire_payload(op, bytes[:]) {
     Ok(decoded) => assert_eq(decoded, payload)
-    Err(code) => fail("decoding failed with \{code.to_u16()})")
+    Err(code) => fail("decoding failed with \{code.to_uint16()})")
   }
 }
 
@@ -367,7 +367,7 @@ test "PUB rejects the first value length above MAX_VALUE_LEN" {
 }
 
 ///|
-test "PUB rejects negative reinterpreted u32 value lengths" {
+test "PUB rejects value lengths with the high bit set" {
   let buf = Buffer()
   buf.write_uint16_be(1)
   buf.write_uint16_be(0)
@@ -379,7 +379,7 @@ test "PUB rejects negative reinterpreted u32 value lengths" {
   let bytes = buf.contents()
   match @protocol.decode_wire_payload(@protocol.Op::Pub, bytes[:]) {
     Err(@protocol.MalformedPayload) => assert_eq(true, true)
-    _ => fail("expected high u32 value-length rejection")
+    _ => fail("expected high value-length rejection")
   }
 }
 
@@ -437,7 +437,7 @@ test "core payload codec rejects an operation/payload mismatch" {
       }),
     ) {
     Ok(bytes) => bytes
-    Err(code) => fail("CONNECT encoding failed with \{code.to_u16()})")
+    Err(code) => fail("CONNECT encoding failed with \{code.to_uint16()})")
   }
   match
     @protocol.decode_wire_payload(@protocol.Op::Declare, connect_payload[:]) {
@@ -696,7 +696,7 @@ test "MSG golden vector pins every extension field" {
       }),
     ) {
     Ok(bytes) => assert_eq(bytes, expected)
-    Err(code) => fail("MSG encoding failed with \{code.to_u16()})")
+    Err(code) => fail("MSG encoding failed with \{code.to_uint16()})")
   }
 }
 

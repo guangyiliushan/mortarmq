@@ -27,13 +27,13 @@ pub fn encode_index_entry(IndexEntry) -> Bytes
 
 pub fn encode_record_header(RecordHeader, BytesView, BytesView) -> Result[Bytes, StorageFault]
 
-pub async fn recover_segment(&@harness.Disk, Bytes, Bytes) -> Result[SegmentRecovery, StorageFault]
-
 pub fn lookup_index_entry(Array[IndexEntry], UInt64) -> IndexEntry?
 
 pub fn lookup_index_view(BytesView, UInt64) -> Result[IndexEntry?, StorageFault]
 
 pub fn read_record_header_at(BytesView, IndexEntry) -> Result[RecordHeader, StorageFault]
+
+pub async fn recover_segment(&@harness.Disk, Bytes, Bytes) -> Result[SegmentRecovery, StorageFault]
 
 pub fn validate_segment_identity(BytesView) -> Result[Unit, StorageFault]
 

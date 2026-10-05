@@ -1,6 +1,6 @@
 /// Wire-protocol limits for the v0 frame format.
 ///
-/// A frame is `u32_be length || u8 op || payload[length - 1]`. `length` counts
+/// A frame is `4-byte big-endian length || 1-byte op || payload[length - 1]`. `length` counts
 /// the op byte itself, so the payload is always one byte shorter than the
 /// length field claims. Every integer on the wire is big-endian.
 ///

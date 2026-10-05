@@ -75,8 +75,8 @@ test "error code table registration lock: 49 codes map one-to-one" {
   assert_eq(registry.length(), 49)
   for pair in registry {
     let (code, err) = pair
-    assert_eq(err.to_u16(), code)
-    assert_eq(@protocol.ErrCode::from_u16(code), Some(err))
+    assert_eq(err.to_uint16(), code)
+    assert_eq(@protocol.ErrCode::from_uint16(code), Some(err))
   }
 }
 
@@ -87,7 +87,7 @@ test "unregistered segments are rejected (reserved-segment semantics)" {
     0x4008U, 0x4009U, 0x600CU, 0x600DU,
   ]
   for hole in holes {
-    assert_eq(@protocol.ErrCode::from_u16(hole), None)
+    assert_eq(@protocol.ErrCode::from_uint16(hole), None)
   }
 }
 
@@ -95,8 +95,8 @@ test "unregistered segments are rejected (reserved-segment semantics)" {
 test "decoding is injective over the whole set (quickcheck seed=20261001 is reproducible)" {
   @quickcheck.check(
     (code : UInt) => {
-      match @protocol.ErrCode::from_u16(code) {
-        Some(err) => err.to_u16() == code
+      match @protocol.ErrCode::from_uint16(code) {
+        Some(err) => err.to_uint16() == code
         None => true
       }
     },

@@ -1,7 +1,8 @@
 /// Encode the segment writer durable checkpoint and replace it atomically.
 ///
-/// A checkpoint file is exactly 21 bytes: `b"MMQC" || u8 format_version ||
-/// u32_be crc32c || u64_be next_sequence || u32_be durable_offset`. The CRC
+/// A checkpoint file is exactly 21 bytes: `b"MMQC" || 1-byte format_version
+/// || 4-byte big-endian crc32c || 8-byte big-endian next_sequence || 4-byte
+/// big-endian durable_offset`. The CRC
 /// covers the 12 payload bytes after the stored CRC field, mirroring the
 /// record convention. `write_checkpoint` publishes a new state through a
 /// `path.tmp` sibling with write, fsync, rename ordering, so a reader of
@@ -119,18 +120,18 @@ pub fn decode_checkpoint(
   if data[4] != CHECKPOINT_FORMAT_VERSION {
     return Err(Malformed)
   }
-  let stored_crc32c = match header_uint(data, 5) {
+  let stored_crc32c = match read_uint_be(data, 5) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
   if stored_crc32c != crc32c(data[9:CHECKPOINT_BYTES]) {
     return Err(Malformed)
   }
-  let next_sequence = match header_uint64(data, 9) {
+  let next_sequence = match read_uint64_be(data, 9) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let durable_offset = match header_uint(data, 17) {
+  let durable_offset = match read_uint_be(data, 17) {
     Ok(value) => value
     Err(code) => return Err(code)
   }

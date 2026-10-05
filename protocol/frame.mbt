@@ -1,6 +1,6 @@
 /// Decode v0 wire frames at complete-frame boundaries without copying payload.
 ///
-/// A frame is `u32_be length || u8 op || payload[length - 1]`. The length counts
+/// A frame is `4-byte big-endian length || 1-byte op || payload[length - 1]`. The length counts
 /// the operation byte and payload, not the four length bytes. Decoding borrows
 /// the payload as a `BytesView`; it never copies payload bytes or searches for a
 /// new frame after an error. Backpressure is therefore applied only at complete
@@ -37,7 +37,7 @@ pub enum DecodeResult {
 /// `UInt` keeps the full 32-bit input representable before the protocol bound
 /// is checked; converting to `Int` only after that check stays within the
 /// 16 MiB frame budget.
-fn read_u32_be(data : BytesView, offset : Int) -> UInt {
+fn read_uint_be(data : BytesView, offset : Int) -> UInt {
   (data[offset].to_uint() << 24) +
   (data[offset + 1].to_uint() << 16) +
   (data[offset + 2].to_uint() << 8) +
@@ -71,7 +71,7 @@ pub fn decode_frame(data : BytesView) -> DecodeResult {
   if available < 4 {
     return Need(4 - available)
   }
-  let body_length = read_u32_be(data, 0)
+  let body_length = read_uint_be(data, 0)
   if body_length < 1U || body_length > MAX_FRAME_LEN {
     return DecodeError(BadLength)
   }

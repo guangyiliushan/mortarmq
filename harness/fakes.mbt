@@ -354,7 +354,7 @@ pub(all) struct SplitMix64 {
 pub extend SplitMix64 with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-pub extend SplitMix64 with Rng::{next_u64}
+pub extend SplitMix64 with Rng::{next_uint64}
 
 ///|
 pub fn SplitMix64::new(seed : UInt64) -> SplitMix64 {
@@ -362,7 +362,7 @@ pub fn SplitMix64::new(seed : UInt64) -> SplitMix64 {
 }
 
 ///|
-pub impl Rng for SplitMix64 with fn next_u64(self) -> UInt64 {
+pub impl Rng for SplitMix64 with fn next_uint64(self) -> UInt64 {
   self.state.val.state = self.state.val.state + 0x9E3779B97F4A7C15UL
   let mut value = self.state.val.state
   value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9UL

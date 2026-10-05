@@ -1,7 +1,8 @@
 /// Validate the frozen v0 sparse index entry boundary.
 ///
-/// One entry is exactly 32 bytes: `u64_be sequence || u64_be
-/// timestamp_unix_ms || u32_be file_offset || u32_be record_len || 8 zero
+/// One entry is exactly 32 bytes: `8-byte big-endian sequence || 8-byte
+/// big-endian timestamp_unix_ms || 4-byte big-endian file_offset || 4-byte
+/// big-endian record_len || 8 zero
 /// bytes`. The 32-byte width is a frozen hardware-alignment decision: two
 /// entries fill each 64-byte cache block exactly, and an index file is a bare
 /// concatenation of entries starting at file offset 0, so entry `k` occupies
@@ -134,19 +135,19 @@ pub fn decode_index_entry(data : BytesView) -> Result[IndexEntry, StorageFault] 
   if data.length() != INDEX_ENTRY_BYTES {
     return Err(Malformed)
   }
-  let sequence = match read_u64_be(data, 0) {
+  let sequence = match read_uint64_be(data, 0) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let timestamp_unix_ms = match read_u64_be(data, 8) {
+  let timestamp_unix_ms = match read_uint64_be(data, 8) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let file_offset = match read_u32_be(data, 16) {
+  let file_offset = match read_uint_be(data, 16) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let record_len = match read_u32_be(data, 20) {
+  let record_len = match read_uint_be(data, 20) {
     Ok(value) => value
     Err(code) => return Err(code)
   }

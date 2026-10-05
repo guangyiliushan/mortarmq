@@ -590,7 +590,7 @@ async test "seeded kill points recover one state across independent replays" {
       expected_record(1UL, b"k1", b"v1"),
       expected_record(2UL, b"k2", b"v2"),
     ]
-    let suffix_count = (@harness.Rng::next_u64(rng) % 5UL).to_int()
+    let suffix_count = (@harness.Rng::next_uint64(rng) % 5UL).to_int()
     let appended_bytes = []
     let specs = []
     for index in 0..<suffix_count {
@@ -603,7 +603,7 @@ async test "seeded kill points recover one state across independent replays" {
     // Ops: seed is 1, the prefix publish is 2-4, appends are 5.., the final
     // publish is three ops; one past them completes without a kill.
     let total_ops = 8 + suffix_count
-    let armed = (@harness.Rng::next_u64(rng) % total_ops.to_uint64()).to_int() +
+    let armed = (@harness.Rng::next_uint64(rng) % total_ops.to_uint64()).to_int() +
       1
     let disk = @harness.FakeDisk::new()
     disk.set_kill_at(armed)
@@ -711,6 +711,6 @@ async test "seeded kill points recover one state across independent replays" {
 
 ///|
 fn random_payload(rng : &@harness.Rng, max_length : Int) -> Bytes {
-  let length = (@harness.Rng::next_u64(rng) % (max_length + 1).to_uint64()).to_int()
+  let length = (@harness.Rng::next_uint64(rng) % (max_length + 1).to_uint64()).to_int()
   ALPHABET[:length].to_owned()
 }

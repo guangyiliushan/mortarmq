@@ -146,17 +146,17 @@ async test "every armed kill point preserves the two-state invariant" {
   let rng = @harness.SplitMix64::new(20261004UL)
   for _iteration in 0..<100 {
     let old = state(
-      @harness.Rng::next_u64(rng),
-      @harness.Rng::next_u64(rng).to_uint(),
+      @harness.Rng::next_uint64(rng),
+      @harness.Rng::next_uint64(rng).to_uint(),
     )
     let new = state(
-      @harness.Rng::next_u64(rng),
-      @harness.Rng::next_u64(rng).to_uint(),
+      @harness.Rng::next_uint64(rng),
+      @harness.Rng::next_uint64(rng).to_uint(),
     )
     let old_bytes = @storage.encode_checkpoint(old)
     let new_bytes = @storage.encode_checkpoint(new)
     // Armed ops 2..5: die on the write, the fsync, the rename, or complete.
-    let armed = (@harness.Rng::next_u64(rng) % 4UL).to_int() + 2
+    let armed = (@harness.Rng::next_uint64(rng) % 4UL).to_int() + 2
     let disk = @harness.FakeDisk::new()
     seed(disk, b"segment.checkpoint", old_bytes)
     disk.set_kill_at(armed)

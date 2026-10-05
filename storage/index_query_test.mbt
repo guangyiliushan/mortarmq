@@ -271,7 +271,7 @@ async test "randomized point reads over a stored segment hit every indexed seque
   let rng = @harness.SplitMix64::new(20261005UL)
   let sequences : Array[UInt64] = []
   for _index in 0..<100 {
-    sequences.push(@harness.Rng::next_u64(rng))
+    sequences.push(@harness.Rng::next_uint64(rng))
   }
   sequences.sort()
   for index in 1..<sequences.length() {
