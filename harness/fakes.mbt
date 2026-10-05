@@ -222,6 +222,12 @@ pub fn FakeDisk::new() -> FakeDisk {
 /// armed operation with no new state, which stands in for process death.
 /// `op_number <= 0` disarms.
 ///
+/// The counter is global across every file the fake serves and every writer,
+/// so arms are absolute indices: adding one mutating operation to any writer
+/// renumbers every later arm. Tests that pin a specific index break loudly in
+/// that case; tests that arm every index in a sweep adapt on their own, which
+/// is the preferred shape for writer-invariant validation.
+///
 /// Example:
 ///
 /// ```mbt check

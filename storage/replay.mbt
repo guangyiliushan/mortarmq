@@ -8,8 +8,9 @@
 /// is walked as a concatenation of v0 records (`u32_be record_len ||
 /// u32_be crc32c || 48-byte header suffix || key || value`), folding each
 /// complete record into the recovered state: the sequence becomes
-/// `record.sequence + 1` and the offset advances past the record. The edge
-/// policies are fixed:
+/// `record.sequence + 1` and the offset advances past the record. Sequences
+/// are UInt64 and the increment wraps at the maximum, which no real sequence
+/// space reaches; the edge policies are fixed:
 ///
 /// * A missing live checkpoint file replays from zero -- offset 0, and the
 ///   sequence comes from the replayed records themselves (0 when none).
@@ -54,8 +55,10 @@ pub extend RecoveredRecord with @moonbitlang/core/debug.Debug::{to_repr}
 ///
 /// `checkpoint` is the state the writer would publish next: the running
 /// `next_sequence` and a `durable_offset` ending at the last complete
-/// record. `records` lists the replayed records in file order; it is empty
-/// when the checkpoint already covers the whole segment.
+/// record. It is computed from the checkpoint file when one exists and from
+/// the replayed records alone when it does not, so the field name names the
+/// role, not the on-disk file. `records` lists the replayed records in file
+/// order; it is empty when the checkpoint already covers the whole segment.
 pub(all) struct SegmentRecovery {
   checkpoint : SegmentCheckpoint
   records : Array[RecoveredRecord]

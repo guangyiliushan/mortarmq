@@ -143,9 +143,11 @@ pub fn decode_checkpoint(
 /// The encoded state lands at `path.tmp` first, is fsynced there, and only
 /// then renames over `path`, so `path` holds either the complete previous
 /// bytes or the complete new bytes at every instant, including when any step
-/// fails or the process dies between steps. A failed attempt may leave the
-/// tmp file behind; it is never checkpoint state, and the next attempt
-/// overwrites it.
+/// fails or the process dies between steps. The two-state guarantee rests on
+/// the disk reporting an atomic rename capability; the v0 fake disk always
+/// does, and a backend without one must not be published through. A failed
+/// attempt may leave the tmp file behind; it is never checkpoint state, and
+/// the next attempt overwrites it.
 ///
 /// Parameters:
 ///

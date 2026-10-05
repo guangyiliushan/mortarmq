@@ -16,6 +16,11 @@ pub const RECORD_HEADER_BYTES : Int = 56
 
 ///|
 /// Report storage failures without leaking an OS error.
+///
+/// The v0 faults carry no file or offset payload: a caller localizes a
+/// failure from the operation it issued. Enriching these variants with
+/// positional context is a breaking change to a public error type and must
+/// land before any caller matches on them in production paths.
 pub(all) suberror StorageFault {
   Malformed
   /// Wrap a disk fault raised while reading recovery inputs; recovery fails
