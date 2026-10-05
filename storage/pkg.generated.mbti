@@ -17,6 +17,8 @@ pub fn decode_checkpoint(BytesView) -> Result[SegmentCheckpoint, StorageFault]
 
 pub fn decode_index_entry(BytesView) -> Result[IndexEntry, StorageFault]
 
+pub fn decode_index_file(BytesView) -> Result[Array[IndexEntry], StorageFault]
+
 pub fn decode_record_header(BytesView) -> Result[RecordHeader, StorageFault]
 
 pub fn encode_checkpoint(SegmentCheckpoint) -> Bytes
@@ -26,6 +28,10 @@ pub fn encode_index_entry(IndexEntry) -> Bytes
 pub fn encode_record_header(RecordHeader, BytesView, BytesView) -> Result[Bytes, StorageFault]
 
 pub async fn recover_segment(&@harness.Disk, Bytes, Bytes) -> Result[SegmentRecovery, StorageFault]
+
+pub fn lookup_index_entry(Array[IndexEntry], UInt64) -> IndexEntry?
+
+pub fn read_record_at(BytesView, IndexEntry) -> Result[RecordHeader, StorageFault]
 
 pub fn validate_segment_identity(BytesView) -> Result[Unit, StorageFault]
 
