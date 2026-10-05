@@ -74,7 +74,7 @@ node .github/scripts/check-doc-refs.mjs          # section pointers and required
 
 ### 2.2 Commit messages (Conventional Commits v1.0.0)
 
-- Format `<type>(<scope>): <subject>`; type ∈ feat / fix / docs / test / refactor / perf / chore / build / ci; scope = component id (`a01`…`a12` / `m1`…`m3` / `infra`); subject ≤ 72 characters.
+- Format `<type>(<scope>): <subject>`; type ∈ feat / fix / docs / test / refactor / perf / chore / build / ci; scope = component id (`a01`…`a12` / `m1`…`m3` / `infra`) or Dependabot dependency scope (`deps` / `deps-dev`); subject ≤ 72 characters.
 - Example: `feat(a03): segment replay tolerates zero-length trailing record`
 - Cadence: at least one green commit per swimlane per day, no multi-day batches.
 - **The commit message is the changelog entry.** There is no `CHANGELOG.md` to maintain, and none may ever be committed (§6.5); detail belongs in the commit body.

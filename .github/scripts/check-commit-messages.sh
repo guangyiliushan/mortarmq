@@ -8,7 +8,7 @@ set -euo pipefail
 
 export LC_ALL=C.UTF-8
 
-readonly PATTERN='^(feat|fix|docs|test|refactor|perf|chore|build|ci)\((a0[1-9]|a1[0-2]|m[1-3]|infra)\)!?: .+$'
+readonly PATTERN='^(feat|fix|docs|test|refactor|perf|chore|build|ci)\((a0[1-9]|a1[0-2]|m[1-3]|infra|deps(-dev)?)\)!?: .+$'
 readonly ZERO_SHA='0000000000000000000000000000000000000000'
 
 sha_exists() {
@@ -52,6 +52,8 @@ run_self_test() {
     'ci(infra): enforce conventional commit subjects'
     'fix(a03): tolerate zero length trailing record'
     'feat(a01)!: change wire framing'
+    'ci(deps): bump actions/cache from 4.3.0 to 6.1.0'
+    'build(deps-dev): bump mermaid from 11.17.2 to 12.0.0'
   )
   local -a invalid=(
     'feat: missing scope'
