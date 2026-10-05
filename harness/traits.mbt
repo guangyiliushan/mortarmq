@@ -24,6 +24,8 @@ pub(all) suberror HarnessFault {
   PathMissing
   PeerPartitioned
   DiskFull
+  /// Report a fired fake-disk kill point, standing in for process death.
+  Killed
 } derive(Eq, Debug)
 
 ///|

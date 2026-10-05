@@ -185,6 +185,8 @@ pub impl Net for FakeNet with fn receive(self, peer : UInt16) -> Bytes? {
 priv struct DiskState {
   files : Map[Bytes, Bytes]
   mut disk_full : Bool
+  mut kill_at_op : Int
+  mut op_count : Int
 } derive(Debug)
 
 ///|
@@ -201,7 +203,37 @@ pub extend FakeDisk with Disk::{write, read, fsync, rename, capabilities}
 
 ///|
 pub fn FakeDisk::new() -> FakeDisk {
-  { state: Ref::Ref({ files: Map([]), disk_full: false, }), }
+  {
+    state: Ref::Ref({
+      files: Map([]),
+      disk_full: false,
+      kill_at_op: 0,
+      op_count: 0,
+    }),
+  }
+}
+
+///|
+/// Arm a kill point so the armed and every later mutating operation fails.
+///
+/// `op_number` counts write, fsync, and rename operations from disk creation;
+/// read is excluded so a recovery observer can inspect the surviving state.
+/// A fired kill reports `Killed`, dominates `set_disk_full`, and leaves the
+/// armed operation with no new state, which stands in for process death.
+/// `op_number <= 0` disarms.
+///
+/// Example:
+///
+/// ```mbt check
+/// async test {
+///   let disk = @harness.FakeDisk::new()
+///   disk.set_kill_at(1)
+///   assert_eq(@harness.Disk::write(disk, b"a", b"1"), Err(@harness.Killed))
+///   assert_eq(@harness.Disk::read(disk, b"a"), Err(@harness.PathMissing))
+/// }
+/// ```
+pub fn FakeDisk::set_kill_at(self : FakeDisk, op_number : Int) -> Unit {
+  self.state.val.kill_at_op = op_number
 }
 
 ///|
@@ -221,10 +253,20 @@ pub fn FakeDisk::snapshot(self : FakeDisk) -> Array[(Bytes, Bytes)] {
 }
 
 ///|
+/// Count one mutating operation and fail it when the armed kill point fired.
+fn disk_killed(state : DiskState) -> Bool {
+  state.op_count = state.op_count + 1
+  state.kill_at_op > 0 && state.op_count >= state.kill_at_op
+}
+
+///|
 pub impl Disk for FakeDisk with fn write(self, path : Bytes, data : Bytes) -> Result[
   Unit,
   HarnessFault,
 ] {
+  if disk_killed(self.state.val) {
+    return Err(Killed)
+  }
   if self.state.val.disk_full {
     return Err(DiskFull)
   }
@@ -248,6 +290,9 @@ pub impl Disk for FakeDisk with fn fsync(self, path : Bytes) -> Result[
   Unit,
   HarnessFault,
 ] {
+  if disk_killed(self.state.val) {
+    return Err(Killed)
+  }
   if self.state.val.disk_full {
     return Err(DiskFull)
   }
@@ -263,6 +308,9 @@ pub impl Disk for FakeDisk with fn rename(
   old_path : Bytes,
   new_path : Bytes,
 ) -> Result[Unit, HarnessFault] {
+  if disk_killed(self.state.val) {
+    return Err(Killed)
+  }
   if old_path == new_path {
     match self.state.val.files.get(old_path) {
       Some(_) => return Ok(())

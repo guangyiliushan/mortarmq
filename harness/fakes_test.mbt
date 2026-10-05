@@ -92,6 +92,25 @@ async test "fake disk supports overwrite, replacement, and same-path rename" {
 }
 
 ///|
+async test "fake disk kill point fails the armed and every later mutation" {
+  let disk = @harness.FakeDisk::new()
+  disk.set_kill_at(2)
+  assert_eq(@harness.Disk::write(disk, b"a", b"1"), Ok(()))
+  assert_eq(@harness.Disk::fsync(disk, b"a"), Err(@harness.Killed))
+  assert_eq(@harness.Disk::rename(disk, b"a", b"b"), Err(@harness.Killed))
+  assert_eq(@harness.Disk::write(disk, b"b", b"2"), Err(@harness.Killed))
+  assert_eq(@harness.Disk::read(disk, b"a"), Ok(b"1"))
+  assert_eq(@harness.Disk::read(disk, b"b"), Err(@harness.PathMissing))
+  disk.set_kill_at(0)
+  assert_eq(@harness.Disk::rename(disk, b"a", b"b"), Ok(()))
+  disk.set_kill_at(1)
+  assert_eq(@harness.Disk::fsync(disk, b"b"), Err(@harness.Killed))
+  disk.set_disk_full(true)
+  assert_eq(@harness.Disk::write(disk, b"c", b"3"), Err(@harness.Killed))
+  assert_eq(@harness.Disk::read(disk, b"c"), Err(@harness.PathMissing))
+}
+
+///|
 test "splitmix64 matches its algorithm known answers" {
   let rng = @harness.SplitMix64::new(20261003UL)
   assert_eq(@harness.Rng::next_u64(rng), 0x656EA6977F37C42DUL)

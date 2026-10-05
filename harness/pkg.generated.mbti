@@ -12,6 +12,7 @@ pub(all) suberror HarnessFault {
   PathMissing
   PeerPartitioned
   DiskFull
+  Killed
 } derive(Eq, @debug.Debug)
 pub fn HarnessFault::equal(Self, Self) -> Bool
 pub fn HarnessFault::not_equal(Self, Self) -> Bool
@@ -48,6 +49,7 @@ pub fn FakeDisk::new() -> Self
 pub async fn FakeDisk::read(Self, Bytes) -> Result[Bytes, HarnessFault]
 pub async fn FakeDisk::rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
 pub fn FakeDisk::set_disk_full(Self, Bool) -> Unit
+pub fn FakeDisk::set_kill_at(Self, Int) -> Unit
 pub fn FakeDisk::snapshot(Self) -> Array[(Bytes, Bytes)]
 pub fn FakeDisk::to_repr(Self) -> @debug.Repr
 pub async fn FakeDisk::write(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
