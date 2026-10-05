@@ -2,7 +2,7 @@
 ///
 /// One entry is exactly 32 bytes: `u64_be sequence || u64_be
 /// timestamp_unix_ms || u32_be file_offset || u32_be record_len || 8 zero
-/// bytes`. The 32-byte width is a frozen hardware-alignment decision: four
+/// bytes`. The 32-byte width is a frozen hardware-alignment decision: two
 /// entries fill each 64-byte cache block exactly, and an index file is a bare
 /// concatenation of entries starting at file offset 0, so entry `k` occupies
 /// `[32k, 32k+32)` and no entry ever straddles a block boundary.
