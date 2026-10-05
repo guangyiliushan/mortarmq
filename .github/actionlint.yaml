@@ -1,0 +1,16 @@
+# actionlint configuration (auto-discovered from .github/actionlint.yaml).
+#
+# actionlint v1.7.12 (the current latest release) does not yet understand
+# GitHub's self-repository syntax used by zizmor's self-repository audit:
+#
+#   uses: $/.github/actions/install-moon
+#
+# The workflow files are therefore correct and this is a local false positive.
+# Re-evaluate and drop this filter once actionlint ships a release after
+# v1.7.12. The pattern is deliberately narrow: it only matches messages about
+# `$/` references, so a genuine missing-ref error on a normal
+# `owner/repo@ref` action still fails the build.
+paths:
+  '.github/workflows/**/*.yml':
+    ignore:
+      - 'specifying action "\$/'

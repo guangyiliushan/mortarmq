@@ -18,7 +18,7 @@ concurrency:
 
 # Release gates use the same audited compiler as stable CI.
 env:
-  MOONBIT_INSTALL_VERSION: "0.1.20260920"
+  MOONBIT_INSTALL_VERSION: "latest"
   MOONC_VERSION_FLOOR: "0.10.14"
 
 jobs:
@@ -47,7 +47,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
       - name: install moon
-        uses: ./.github/actions/install-moon
+        uses: $/.github/actions/install-moon
 
       - name: assert moonc >= compliance floor
         shell: bash
@@ -96,7 +96,7 @@ jobs:
           persist-credentials: false
 
       - name: install moon
-        uses: ./.github/actions/install-moon
+        uses: $/.github/actions/install-moon
 
       # `moon publish` resolves the module graph too, and a fresh runner ships
       # an empty registry index. See the note above gate 1.

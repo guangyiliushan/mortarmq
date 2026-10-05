@@ -10,7 +10,7 @@ Sections 2, 3 and 4 are **constraints, not suggestions** — they keep contribut
 
 ### 1.1 Environment
 
-- Stable and release CI pin MoonBit to `moonc 0.10.14`; nightly CI is the separate drift probe. The toolchain has no native `>=` assertion, so CI also runs `bash .github/scripts/assert-moonc.sh` and fails hard instead of leaving the version to be read out of a log.
+- Stable and release CI currently install the latest stable MoonBit and assert the `moonc >= 0.10.14` competition floor with `bash .github/scripts/assert-moonc.sh`. The former exact-version artifact is no longer downloadable; restore a digest-verified version pin once the official archive supports it again.
   - Install: <https://cli.moonbitlang.com> · verify with `moon version --all`
 - Node 24 LTS: docs site (VitePress) and demo tooling only. It is not a MoonBit dependency, and no runtime code depends on an npm package.
 - Windows dev machines: `git config --global core.autocrlf false` — CRLF breaks the `fmt` / `info` diff gates. `.gitattributes` also enforces LF.
@@ -329,7 +329,7 @@ Before adding anything, check whether `moonbitlang/core` or the MoonBit standard
 - **Lean artifacts:** release artifacts stay in the tens of MB at most; a 267 MB upload timing out is timing luck, not a fix.
 - **Module dependencies are architecture:** `protocol` ← `storage` / `broker` / `cluster` / `client`, one direction only; cross-cutting abstractions go through traits. The `moon info` diff gate is the import-assertion enforcer.
 - **Invariant registry:** when the same invariant is expressed in three places, `m3-property/sources/invariants-registry.md` is the single source of truth, and a registry change ships in the same commit as all three implementations.
-- **Action pinning:** every `uses:` is a **full commit SHA** with the version as a trailing comment, so the pin is immutable and the version stays readable — `uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`. In-repo composition uses the required local-action form (`uses: ./.github/actions/...`), while external actions stay SHA-pinned. `.github/dependabot.yml` keeps pins moving with a 7-day cooldown; verify a pin against the repository's release/tag API before adopting it, because community memory about action versions lags reality.
+- **Action pinning:** every `uses:` is a **full commit SHA** with the version as a trailing comment, so the pin is immutable and the version stays readable — `uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`. In-repo composition uses GitHub's self-repository form (`uses: $/.github/actions/...`); actionlint carries the narrow false-positive filter required by the current parser, while external actions stay SHA-pinned. `.github/dependabot.yml` keeps pins moving with a 7-day cooldown; verify a pin against the repository's release/tag API before adopting it, because community memory about action versions lags reality.
 - **Carryover:** anything left red on the evening checklist becomes the first task of the next day (issue template: [.github/ISSUE_TEMPLATE/daily-checklist.md](./.github/ISSUE_TEMPLATE/daily-checklist.md)). Two consecutive red days trigger a scope-cut decision.
 
 ---
