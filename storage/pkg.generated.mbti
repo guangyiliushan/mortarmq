@@ -2,17 +2,26 @@
 package "guangyiliushan/mortarmq/storage"
 
 import {
+  "guangyiliushan/mortarmq/harness",
   "moonbitlang/core/debug",
 }
 
 // Values
+pub const CHECKPOINT_BYTES : Int = 21
+
 pub const RECORD_HEADER_BYTES : Int = 56
 
+pub fn decode_checkpoint(BytesView) -> Result[SegmentCheckpoint, StorageFault]
+
 pub fn decode_record_header(BytesView) -> Result[RecordHeader, StorageFault]
+
+pub fn encode_checkpoint(SegmentCheckpoint) -> Bytes
 
 pub fn encode_record_header(RecordHeader, BytesView, BytesView) -> Result[Bytes, StorageFault]
 
 pub fn validate_segment_identity(BytesView) -> Result[Unit, StorageFault]
+
+pub async fn write_checkpoint(&@harness.Disk, Bytes, SegmentCheckpoint) -> Result[Unit, @harness.HarnessFault]
 
 // Errors
 pub(all) suberror StorageFault {
@@ -38,6 +47,14 @@ pub fn RecordHeader::equal(Self, Self) -> Bool
 pub fn RecordHeader::new(flags~ : UInt16, key_length~ : UInt16, value_length~ : UInt, sequence~ : UInt64, producer_id~ : UInt64, producer_seq~ : UInt64, timestamp_unix_ms~ : UInt64, leader_epoch~ : UInt, replication_flags~ : Byte) -> Self
 pub fn RecordHeader::not_equal(Self, Self) -> Bool
 pub fn RecordHeader::to_repr(Self) -> @debug.Repr
+
+pub(all) struct SegmentCheckpoint {
+  next_sequence : UInt64
+  durable_offset : UInt
+} derive(Eq, @debug.Debug)
+pub fn SegmentCheckpoint::equal(Self, Self) -> Bool
+pub fn SegmentCheckpoint::not_equal(Self, Self) -> Bool
+pub fn SegmentCheckpoint::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
