@@ -254,7 +254,7 @@ pub fn FakeDisk::snapshot(self : FakeDisk) -> Array[(Bytes, Bytes)] {
 
 ///|
 /// Count one mutating operation and fail it when the armed kill point fired.
-fn disk_killed(state : DiskState) -> Bool {
+fn count_op_and_check_kill(state : DiskState) -> Bool {
   state.op_count = state.op_count + 1
   state.kill_at_op > 0 && state.op_count >= state.kill_at_op
 }
@@ -264,7 +264,7 @@ pub impl Disk for FakeDisk with fn write(self, path : Bytes, data : Bytes) -> Re
   Unit,
   HarnessFault,
 ] {
-  if disk_killed(self.state.val) {
+  if count_op_and_check_kill(self.state.val) {
     return Err(Killed)
   }
   if self.state.val.disk_full {
@@ -290,7 +290,7 @@ pub impl Disk for FakeDisk with fn fsync(self, path : Bytes) -> Result[
   Unit,
   HarnessFault,
 ] {
-  if disk_killed(self.state.val) {
+  if count_op_and_check_kill(self.state.val) {
     return Err(Killed)
   }
   if self.state.val.disk_full {
@@ -308,7 +308,7 @@ pub impl Disk for FakeDisk with fn rename(
   old_path : Bytes,
   new_path : Bytes,
 ) -> Result[Unit, HarnessFault] {
-  if disk_killed(self.state.val) {
+  if count_op_and_check_kill(self.state.val) {
     return Err(Killed)
   }
   if old_path == new_path {
