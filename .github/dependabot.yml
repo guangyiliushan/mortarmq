@@ -34,3 +34,10 @@ updates:
     commit-message:
       prefix: build
       include: "scope"
+    # mermaid 12 conflicts with vitepress-plugin-mermaid 2.0.17, whose peer
+    # range is still mermaid 10 || 11. Reassess after that plugin publishes
+    # a mermaid-12-compatible release.
+    ignore:
+      - dependency-name: mermaid
+        versions:
+          - '>=12'
