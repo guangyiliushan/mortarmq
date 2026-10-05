@@ -9,13 +9,19 @@ import {
 // Values
 pub const CHECKPOINT_BYTES : Int = 21
 
+pub const INDEX_ENTRY_BYTES : Int = 32
+
 pub const RECORD_HEADER_BYTES : Int = 56
 
 pub fn decode_checkpoint(BytesView) -> Result[SegmentCheckpoint, StorageFault]
 
+pub fn decode_index_entry(BytesView) -> Result[IndexEntry, StorageFault]
+
 pub fn decode_record_header(BytesView) -> Result[RecordHeader, StorageFault]
 
 pub fn encode_checkpoint(SegmentCheckpoint) -> Bytes
+
+pub fn encode_index_entry(IndexEntry) -> Bytes
 
 pub fn encode_record_header(RecordHeader, BytesView, BytesView) -> Result[Bytes, StorageFault]
 
@@ -35,6 +41,17 @@ pub fn StorageFault::not_equal(Self, Self) -> Bool
 pub fn StorageFault::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+pub(all) struct IndexEntry {
+  sequence : UInt64
+  timestamp_unix_ms : UInt64
+  file_offset : UInt
+  record_len : UInt
+} derive(Eq, @debug.Debug)
+pub fn IndexEntry::equal(Self, Self) -> Bool
+pub fn IndexEntry::new(sequence~ : UInt64, timestamp_unix_ms~ : UInt64, file_offset~ : UInt, record_len~ : UInt) -> Self
+pub fn IndexEntry::not_equal(Self, Self) -> Bool
+pub fn IndexEntry::to_repr(Self) -> @debug.Repr
+
 pub(all) struct RecordHeader {
   flags : UInt16
   key_length : UInt16
