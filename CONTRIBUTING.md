@@ -135,6 +135,8 @@ Kept in its own language (content, not source):
 
 The same string is read by CI logs, the mooncakes.io registry, the English docs tree, and reviewers who do not share a first language — that is the whole reason for the rule.
 
+Identifiers and comments that name a MoonBit type use the exact type name from the language reference (`UInt16`, `UInt`, `UInt64`) — never C-style abbreviations (`u16`, `u32`, `u64`), and wire-layout prose describes byte widths ("4-byte big-endian") instead of C type names. Verify any naming suggestion against the MoonBit reference before adopting it into source.
+
 Enforcement: review (§2.3), not a script. Until a reviewer catches what no gate now does, a non-English source surface is a failed review.
 
 ### 3.2 MoonBit comment forms
