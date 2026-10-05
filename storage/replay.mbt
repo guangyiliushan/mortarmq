@@ -24,7 +24,7 @@
 ///   mid-record, so the recovered durable state is the checkpoint plus
 ///   complete records only.
 ///
-/// # Constraints
+/// # Stability
 ///
 /// `durable_offset` and every replay position are byte offsets into the
 /// segment record area starting at 0; the tmp sibling of the checkpoint is

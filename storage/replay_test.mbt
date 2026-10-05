@@ -265,6 +265,34 @@ async test "recovered next_sequence continues the replayed sequences" {
 }
 
 ///|
+async test "a stale checkpoint sequence yields to the replayed records" {
+  let disk = @harness.FakeDisk::new()
+  let segment = join_records([
+    test_record(1UL, b"k1", b"v1"),
+    test_record(2UL, b"k2", b"v2"),
+  ])
+  assert_eq(@harness.Disk::write(disk, SEGMENT_PATH, segment), Ok(()))
+  assert_eq(
+    @storage.write_checkpoint(disk, CHECKPOINT_PATH, {
+      next_sequence: 9UL,
+      durable_offset: 0U,
+    }),
+    Ok(()),
+  )
+  // The checkpoint sequence is stale, so the replayed records win: the fold
+  // carries the last replayed sequence, never the contradictory checkpoint's.
+  assert_eq(
+    @storage.recover_segment(disk, SEGMENT_PATH, CHECKPOINT_PATH),
+    Ok(
+      recovery_of(3UL, segment.length().reinterpret_as_uint(), [
+        expected_record(1UL, b"k1", b"v1"),
+        expected_record(2UL, b"k2", b"v2"),
+      ]),
+    ),
+  )
+}
+
+///|
 async test "truncated tails stop replay at the last complete record" {
   let first = test_record(1UL, b"k1", b"v1")
   let second = test_record(2UL, b"k2", b"v2")
@@ -507,7 +535,7 @@ async test "restart after any kill seam recovers exactly one state" {
       for record in suffix {
         current = current + record
         alive = survive(@harness.Disk::write(disk, SEGMENT_PATH, current))
-        if alive == false {
+        if !alive {
           break
         }
       }
@@ -593,7 +621,7 @@ async test "seeded kill points recover one state across independent replays" {
       for record in appended_bytes {
         current = current + record
         alive = survive(@harness.Disk::write(disk, SEGMENT_PATH, current))
-        if alive == false {
+        if !alive {
           break
         }
       }

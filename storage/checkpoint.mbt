@@ -156,7 +156,11 @@ pub fn decode_checkpoint(
 /// # Errors
 ///
 /// * Any write, fsync, or rename fault stops the attempt immediately with
-///   that fault, leaving `path` holding the previous bytes.
+///   that fault, leaving `path` holding the previous bytes. The harness fault
+///   vocabulary is propagated verbatim because a kill-point fault is the
+///   publisher's observable outcome; recovery reads wrap their faults into
+///   `DiskFault` instead, since a reader only reports why the bytes could
+///   not be trusted.
 ///
 /// Example:
 ///

@@ -2,8 +2,8 @@
 ///
 /// Virtual time advances only through explicit `advance_to`; network queues are
 /// FIFO and partition failures leave no deliverable bytes; disk operations model
-/// explicit capability limits and injected full-disk failures; the RNG is the
-/// deterministic SplitMix64 stream.
+/// explicit capability limits and injected full-disk and kill-point failures;
+/// the RNG is the deterministic SplitMix64 stream.
 
 ///|
 priv struct TimerEvent {
