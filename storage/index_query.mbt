@@ -4,27 +4,42 @@
 /// starting at file offset 0 with no header or padding, so the decoder walks
 /// it in fixed strides and never guesses a boundary. A point read is two
 /// steps: locate the entry whose sequence equals the requested sequence by
-/// binary search over the sequence-ordered entries, then decode the record
-/// found at the entry's `file_offset` spanning exactly `record_len` bytes.
-/// One entry and one record are touched per point read regardless of the
-/// index size.
+/// binary search over the sequence-ordered entries -- `lookup_index_view`
+/// touches only the strides it visits, so the cost is logarithmic in the
+/// index size no matter how the file is read -- then decode the record
+/// header found at the entry's `file_offset` spanning exactly `record_len`
+/// bytes. One visited stride and one record header are touched per point
+/// read regardless of the index size.
+///
+/// # Staleness
+///
+/// The index is a snapshot of the prefix that was indexed when it was
+/// written. Appends that land in the segment afterwards are invisible to
+/// lookup until the index is rewritten, and a sequence above the last
+/// indexed entry is a miss, not a fault; a caller that must observe newer
+/// records scans the segment forward from the last entry's offset.
 ///
 /// # Constraints
 ///
 /// The search requires entries sorted by strictly increasing `sequence`,
 /// which the append-only writer produces; an unsorted array is outside the
 /// contract and is never re-sorted here. A sequence no entry carries is a
-/// normal miss and returns `None`, not a fault. A found entry whose extent
-/// falls outside the segment bytes, or whose record decodes with a different
-/// sequence than the entry's, reports `Malformed`: the index and the segment
-/// disagree.
+/// normal miss and returns `None`, not a fault. A missing or malformed
+/// index file fails the lookup instead of degrading to a full segment
+/// scan; recovering from that state is a caller policy, not a property of
+/// this file. A found entry whose extent falls outside the segment bytes,
+/// or whose record decodes with a different sequence than the entry's,
+/// reports `Malformed`: the index and the segment disagree.
 
 ///|
 /// Decode a whole v0 sparse index file into its entries, in file order.
 ///
-/// Empty input decodes to an empty index. Each stride is validated by
-/// `decode_index_entry`, so a nonzero reserved byte anywhere in the file
-/// fails the whole file.
+/// This is a load-time bulk decode: it validates every stride and hands
+/// back the full entry array, for startup validation or in-memory index
+/// use. Per-read lookups over a file should go through `lookup_index_view`,
+/// which decodes only the strides it visits. Empty input decodes to an
+/// empty index. Each stride is validated by `decode_index_entry`, so a
+/// nonzero reserved byte anywhere in the file fails the whole file.
 ///
 /// # Errors
 ///
@@ -107,7 +122,76 @@ pub fn lookup_index_entry(
 }
 
 ///|
-/// Decode the record one index entry anchors from the segment bytes.
+/// Locate the entry carrying exactly `sequence` in raw index-file bytes.
+///
+/// The view is searched as `INDEX_ENTRY_BYTES` strides sorted by strictly
+/// increasing `sequence`; only the strides the search visits are decoded,
+/// so the cost is logarithmic in the file size and a corrupted stride the
+/// search never visits stays invisible, exactly as it would on disk. A
+/// length that is not an exact multiple of `INDEX_ENTRY_BYTES`, a visited
+/// stride that fails entry validation, or an unreadable stride prefix
+/// reports `Malformed`. Empty input is a valid empty index and misses.
+///
+/// # Errors
+///
+/// Raises `Malformed` for a partial trailing stride and for a visited
+/// stride that fails validation.
+///
+/// Example:
+///
+/// ```mbt check
+/// test {
+///   let entry = @storage.IndexEntry::new(
+///     sequence=7UL,
+///     timestamp_unix_ms=0UL,
+///     file_offset=0U,
+///     record_len=62U,
+///   )
+///   let file = @storage.encode_index_entry(entry)
+///   assert_eq(@storage.lookup_index_view(file[:], 7UL), Ok(Some(entry)))
+///   assert_eq(@storage.lookup_index_view(file[:], 8UL), Ok(None))
+/// }
+/// ```
+pub fn lookup_index_view(
+  data : BytesView,
+  sequence : UInt64,
+) -> Result[IndexEntry?, StorageFault] {
+  if data.length() % INDEX_ENTRY_BYTES != 0 {
+    return Err(Malformed)
+  }
+  let mut base = 0
+  let mut size = data.length() / INDEX_ENTRY_BYTES
+  while size > 1 {
+    let half = size / 2
+    let pivot = (base + half - 1) * INDEX_ENTRY_BYTES
+    let pivot_sequence = match read_u64_be(data, pivot) {
+      Ok(value) => value
+      Err(code) => return Err(code)
+    }
+    if pivot_sequence < sequence {
+      base = base + half
+    }
+    size = size - half
+  }
+  if size != 1 {
+    return Ok(None)
+  }
+  let start = base * INDEX_ENTRY_BYTES
+  let found_sequence = match read_u64_be(data, start) {
+    Ok(value) => value
+    Err(code) => return Err(code)
+  }
+  if found_sequence != sequence {
+    return Ok(None)
+  }
+  match decode_index_entry(data[start:start + INDEX_ENTRY_BYTES]) {
+    Ok(entry) => Ok(Some(entry))
+    Err(code) => Err(code)
+  }
+}
+
+///|
+/// Decode the record header one index entry anchors from the segment bytes.
 ///
 /// The entry's extent is `[file_offset, file_offset + record_len)` counted
 /// from offset 0 of the given bytes. An extent outside those bytes, a record

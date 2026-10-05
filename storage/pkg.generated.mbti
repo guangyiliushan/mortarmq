@@ -31,6 +31,8 @@ pub async fn recover_segment(&@harness.Disk, Bytes, Bytes) -> Result[SegmentReco
 
 pub fn lookup_index_entry(Array[IndexEntry], UInt64) -> IndexEntry?
 
+pub fn lookup_index_view(BytesView, UInt64) -> Result[IndexEntry?, StorageFault]
+
 pub fn read_record_header_at(BytesView, IndexEntry) -> Result[RecordHeader, StorageFault]
 
 pub fn validate_segment_identity(BytesView) -> Result[Unit, StorageFault]

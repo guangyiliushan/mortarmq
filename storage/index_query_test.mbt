@@ -312,3 +312,72 @@ async test "randomized point reads over a stored segment hit every indexed seque
   }
   assert_eq(hits, 100)
 }
+
+///|
+test "stride lookup agrees with the decoded-array lookup on every query" {
+  let (entries, _segment) = sample_segment()
+  let file = index_file_bytes(entries)
+  for sequence in [5UL, 10UL, 15UL, 20UL, 30UL, 40UL] {
+    assert_eq(
+      @storage.lookup_index_view(file[:], sequence),
+      Ok(@storage.lookup_index_entry(entries, sequence)),
+    )
+  }
+}
+
+///|
+test "stride lookup hits first, middle, and last and misses the gaps" {
+  let (entries, _segment) = sample_segment()
+  let file = index_file_bytes(entries)
+  assert_eq(@storage.lookup_index_view(file[:], 10UL), Ok(Some(entries[0])))
+  assert_eq(@storage.lookup_index_view(file[:], 20UL), Ok(Some(entries[1])))
+  assert_eq(@storage.lookup_index_view(file[:], 30UL), Ok(Some(entries[2])))
+  assert_eq(@storage.lookup_index_view(file[:], 5UL), Ok(None))
+  assert_eq(@storage.lookup_index_view(file[:], 25UL), Ok(None))
+  assert_eq(@storage.lookup_index_view(file[:], 35UL), Ok(None))
+}
+
+///|
+test "stride lookup treats an empty view as an empty index" {
+  assert_eq(@storage.lookup_index_view(b""[:], 1UL), Ok(None))
+}
+
+///|
+test "stride lookup rejects a partial trailing stride" {
+  let (entries, _segment) = sample_segment()
+  let file = index_file_bytes(entries)
+  let truncated = file[:2 * @storage.INDEX_ENTRY_BYTES + 10]
+  assert_eq(
+    @storage.lookup_index_view(truncated, 20UL),
+    Err(@storage.Malformed),
+  )
+}
+
+///|
+test "stride lookup fails closed on a corrupt visited stride" {
+  let (entries, _segment) = sample_segment()
+  let file = index_file_bytes(entries)
+  // The search for 20 visits the middle stride; corrupt its reserved tail.
+  let pivot = 1 * @storage.INDEX_ENTRY_BYTES + 24
+  let corrupted = file[:pivot].to_owned() +
+    b"\x01" +
+    file[pivot + 1:].to_owned()
+  assert_eq(
+    @storage.lookup_index_view(corrupted[:], 20UL),
+    Err(@storage.Malformed),
+  )
+}
+
+///|
+test "stride lookup leaves unvisited strides invisible" {
+  let (entries, _segment) = sample_segment()
+  let file = index_file_bytes(entries)
+  // Searching 10 visits only the first stride; the corrupt last stride
+  // stays invisible, matching the on-disk cost contract of a point read.
+  let last = 2 * @storage.INDEX_ENTRY_BYTES + 24
+  let corrupted = file[:last].to_owned() + b"\x01" + file[last + 1:].to_owned()
+  assert_eq(
+    @storage.lookup_index_view(corrupted[:], 10UL),
+    Ok(Some(entries[0])),
+  )
+}
