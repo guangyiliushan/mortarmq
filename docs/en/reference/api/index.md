@@ -6,7 +6,7 @@ Public API lookup for client authors and second-party developers.
 
 ## Current Public Surface (manual quick view)
 
-- `protocol` package: wire-protocol constants (9 items such as `MAX_FRAME_LEN` and `MAX_OK_RESULT_LEN`) and the segmented `ErrCode` registry (`ErrCode::from_u16` / `ErrCode#to_u16`).
+- `protocol` package: wire-protocol constants (9 items such as `MAX_FRAME_LEN` and `MAX_OK_RESULT_LEN`) and the segmented `ErrCode` registry (`ErrCode::from_uint16` / `ErrCode#to_uint16`).
 - `protocol` package: `Op` maps the fifteen assigned operation bytes through `Op::from_byte` / `Op#to_byte`; every reserved byte returns `None`.
 - `protocol` package: `decode_frame` returns `Need`, a borrowing `Frame`, or `DecodeError`; unknown operations are rejected as soon as the five-byte header is visible.
 - `protocol` package: `WirePayload` covers request, response, and server-push payloads for all fifteen operations; `decode_wire_payload` / `encode_wire_payload` check field order, bounds, trailing bytes, and op matching.
