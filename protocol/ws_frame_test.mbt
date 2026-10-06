@@ -125,7 +125,7 @@ test "reserved opcodes are refused" {
     @protocol.WsError(code) => assert_eq(code, @protocol.ProtocolError)
     _ => fail("expected the reserved data opcode refusal")
   }
-  let reserved_control : Bytes = b"\xcb\x80\x00\x00\x00\x00"
+  let reserved_control : Bytes = b"\x8b\x80\x00\x00\x00\x00"
   match
     @protocol.decode_ws_message(reserved_control[:], @protocol.WsPeer::Client) {
     @protocol.WsError(code) => assert_eq(code, @protocol.ProtocolError)
@@ -172,10 +172,22 @@ test "a new data frame inside a fragmented message is refused" {
 
 ///|
 test "a control frame past 125 bytes is refused before its length form" {
-  let frame : Bytes = b"\x88\x7e\x00\x7e"
+  // Two bytes only: the refusal must not wait for the extended length form.
+  let frame : Bytes = b"\x88\x7e"
   match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Server) {
     @protocol.WsError(code) => assert_eq(code, @protocol.ProtocolError)
     _ => fail("expected the oversized control frame refusal")
+  }
+}
+
+///|
+test "a text frame's length form is read before its opcode is judged" {
+  // Two bytes only: the extended length form must be read, and still ask for
+  // its two remaining bytes, before the text opcode is refused.
+  let frame : Bytes = b"\x81\x7e"
+  match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Server) {
+    @protocol.Need(more) => assert_eq(more, 2)
+    _ => fail("expected the text frame to wait for its extended length bytes")
   }
 }
 
