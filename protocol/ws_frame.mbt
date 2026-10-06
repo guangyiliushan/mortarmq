@@ -108,7 +108,7 @@ pub extend WsCloseCode with @moonbitlang/core/debug.Debug::{to_repr}
 /// `WsError` refuses the stream: the caller sends the carried close code and
 /// disconnects, because the byte stream has no resynchronisation point.
 ///
-/// # Example
+/// Example:
 ///
 /// ```mbt check
 /// test {
@@ -148,7 +148,7 @@ pub enum WsDecodeResult {
 /// `UnsupportedData` and every other fault, the message ceiling included,
 /// carries `ProtocolError`.
 ///
-/// # Example
+/// Example:
 ///
 /// ```mbt check
 /// test {
@@ -303,7 +303,7 @@ pub fn decode_ws_message(data : BytesView, peer : WsPeer) -> WsDecodeResult {
 /// ceiling, because the caller must close instead of emitting a frame no
 /// receiver of this profile accepts.
 ///
-/// # Example
+/// Example:
 ///
 /// ```mbt check
 /// test {
@@ -345,7 +345,7 @@ pub fn encode_ws_binary_frame(
 /// reason text is left empty because the profile treats it as advisory and no
 /// consumer reads it.
 ///
-/// # Example
+/// Example:
 ///
 /// ```mbt check
 /// test {

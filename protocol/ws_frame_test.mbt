@@ -6,12 +6,6 @@
 /// get.
 
 ///|
-/// Copy a borrowed payload into owned bytes so tests can compare content.
-fn view_to_bytes(view : BytesView) -> Bytes {
-  Bytes::makei(view.length(), i => view[i])
-}
-
-///|
 /// Build a payload of distinct bytes at the requested length.
 fn test_payload(length : Int) -> Bytes {
   Bytes::makei(length, i => (i % 251).to_byte())
@@ -31,7 +25,7 @@ test "golden masked binary frame from a client decodes to its payload" {
   let frame : Bytes = b"\x82\x82\x01\x02\x03\x04\x49\x6b"
   match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Client) {
     @protocol.Message(payload, consumed) => {
-      assert_eq(view_to_bytes(payload), b"Hi")
+      assert_eq(payload.to_owned(), b"Hi")
       assert_eq(consumed, 8)
     }
     _ => fail("expected the masked client frame to decode")
@@ -43,7 +37,7 @@ test "golden unmasked binary frame from a server decodes to its payload" {
   let frame : Bytes = b"\x82\x03\x61\x62\x63"
   match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Server) {
     @protocol.Message(payload, consumed) => {
-      assert_eq(view_to_bytes(payload), b"abc")
+      assert_eq(payload.to_owned(), b"abc")
       assert_eq(consumed, 5)
     }
     _ => fail("expected the unmasked server frame to decode")
@@ -55,7 +49,7 @@ test "golden fragmented message reassembles three masked client fragments" {
   let frame : Bytes = b"\x02\x82\x01\x02\x03\x04\x49\x67\x00\x84\x05\x06\x07\x08\x69\x6a\x68\x28\x80\x82\x09\x0a\x0b\x0c\x5e\x59"
   match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Client) {
     @protocol.Message(payload, consumed) => {
-      assert_eq(view_to_bytes(payload), b"Hello WS")
+      assert_eq(payload.to_owned(), b"Hello WS")
       assert_eq(consumed, 26)
     }
     _ => fail("expected the fragmented message to reassemble")
@@ -273,16 +267,13 @@ test "a close frame inside a fragmented message surfaces immediately" {
 ///|
 test "length forms pick the shortest encoding at their boundaries" {
   let p125 = encoded_frame(test_payload(125)[:])
-  assert_eq(view_to_bytes(p125[:2]), b"\x82\x7d")
+  assert_eq(p125[:2].to_owned(), b"\x82\x7d")
   let p126 = encoded_frame(test_payload(126)[:])
-  assert_eq(view_to_bytes(p126[:4]), b"\x82\x7e\x00\x7e")
+  assert_eq(p126[:4].to_owned(), b"\x82\x7e\x00\x7e")
   let p65535 = encoded_frame(test_payload(65535)[:])
-  assert_eq(view_to_bytes(p65535[:4]), b"\x82\x7e\xff\xff")
+  assert_eq(p65535[:4].to_owned(), b"\x82\x7e\xff\xff")
   let p65536 = encoded_frame(test_payload(65536)[:])
-  assert_eq(
-    view_to_bytes(p65536[:10]),
-    b"\x82\x7f\x00\x00\x00\x00\x00\x01\x00\x00",
-  )
+  assert_eq(p65536[:10].to_owned(), b"\x82\x7f\x00\x00\x00\x00\x00\x01\x00\x00")
 }
 
 ///|
@@ -291,7 +282,7 @@ test "boundary payloads decode back at their exact consumed counts" {
     let frame = encoded_frame(test_payload(length)[:])
     match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Server) {
       @protocol.Message(payload, consumed) => {
-        assert_eq(view_to_bytes(payload), test_payload(length))
+        assert_eq(payload.to_owned(), test_payload(length))
         assert_eq(consumed, frame.length())
       }
       _ => fail("expected the boundary frame at \{length} to decode")
@@ -385,7 +376,7 @@ test "encode then decode returns the payload (quickcheck seed=20261006 is reprod
       let encoded = encoded_frame(payload[:])
       match @protocol.decode_ws_message(encoded[:], @protocol.WsPeer::Server) {
         @protocol.Message(view, consumed) =>
-          view_to_bytes(view) == payload && consumed == encoded.length()
+          view.to_owned() == payload && consumed == encoded.length()
         _ => false
       }
     },
