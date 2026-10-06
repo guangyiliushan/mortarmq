@@ -45,6 +45,9 @@ impl @net.Conn for PipeConn with fn read_exact(self, len : Int) -> Result[
   Bytes,
   @protocol.ErrCode,
 ] {
+  if len < 0 {
+    return Err(@protocol.Internal)
+  }
   if self.closed {
     return Err(@protocol.Internal)
   }

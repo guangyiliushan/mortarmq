@@ -19,6 +19,9 @@ impl @net.Conn for ScriptedConn with fn read_exact(self, len : Int) -> Result[
   Bytes,
   @protocol.ErrCode,
 ] {
+  if len < 0 {
+    return Err(@protocol.Internal)
+  }
   if len > self.inbox.length() {
     return Err(@protocol.Internal)
   }
