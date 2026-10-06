@@ -11,9 +11,12 @@
 /// payload, or close on a wire error without interpreting reserved bytes.
 ///
 /// `Need` is the number of additional bytes required before the decoder can
-/// make another decision. `Frame` borrows the operation payload only until the
-/// underlying read buffer is mutated. `DecodeError` carries a wire error code
-/// and always requires the connection to be handled at a policy boundary.
+/// make another decision, and it arms the half-frame deadline: a caller that
+/// cannot supply those bytes within `HALF_FRAME_TIMEOUT_SECONDS` closes the
+/// connection rather than wait for the rest of the frame. `Frame` borrows the
+/// operation payload only until the underlying read buffer is mutated.
+/// `DecodeError` carries a wire error code and always requires the connection
+/// to be handled at a policy boundary.
 ///
 /// # Example
 ///
@@ -52,6 +55,14 @@ fn read_uint_be(data : BytesView, offset : Int) -> UInt {
 /// header byte is visible, before waiting for a potentially oversized payload.
 /// Both error classes close the connection because the byte stream has no
 /// resynchronisation point.
+///
+/// A `Need` result carries a deadline as well: the caller measures silence
+/// from the most recent progress on the partial frame, and once that silence
+/// exceeds `HALF_FRAME_TIMEOUT_SECONDS` the connection closes rather than
+/// wait for the remaining bytes. No partial frame is ever returned, so the
+/// bytes of an abandoned half-frame cannot be set aside for later;
+/// indistinguishable from the header of the next frame, keeping them would
+/// corrupt every frame decoded after them.
 ///
 /// # Example
 ///
