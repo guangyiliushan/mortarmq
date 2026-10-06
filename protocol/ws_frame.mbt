@@ -183,7 +183,7 @@ pub fn decode_ws_message(data : BytesView, peer : WsPeer) -> WsDecodeResult {
       if available - pos < 4 {
         return Need(4 - (available - pos))
       }
-      payload_len = read_uint16_be(data, pos + 2)
+      payload_len = read_uint16_be(data, pos + 2).reinterpret_as_int()
       if payload_len < 126 {
         // RFC 6455 section 5.2 requires the minimal length encoding.
         return WsError(ProtocolError)
@@ -343,8 +343,8 @@ priv struct WsFragment {
 
 ///|
 /// Read a 2-byte big-endian unsigned value.
-fn read_uint16_be(data : BytesView, offset : Int) -> Int {
-  ((data[offset].to_uint() << 8) | data[offset + 1].to_uint()).reinterpret_as_int()
+fn read_uint16_be(data : BytesView, offset : Int) -> UInt {
+  (data[offset].to_uint() << 8) | data[offset + 1].to_uint()
 }
 
 ///|
