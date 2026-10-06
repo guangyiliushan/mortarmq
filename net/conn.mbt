@@ -18,6 +18,9 @@
 ///
 /// * `read_exact` with `len` 0 returns an empty `Bytes` without touching the
 ///   transport; `write_all` with an empty buffer is a completed no-op.
+/// * A negative `len` is a caller error: the read reports the transport
+///   failure instead of reading, and an implementation must not allocate a
+///   buffer for it.
 /// * `read_exact` fails whole -- it never returns a partial count.
 /// * `close` is synchronous and safe to call after the peer or this side
 ///   already tore the transport down; later reads and writes fail.
