@@ -133,12 +133,13 @@ pub enum WsDecodeResult {
 /// in a fixed order: reserved bits, then mask direction against `peer`, then
 /// the control-frame shape (a control frame carries fin and at most 125
 /// payload bytes, checked before any extended length form), then the length
-/// form together with the per-frame ceiling, and finally, once the frame is
-/// complete, the close, opcode, and fragmentation-chain rules. A fragmented
-/// message is refused with a protocol error as soon as its fragments cross
-/// `MAX_WS_MESSAGE_LEN`; a legal message reassembles in one pass when its
-/// final fragment is visible, and until then the decoder waits at exact
-/// `Need` counts and copies no payload. A close frame surfaces immediately,
+/// form together with the per-frame and message ceilings, and finally, once
+/// the frame is complete, the close, opcode, and fragmentation-chain rules.
+/// A fragmented message is refused with a protocol error as soon as its
+/// fragments cross
+/// `MAX_WS_MESSAGE_LEN`; a legal message is assembled into one message buffer
+/// once its final fragment is visible, and until then the decoder waits at
+/// exact `Need` counts and copies no payload. A close frame surfaces immediately,
 /// ahead of the fragments it may interrupt. An empty buffer asks for the
 /// 2-byte frame header.
 ///
