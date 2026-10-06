@@ -199,6 +199,29 @@ test "a fragmented message past the message ceiling is refused at the crossing h
 }
 
 ///|
+test "a message at the exact cap is accepted and waits for the second mask key" {
+  // A four-byte first fragment plus a final continuation declaring 16 MiB
+  // lands exactly on `MAX_FRAME_LEN + 4`, so the cap does not fire and the
+  // decoder moves on to the second fragment's mask key.
+  let frame : Bytes = b"\x02\x84\x00\x00\x00\x00abcd\x80\xff\x00\x00\x00\x00\x01\x00\x00\x00"
+  match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Client) {
+    @protocol.Need(more) => assert_eq(more, 4)
+    _ => fail("expected the at-cap message to continue to the second mask key")
+  }
+}
+
+///|
+test "a message one byte past the cap is refused at the crossing header" {
+  // One byte more than the exact cap: refused where the second fragment's
+  // header is read, before its mask key or payload.
+  let frame : Bytes = b"\x02\x85\x00\x00\x00\x00abcde\x80\xff\x00\x00\x00\x00\x01\x00\x00\x00"
+  match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Client) {
+    @protocol.WsError(code) => assert_eq(code, @protocol.ProtocolError)
+    _ => fail("expected the message one byte past the cap to be refused")
+  }
+}
+
+///|
 test "a fragmented control frame is refused" {
   let frame : Bytes = b"\x08\x80\x00\x00\x00\x00"
   match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Client) {
@@ -307,7 +330,7 @@ test "non-minimal length encodings are refused" {
 }
 
 ///|
-test "the message ceiling waits at the cap and refuses one byte past it" {
+test "the per-frame ceiling waits at the cap and refuses one byte past it" {
   let at_cap : Bytes = b"\x82\x7f\x00\x00\x00\x00\x01\x00\x00\x00"
   match @protocol.decode_ws_message(at_cap[:], @protocol.WsPeer::Server) {
     @protocol.Need(more) => assert_eq(more, 16777216)
