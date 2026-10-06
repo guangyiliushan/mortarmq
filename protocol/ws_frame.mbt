@@ -26,9 +26,13 @@
 /// ranges is a later policy, not a property of this codec. The read side is
 /// stateless over the whole accumulated buffer and validates frame headers
 /// until a message completes, so an incomplete fragmented message costs no
-/// payload work; a masked message is unmasked while assembling into one
-/// message buffer, and an
-/// unmasked single-frame message borrows the input without copying.
+/// payload work; a masked single-frame message is unmasked into one owned
+/// buffer, a masked fragmented message is unmasked while assembling into one
+/// message buffer, and an unmasked single-frame message borrows the input
+/// without copying. The caller bounds the accumulated buffer and the read
+/// cadence: every call re-walks the frame headers from the buffer start, so a
+/// fragmented message arriving in many small reads repeats the walk over its
+/// earlier frames.
 
 ///|
 /// Cap one reassembled message: the v0 frame ceiling plus the 4-byte length
@@ -164,7 +168,7 @@ pub fn decode_ws_message(data : BytesView, peer : WsPeer) -> WsDecodeResult {
     WsPeer::Client => true
     WsPeer::Server => false
   }
-  let fragments : Array[WsFragment] = []
+  let mut fragments : Array[WsFragment]? = None
   let mut total_payload = 0U
   let mut in_message = false
   let mut pos = 0
@@ -264,12 +268,23 @@ pub fn decode_ws_message(data : BytesView, peer : WsPeer) -> WsDecodeResult {
       // all outside the binary-plus-close profile.
       _ => return WsError(ProtocolError)
     }
-    fragments.push(fragment)
-    in_message = true
     if fin {
-      let payload = assemble_message(data, fragments)
-      return Message(payload, frame_end)
+      match fragments {
+        None =>
+          // A single-frame message needs no fragment list and no second
+          // pass over the payload.
+          return Message(assemble_single(data, fragment), frame_end)
+        Some(list) => {
+          list.push(fragment)
+          return Message(assemble_message(data, list), frame_end)
+        }
+      }
     }
+    match fragments {
+      None => fragments = Some([fragment])
+      Some(list) => list.push(fragment)
+    }
+    in_message = true
     pos = frame_end
   }
   abort("unreachable")
@@ -379,22 +394,39 @@ fn read_uint64_be(data : BytesView, offset : Int) -> UInt64 {
 }
 
 ///|
-/// Build the message payload from its recorded fragments in one pass.
+/// Unmask one payload byte at `index` inside its fragment's payload.
+fn unmask_byte(value : Byte, key : UInt, index : Int) -> Byte {
+  let shift = (3 - (index & 3)) * 8
+  ((value.to_uint() ^ (key >> shift)) & 0xFFU).reinterpret_as_int().to_byte()
+}
+
+///|
+/// Produce the payload of a single-frame message.
 ///
-/// A single unmasked fragment borrows the read buffer. Any other shape
-/// assembles the fragments into one message buffer, unmasking masked
-/// fragments during the copy, so the unmask work is paid once per message
-/// rather than once per arrived frame.
+/// An unmasked fragment borrows the read buffer without copying; a masked
+/// fragment is unmasked into one owned buffer. Single frames are the common
+/// shape, so this path stays free of the fragment list and of an intermediate
+/// buffer.
+fn assemble_single(data : BytesView, fragment : WsFragment) -> BytesView {
+  if !fragment.masked {
+    return data[fragment.start:fragment.start + fragment.length]
+  }
+  Bytes::makei(fragment.length, i => {
+    unmask_byte(data[fragment.start + i], fragment.key, i)
+  })[:]
+}
+
+///|
+/// Build one fragmented message payload from its recorded fragments.
+///
+/// The fragments are unmasked while assembling into one message buffer, so
+/// the unmask work is paid once per message rather than once per arrived
+/// frame; the intermediate buffer keeps the fragment walk linear at the cost
+/// of one extra pass over the payload.
 fn assemble_message(
   data : BytesView,
   fragments : Array[WsFragment],
 ) -> BytesView {
-  if fragments.length() == 1 {
-    let only = fragments[0]
-    if !only.masked {
-      return data[only.start:only.start + only.length]
-    }
-  }
   let mut total = 0
   for fragment in fragments {
     total = total + fragment.length
@@ -405,15 +437,12 @@ fn assemble_message(
     let start = fragment.start
     let length = fragment.length
     let key = fragment.key
-    for k in 0..<length {
-      if fragment.masked {
-        // The mask key applies to the fragment's own payload, cycling over
-        // its four bytes; the packed key puts the first wire byte highest.
-        let shift = (3 - (k & 3)) * 8
-        out[base + k] = ((data[start + k].to_uint() ^ (key >> shift)) & 0xFFU)
-          .reinterpret_as_int()
-          .to_byte()
-      } else {
+    if fragment.masked {
+      for k in 0..<length {
+        out[base + k] = unmask_byte(data[start + k], key, k)
+      }
+    } else {
+      for k in 0..<length {
         out[base + k] = data[start + k]
       }
     }
