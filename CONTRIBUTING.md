@@ -206,7 +206,8 @@ Every `.mbt` file opens with a `///` block that says, **in the comment itself**:
 3. **What constrains it** — the rules a reader would otherwise rediscover: how the value space is divided, what may never change, what happens on the far side of a boundary.
 
 ```mbt
-/// Error codes sent on the wire as a u16, grouped into four disjoint ranges.
+/// Error codes sent on the wire as a 2-byte big-endian unsigned value, grouped
+/// into four disjoint ranges.
 ///
 /// 0x0xxx protocol and session; 0x2xxx metadata; 0x4xxx backpressure and
 /// quota; 0x6xxx replication. The ranges never overlap, and a value inside
@@ -221,8 +222,8 @@ Every `.mbt` file opens with a `///` block that says, **in the comment itself**:
 ///
 /// ```mbt check
 /// test {
-///   assert_eq(@protocol.ErrCode::from_u16(0x0001U), Some(@protocol.BadLength))
-///   assert_eq(@protocol.ErrCode::from_u16(0x000CU), None)
+///   assert_eq(@protocol.ErrCode::from_uint16(0x0001U), Some(@protocol.BadLength))
+///   assert_eq(@protocol.ErrCode::from_uint16(0x000CU), None)
 /// }
 /// ```
 ```
