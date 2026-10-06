@@ -103,7 +103,7 @@ pub const WIRE_VERSION : UInt = 1U
 pub const KEEPALIVE_SECONDS : UInt = 30U
 
 ///|
-/// How long a half-received frame may stay open, in seconds: 10.
+/// How long a half-received frame may go without progress, in seconds: 10.
 ///
 /// The connection is closed when it expires; the byte stream is never
 /// re-synchronised. Scanning forward for the next length prefix could not

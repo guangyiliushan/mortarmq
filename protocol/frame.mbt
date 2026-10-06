@@ -60,7 +60,7 @@ fn read_uint_be(data : BytesView, offset : Int) -> UInt {
 /// from the most recent progress on the partial frame, and once that silence
 /// reaches `HALF_FRAME_TIMEOUT_SECONDS` the connection closes rather than
 /// wait for the remaining bytes. No partial frame is ever returned, so the
-/// bytes of an abandoned half-frame cannot be set aside for later: they are
+/// bytes of an abandoned half frame cannot be set aside for later: they are
 /// indistinguishable from the header of the next frame, and keeping them
 /// would corrupt every frame decoded after them.
 ///
