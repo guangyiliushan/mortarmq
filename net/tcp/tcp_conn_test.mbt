@@ -80,3 +80,30 @@ async test "TcpConn read_exact with a negative length reports the transport fail
     @net.Conn::close(conn)
   }
 }
+
+///|
+async test "TcpConn close is idempotent and later reads and writes fail" {
+  let server = @socket.TcpServer(@socket.Addr::parse("127.0.0.1:0"))
+  let port = server.addr.port()
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server.close()
+      let (tcp, _) = server.accept()
+      defer tcp.close()
+    }
+    let conn : @tcp.TcpConn = match @tcp.TcpConn::connect("127.0.0.1", port) {
+      Ok(conn) => conn
+      Err(_) => fail("loopback connect must not fail")
+    }
+    @net.Conn::close(conn)
+    @net.Conn::close(conn)
+    match @net.Conn::write_all(conn, b"x") {
+      Err(@protocol.Internal) => ()
+      _ => fail("a write after close must report the transport failure code")
+    }
+    match @net.Conn::read_exact(conn, 1) {
+      Err(@protocol.Internal) => ()
+      _ => fail("a read after close must report the transport failure code")
+    }
+  }
+}

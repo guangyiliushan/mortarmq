@@ -7,7 +7,8 @@
 /// touching a socket.
 
 ///|
-// Collects written bytes; writes never fail, mirroring a healthy transport.
+// Collects written bytes; accepts at most three bytes per call, so a
+// successful delivery exercises the write loop.
 struct CollectWriter {
   buf : Buffer
 }
@@ -19,8 +20,9 @@ impl @io.Writer for CollectWriter with fn write_once(
   offset~ : Int,
   len~ : Int,
 ) -> Int {
-  self.buf.write_bytes(buf[offset:offset + len].to_owned())
-  len
+  let accepted = if len < 3 { len } else { 3 }
+  self.buf.write_bytes(buf[offset:offset + accepted].to_owned())
+  accepted
 }
 
 ///|

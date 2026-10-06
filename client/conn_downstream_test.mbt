@@ -71,5 +71,5 @@ async test "downstream package implements and drives the Conn trait" {
     _ => fail("a read past the scripted stream must fail whole")
   }
   @net.Conn::close(scripted)
-  assert_true(scripted.closed)
+  assert_eq(scripted.closed, true)
 }
