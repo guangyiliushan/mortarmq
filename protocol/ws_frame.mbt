@@ -13,11 +13,12 @@
 ///
 /// # Constraints
 ///
-/// Each frame is capped at `MAX_FRAME_LEN` (16 MiB), so every single-frame
-/// message of the v0 wire protocol fits inside one websocket frame; a
-/// fragmented message is bounded by the frames it is built from. Control
-/// frames carry
-/// at most 125 bytes and are never fragmented. Ping (0x9) and pong (0xA) are
+/// Each frame is capped at `MAX_FRAME_LEN` (16 MiB), and a whole message is
+/// capped at `MAX_WS_MESSAGE_LEN` (`MAX_FRAME_LEN + 4`, the largest legal v0
+/// wire frame with its 4-byte length prefix), so every single-frame v0 frame
+/// fits inside one websocket message and a fragmented message is refused as
+/// soon as its fragments cross the cap. Control frames carry at most 125
+/// bytes and are never fragmented. Ping (0x9) and pong (0xA) are
 /// outside the binary-plus-close profile and refused like reserved opcodes.
 /// After any `WsError` the byte stream has no resynchronisation point: the
 /// caller sends the carried close code and disconnects. Close codes surface
@@ -28,6 +29,12 @@
 /// payload work; a masked message is unmasked while assembling into one
 /// message buffer, and an
 /// unmasked single-frame message borrows the input without copying.
+
+///|
+/// Cap one reassembled message: the v0 frame ceiling plus the 4-byte length
+/// prefix of the largest legal v0 wire frame, so every legal v0 frame fits
+/// inside one websocket message.
+const MAX_WS_MESSAGE_LEN : UInt = MAX_FRAME_LEN + 4U
 
 ///|
 /// Name the endpoint that produced the frames under decode.
@@ -153,6 +160,7 @@ pub fn decode_ws_message(data : BytesView, peer : WsPeer) -> WsDecodeResult {
     WsPeer::Server => false
   }
   let fragments : Array[WsFragment] = []
+  let mut total_payload = 0U
   let mut in_message = false
   let mut pos = 0
   while true {
@@ -199,6 +207,14 @@ pub fn decode_ws_message(data : BytesView, peer : WsPeer) -> WsDecodeResult {
       }
       payload_len = long_len.to_int()
       header = 10
+    }
+    if opcode == 0x2 || opcode == 0x0 {
+      // A message is refused while the header of the fragment crossing the
+      // ceiling is read, before its mask key or payload is requested.
+      total_payload = total_payload + payload_len.reinterpret_as_uint()
+      if total_payload > MAX_WS_MESSAGE_LEN {
+        return WsError(ProtocolError)
+      }
     }
     let fragment = if masked {
       if available - pos < header + 4 {
@@ -294,7 +310,7 @@ pub fn encode_ws_binary_frame(
     buf.write_uint16_be(length.to_uint16())
   } else {
     buf.write_byte(b'\x7f')
-    // The ceiling keeps the length inside 24 bits, so the high word is zero.
+    // The ceiling keeps the length inside the low word, so the high word is zero.
     buf.write_uint_be(0U)
     buf.write_uint_be(length.reinterpret_as_uint())
   }

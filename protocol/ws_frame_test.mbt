@@ -180,6 +180,19 @@ test "a control frame past 125 bytes is refused before its length form" {
 }
 
 ///|
+test "a fragmented message past the message ceiling is refused at the crossing header" {
+  // An eight-byte first fragment followed by a final continuation declaring
+  // 16 MiB: the sum crosses `MAX_FRAME_LEN + 4` while the second fragment's
+  // length form is read, so the refusal needs neither its mask key nor its
+  // payload.
+  let frame : Bytes = b"\x02\x88\x00\x00\x00\x00abcdefgh\x80\xff\x00\x00\x00\x00\x01\x00\x00\x00"
+  match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Client) {
+    @protocol.WsError(code) => assert_eq(code, @protocol.ProtocolError)
+    _ => fail("expected the message past the ceiling to be refused")
+  }
+}
+
+///|
 test "a fragmented control frame is refused" {
   let frame : Bytes = b"\x08\x80\x00\x00\x00\x00"
   match @protocol.decode_ws_message(frame[:], @protocol.WsPeer::Client) {
