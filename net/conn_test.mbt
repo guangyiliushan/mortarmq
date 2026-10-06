@@ -94,6 +94,13 @@ async test "read_exact with zero length returns an empty frame and consumes noth
 }
 
 ///|
+async test "read_exact with a negative length is refused before the transport is touched" {
+  let conn = pipe_conn(writer => @io.Writer::write(writer, b"data"))
+  assert_eq(@net.Conn::read_exact(conn, -1), Err(@protocol.Internal))
+  assert_eq(@net.Conn::read_exact(conn, 4), Ok(b"data"))
+}
+
+///|
 async test "read_exact past the end of the stream reports the transport failure code" {
   let conn = pipe_conn(writer => @io.Writer::write(writer, b"ab"))
   match @net.Conn::read_exact(conn, 4) {

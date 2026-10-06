@@ -76,3 +76,15 @@ async test "downstream package implements and drives the Conn trait" {
   @net.Conn::close(scripted)
   assert_eq(scripted.closed, true)
 }
+
+///|
+async test "a negative read length is refused by the scripted connection" {
+  let scripted : ScriptedConn = {
+    inbox: b"data",
+    outbox: Buffer(),
+    closed: false,
+  }
+  let conn : &@net.Conn = scripted
+  assert_eq(@net.Conn::read_exact(conn, -1), Err(@protocol.Internal))
+  assert_eq(@net.Conn::read_exact(conn, 4), Ok(b"data"))
+}
