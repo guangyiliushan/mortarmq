@@ -96,7 +96,7 @@ async test "a half frame whose deadline fires is disconnected rather than waited
 }
 
 ///|
-async test "progress moves the half frame deadline instead of expiring it" {
+async test "progress moves the half-frame deadline instead of expiring it" {
   let clock = @harness.FakeClock::new()
   let mut buffer : Bytes = connect_head
   assert_eq(@harness.Clock::sleep_until(clock, 10_000UL), false)
@@ -145,7 +145,7 @@ async test "completing the frame before its deadline delivers and disarms the wa
 }
 
 ///|
-test "a wire error closes without consulting the half frame deadline" {
+test "a wire error closes without consulting the half-frame deadline" {
   let bad_length : Bytes = b"\x00\x00\x00\x00"
   assert_eq(reader_step(bad_length, 0UL, 0UL), Rejected(@protocol.BadLength))
 }
