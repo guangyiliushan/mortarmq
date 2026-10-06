@@ -138,6 +138,23 @@ test "a zero partition count is refused and creates nothing" {
 }
 
 ///|
+test "a zero partition count is refused before the stored count is consulted" {
+  let registry = @broker.TopicRegistry::new()
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 3),
+    Ok(expected(1, 3, true)),
+  )
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 0),
+    Err(@protocol.InvalidTopic),
+  )
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 3),
+    Ok(expected(1, 3, false)),
+  )
+}
+
+///|
 test "the maximum partition count is accepted and replays identically" {
   let registry = @broker.TopicRegistry::new()
   assert_eq(
