@@ -108,6 +108,9 @@ pub impl @net.Conn for TcpConn with fn read_exact(self, len : Int) -> Result[
   Bytes,
   @protocol.ErrCode,
 ] {
+  if len < 0 {
+    return Err(@protocol.Internal)
+  }
   let received = @io.Reader::read_exactly(self.tcp, len) catch {
     _ => return Err(@protocol.Internal)
   }

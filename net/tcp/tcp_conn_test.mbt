@@ -58,3 +58,25 @@ async test "TcpConn read past a peer close reports the transport failure code" {
     @net.Conn::close(conn)
   }
 }
+
+///|
+async test "TcpConn read_exact with a negative length reports the transport failure code" {
+  let server = @socket.TcpServer(@socket.Addr::parse("127.0.0.1:0"))
+  let port = server.addr.port()
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server.close()
+      let (tcp, _) = server.accept()
+      defer tcp.close()
+    }
+    let conn : @tcp.TcpConn = match @tcp.TcpConn::connect("127.0.0.1", port) {
+      Ok(conn) => conn
+      Err(_) => fail("loopback connect must not fail")
+    }
+    match @net.Conn::read_exact(conn, -1) {
+      Err(@protocol.Internal) => ()
+      _ => fail("a negative read length must report the transport failure code")
+    }
+    @net.Conn::close(conn)
+  }
+}
