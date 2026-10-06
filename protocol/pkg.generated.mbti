@@ -28,7 +28,13 @@ pub fn decode_frame(BytesView) -> DecodeResult
 
 pub fn decode_wire_payload(Op, BytesView) -> Result[WirePayload, ErrCode]
 
+pub fn decode_ws_message(BytesView, WsPeer) -> WsDecodeResult
+
 pub fn encode_wire_payload(WirePayload) -> Result[Bytes, ErrCode]
+
+pub fn encode_ws_binary_frame(BytesView) -> Result[Bytes, WsCloseCode]
+
+pub fn encode_ws_close_frame(WsCloseCode) -> Bytes
 
 // Errors
 
@@ -311,6 +317,27 @@ pub(all) enum WirePayload {
 pub fn WirePayload::equal(Self, Self) -> Bool
 pub fn WirePayload::not_equal(Self, Self) -> Bool
 pub fn WirePayload::to_repr(Self) -> @debug.Repr
+
+pub(all) enum WsCloseCode {
+  NormalClose
+  ProtocolError
+  UnsupportedData
+} derive(Eq, @debug.Debug)
+pub fn WsCloseCode::equal(Self, Self) -> Bool
+pub fn WsCloseCode::not_equal(Self, Self) -> Bool
+pub fn WsCloseCode::to_repr(Self) -> @debug.Repr
+
+pub enum WsDecodeResult {
+  Need(Int)
+  Message(BytesView, Int)
+  PeerClose(UInt16, Int)
+  WsError(WsCloseCode)
+}
+
+pub(all) enum WsPeer {
+  Client
+  Server
+}
 
 // Type aliases
 
