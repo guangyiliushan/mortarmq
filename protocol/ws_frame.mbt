@@ -13,15 +13,20 @@
 ///
 /// # Constraints
 ///
-/// The message ceiling equals `MAX_FRAME_LEN` (16 MiB), so every message of
-/// the v0 wire protocol fits inside one websocket frame. Control frames carry
+/// Each frame is capped at `MAX_FRAME_LEN` (16 MiB), so every single-frame
+/// message of the v0 wire protocol fits inside one websocket frame; a
+/// fragmented message is bounded by the frames it is built from. Control
+/// frames carry
 /// at most 125 bytes and are never fragmented. Ping (0x9) and pong (0xA) are
 /// outside the binary-plus-close profile and refused like reserved opcodes.
 /// After any `WsError` the byte stream has no resynchronisation point: the
-/// caller sends the carried close code and disconnects. The read side is
+/// caller sends the carried close code and disconnects. Close codes surface
+/// exactly as the peer sent them; validating them against the reserved
+/// ranges is a later policy, not a property of this codec. The read side is
 /// stateless over the whole accumulated buffer and validates frame headers
 /// until a message completes, so an incomplete fragmented message costs no
-/// payload work; a masked message is copied once while unmasking, and an
+/// payload work; a masked message is unmasked while assembling into one
+/// message buffer, and an
 /// unmasked single-frame message borrows the input without copying.
 
 ///|
@@ -199,7 +204,7 @@ pub fn decode_ws_message(data : BytesView, peer : WsPeer) -> WsDecodeResult {
       if available - pos < header + 4 {
         return Need(header + 4 - (available - pos))
       }
-      let key = read_uint32_be(data, pos + header)
+      let key = read_uint_be(data, pos + header)
       header = header + 4
       { start: pos + header, length: payload_len, masked: true, key, }
     } else {
@@ -343,15 +348,6 @@ fn read_uint16_be(data : BytesView, offset : Int) -> Int {
 }
 
 ///|
-/// Read a 4-byte big-endian unsigned mask key.
-fn read_uint32_be(data : BytesView, offset : Int) -> UInt {
-  (data[offset].to_uint() << 24) +
-  (data[offset + 1].to_uint() << 16) +
-  (data[offset + 2].to_uint() << 8) +
-  data[offset + 3].to_uint()
-}
-
-///|
 /// Read an 8-byte big-endian unsigned length.
 fn read_uint64_be(data : BytesView, offset : Int) -> UInt64 {
   let mut value = 0UL
@@ -365,8 +361,9 @@ fn read_uint64_be(data : BytesView, offset : Int) -> UInt64 {
 /// Build the message payload from its recorded fragments in one pass.
 ///
 /// A single unmasked fragment borrows the read buffer. Any other shape
-/// allocates the message once and unmaskes masked fragments while copying, so
-/// the work is paid once per message rather than once per arrived frame.
+/// assembles the fragments into one message buffer, unmasking masked
+/// fragments during the copy, so the unmask work is paid once per message
+/// rather than once per arrived frame.
 fn assemble_message(
   data : BytesView,
   fragments : Array[WsFragment],
