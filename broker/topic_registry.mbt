@@ -79,7 +79,7 @@ pub struct TopicRegistry {
 /// Identifier assignment is per registry; two registries never share
 /// entries or sequences.
 ///
-/// # Example
+/// Example:
 ///
 /// ```mbt check
 /// test {
@@ -123,7 +123,9 @@ pub fn TopicRegistry::new() -> TopicRegistry {
 /// * `InvalidTopic` -- the name is empty or the partition count is zero.
 ///   Both are recoverable client mistakes, so the registered
 ///   client-fixable code fits; `Internal` would send a fixable request to
-///   issue-filing instead.
+///   issue-filing instead. The name case is exactly the registered
+///   meaning; the count case stretches it -- the registry states the
+///   stretch here rather than inventing an unregistered code.
 /// * `TopicExistsMismatch` -- the name exists with a different partition
 ///   count; the stored entry is left untouched.
 /// * `Internal` -- every identifier in 1..=0xFFFF is live, so a new name
@@ -132,7 +134,7 @@ pub fn TopicRegistry::new() -> TopicRegistry {
 ///   cannot fix by retrying or backing off. Replays of existing names
 ///   still succeed.
 ///
-/// # Example
+/// Example:
 ///
 /// ```mbt check
 /// test {
@@ -168,6 +170,7 @@ pub fn TopicRegistry::declare_topic(
     return Err(@protocol.InvalidTopic)
   }
   if partition_count.to_uint() == 0U {
+    // UInt16 has no 0 literal of its own, so the check widens before comparing.
     return Err(@protocol.InvalidTopic)
   }
   match self.entries.get(topic) {
