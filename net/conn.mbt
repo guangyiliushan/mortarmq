@@ -29,37 +29,47 @@
 /// mid-read, and a local IO fault all report `Internal` (0x000A) with no OS
 /// detail attached. Codes are only ever added, so a transport range can be
 /// introduced later without changing this trait.
+
+///|
+/// Move exactly the requested bytes in either direction for one peer.
+///
+/// The example below shows the implementation shape and is not runnable: a
+/// checked doc fence carries only test blocks, and an implementation needs
+/// declarations. The executable contract lives in `net/conn_test.mbt` and
+/// `client/conn_downstream_test.mbt`.
 ///
 /// Example:
 ///
-/// ```mbt check
+/// ```mbt nocheck
 /// struct FixedConn {
 ///   mut payload : Bytes
 /// }
 ///
-/// impl @net.Conn for FixedConn with fn read_exact(
-///   self,
-///   len : Int,
-/// ) -> Result[Bytes, @protocol.ErrCode] {
+/// impl @net.Conn for FixedConn with fn read_exact(self, len : Int) -> Result[
+///   Bytes,
+///   @protocol.ErrCode,
+/// ] {
 ///   if len > self.payload.length() {
 ///     return Err(@protocol.Internal)
 ///   }
 ///   let served = self.payload[:len].to_owned()
-///   self.payload = self.payload[len:]
+///   self.payload = self.payload[len:].to_owned()
 ///   Ok(served)
 /// }
 ///
-/// impl @net.Conn for FixedConn with fn write_all(
-///   self,
-///   _data : Bytes,
-/// ) -> Result[Unit, @protocol.ErrCode] {
+/// impl @net.Conn for FixedConn with fn write_all(self, _data : Bytes) -> Result[
+///   Unit,
+///   @protocol.ErrCode,
+/// ] {
 ///   Ok(())
 /// }
 ///
-/// impl @net.Conn for FixedConn with fn close(_self) -> Unit { }
+/// impl @net.Conn for FixedConn with fn close(_self) -> Unit {
+///
+/// }
 ///
 /// test {
-///   let fixed = { payload: b"hello" }
+///   let fixed = { payload: b"hello", }
 ///   assert_eq(@net.Conn::read_exact(fixed, 2), Ok(b"he"))
 ///   assert_eq(@net.Conn::read_exact(fixed, 3), Ok(b"llo"))
 ///   assert_eq(@net.Conn::read_exact(fixed, 1), Err(@protocol.Internal))
@@ -67,8 +77,6 @@
 ///   @net.Conn::close(fixed)
 /// }
 /// ```
-
-///|
 pub(open) trait Conn {
   /// Pull exactly `len` bytes forward through the stream, waiting as needed.
   async fn read_exact(Self, len : Int) -> Result[Bytes, @protocol.ErrCode]
