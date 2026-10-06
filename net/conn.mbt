@@ -8,11 +8,11 @@
 /// in this trait knows about frames.
 ///
 /// The method set is deliberately closed: no message framing, no half-close,
-/// no TLS, no peer address. Both the native TCP transport in this package and
-/// any later session transport implement it unchanged, and code written
-/// against the trait never names a transport: callers written as `T : Conn`
-/// dispatch statically, and `&Conn` carries a connection whose concrete type
-/// a lower layer owns.
+/// no TLS, no peer address. Both the native TCP transport in the `net/tcp`
+/// package and any later session transport implement it unchanged, and code
+/// written against the trait never names a transport: callers written as
+/// `T : Conn` dispatch statically, and `&Conn` carries a connection whose
+/// concrete type a lower layer owns.
 ///
 /// # Boundaries
 ///

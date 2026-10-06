@@ -6,7 +6,9 @@
 /// accepted every byte, and `close` shuts the socket down without waiting
 /// for the far end. The type exists only on the targets where the underlying
 /// socket package supports TCP; browser and pure-core builds see the `Conn`
-/// trait alone and stay transport-free.
+/// trait alone and stay transport-free. The wrapper type itself is load-
+/// bearing: the trait cannot be implemented for the foreign socket type
+/// directly, so this newtype carries the implementation.
 ///
 /// # Errors
 ///
@@ -38,24 +40,25 @@ pub extend TcpConn with @net.Conn::{read_exact, write_all, close}
 ///
 /// `host` may be a DNS name or an IP literal; resolution follows the
 /// platform resolver. The connection is ready for `read_exact` and
-/// `write_all` on return; nothing is buffered here.
+/// `write_all` on return; nothing is buffered here. The connect blocks
+/// until the OS reports the handshake outcome -- there is no timeout
+/// parameter, and a caller that needs bounded waiting layers it above
+/// this call.
 ///
 /// Parameters:
 ///
 /// * `host` : Peer host name or IP literal.
 /// * `port` : Peer TCP port.
 ///
-/// # Errors
-///
-/// * Reports `Internal` (0x000A) when resolution, the handshake, or the
-///   local socket setup fails; the OS detail is dropped.
-///
 /// Example:
 ///
-/// ```mbt check
+/// ```mbt nocheck
 /// async test {
 ///   // Nothing listens on TCP port 1 of the loopback address, so the
-///   // connect fails whole instead of half-opening.
+///   // connect fails whole instead of half-opening. Not a checked example:
+///   // it touches the real loopback, so it would false-fail wherever
+///   // something already listens on that port. The runnable coverage lives
+///   // in the connect tests.
 ///   match @tcp.TcpConn::connect("127.0.0.1", 1) {
 ///     Err(@protocol.Internal) => ()
 ///     _ =>
@@ -65,6 +68,11 @@ pub extend TcpConn with @net.Conn::{read_exact, write_all, close}
 ///   }
 /// }
 /// ```
+///
+/// # Errors
+///
+/// * Reports `Internal` (0x000A) when resolution, the handshake, or the
+///   local socket setup fails; the OS detail is dropped.
 pub async fn TcpConn::connect(
   host : String,
   port : Int,
@@ -80,6 +88,9 @@ pub async fn TcpConn::connect(
 ///
 /// Returns the bytes as one `Bytes` value; a short stream fails whole. The
 /// zero-length read returns an empty `Bytes` without touching the socket.
+/// There is no upper bound here on purpose: the frame layer owns the
+/// protocol maximum, and a negative `len` reports the transport failure
+/// rather than inventing a read.
 ///
 /// # Errors
 ///
