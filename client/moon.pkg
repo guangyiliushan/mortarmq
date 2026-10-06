@@ -1,1 +1,7 @@
 // Placeholder package: client library in three forms -- native, browser JS backend, wasm-gc pure core.
+
+import {
+  "guangyiliushan/mortarmq/net",
+  "guangyiliushan/mortarmq/protocol",
+  "moonbitlang/async",
+} for "test"

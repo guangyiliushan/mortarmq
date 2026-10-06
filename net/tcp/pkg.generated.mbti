@@ -1,0 +1,25 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/net/tcp"
+
+import {
+  "guangyiliushan/mortarmq/net",
+  "guangyiliushan/mortarmq/protocol",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct TcpConn {
+  // private fields
+}
+pub fn TcpConn::close(Self) -> Unit
+pub async fn TcpConn::connect(String, Int) -> Result[Self, @protocol.ErrCode]
+pub async fn TcpConn::read_exact(Self, Int) -> Result[Bytes, @protocol.ErrCode]
+pub async fn TcpConn::write_all(Self, Bytes) -> Result[Unit, @protocol.ErrCode]
+pub impl @net.Conn for TcpConn
+
+// Type aliases
+
+// Traits

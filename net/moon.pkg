@@ -1,0 +1,11 @@
+// Transport-neutral Conn trait: the seam broker and cluster depend on
+// instead of any concrete transport. The protocol package never imports this
+// one; this package imports protocol only for the shared error registry.
+import {
+  "guangyiliushan/mortarmq/protocol",
+}
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/io",
+} for "test"

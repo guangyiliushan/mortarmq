@@ -1,0 +1,16 @@
+// Native TCP transport for the Conn trait. The tcp wrapper exists only on
+// the backends where the underlying socket package defines TCP (native and
+// wasm); browser and pure-core builds depend on the trait package alone.
+import {
+  "guangyiliushan/mortarmq/net",
+  "guangyiliushan/mortarmq/protocol",
+  "moonbitlang/async/io",
+  "moonbitlang/async/socket",
+}
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/io",
+} for "test"
+
+supported_targets = "+native+wasm"
