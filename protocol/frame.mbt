@@ -56,13 +56,13 @@ fn read_uint_be(data : BytesView, offset : Int) -> UInt {
 /// Both error classes close the connection because the byte stream has no
 /// resynchronisation point.
 ///
-/// A `Need` result carries a deadline as well: the caller measures silence
+/// A `Need` result arms a deadline as well: the caller measures silence
 /// from the most recent progress on the partial frame, and once that silence
-/// exceeds `HALF_FRAME_TIMEOUT_SECONDS` the connection closes rather than
+/// reaches `HALF_FRAME_TIMEOUT_SECONDS` the connection closes rather than
 /// wait for the remaining bytes. No partial frame is ever returned, so the
-/// bytes of an abandoned half-frame cannot be set aside for later;
-/// indistinguishable from the header of the next frame, keeping them would
-/// corrupt every frame decoded after them.
+/// bytes of an abandoned half-frame cannot be set aside for later: they are
+/// indistinguishable from the header of the next frame, and keeping them
+/// would corrupt every frame decoded after them.
 ///
 /// # Example
 ///

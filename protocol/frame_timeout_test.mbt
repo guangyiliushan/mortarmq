@@ -21,7 +21,8 @@ let connect_mid : Bytes = b"\x00\x0d\x01"
 let connect_tail : Bytes = b"\x01\x00\x00\x00\x03a\x62\x63\x00\x00\x00\x00"
 
 ///|
-/// Pin the chunks to the golden vector they must reassemble.
+/// Pin the chunks to the golden vector they must reassemble; the literal is
+/// the same CONNECT frame pinned in golden_test.mbt.
 let connect_frame : Bytes = b"\x00\x00\x00\x0d\x01\x01\x00\x00\x00\x03a\x62\x63\x00\x00\x00\x00"
 
 ///|

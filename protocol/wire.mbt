@@ -8,8 +8,8 @@
 /// disagree on one of them cannot parse each other's frames.
 ///
 /// Backpressure and flow control act only on whole frames. A reader never
-/// stops in the middle of one, and a peer that holds half a frame open longer
-/// than `HALF_FRAME_TIMEOUT_SECONDS` is disconnected rather than waited for.
+/// stops in the middle of one, and a peer whose half-frame silence reaches
+/// `HALF_FRAME_TIMEOUT_SECONDS` is disconnected rather than waited for.
 
 ///|
 /// Maximum frame length in bytes, op byte included: 16 MiB.
