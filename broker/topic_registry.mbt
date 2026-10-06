@@ -170,7 +170,6 @@ pub fn TopicRegistry::declare_topic(
     return Err(@protocol.InvalidTopic)
   }
   if partition_count.to_uint() == 0U {
-    // UInt16 has no 0 literal of its own, so the check widens before comparing.
     return Err(@protocol.InvalidTopic)
   }
   match self.entries.get(topic) {
