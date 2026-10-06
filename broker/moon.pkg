@@ -1,1 +1,4 @@
-// Placeholder package: topics, partitions, consumer groups, routing and connection handlers.
+import {
+  "guangyiliushan/mortarmq/protocol",
+  "moonbitlang/core/debug",
+}

@@ -1,11 +1,30 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "guangyiliushan/mortarmq/broker"
 
+import {
+  "guangyiliushan/mortarmq/protocol",
+  "moonbitlang/core/debug",
+}
+
 // Values
 
 // Errors
 
 // Types and methods
+pub(all) struct DeclareOutcome {
+  topic_id : UInt16
+  partition_count : UInt16
+  created : Bool
+} derive(Eq, @debug.Debug)
+pub fn DeclareOutcome::equal(Self, Self) -> Bool
+pub fn DeclareOutcome::not_equal(Self, Self) -> Bool
+pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
+
+pub struct TopicRegistry {
+  // private fields
+}
+pub fn TopicRegistry::declare_topic(Self, Bytes, UInt16) -> Result[DeclareOutcome, @protocol.ErrCode]
+pub fn TopicRegistry::new() -> Self
 
 // Type aliases
 
