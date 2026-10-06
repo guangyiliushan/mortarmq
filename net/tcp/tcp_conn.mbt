@@ -100,8 +100,8 @@ pub async fn TcpConn::connect(
 /// Example:
 ///
 /// ```mbt nocheck
-/// // Needs a live peer, so only the call shape is shown; the trait-level
-/// // example and the loopback tests carry the runnable coverage.
+/// // Needs a live peer, so only the call shape is shown; the runnable
+/// // coverage lives in net/conn_test.mbt and client/conn_downstream_test.mbt.
 /// let frame = @net.Conn::read_exact(conn, 4)?
 /// ```
 pub impl @net.Conn for TcpConn with fn read_exact(self, len : Int) -> Result[
@@ -131,8 +131,8 @@ pub impl @net.Conn for TcpConn with fn read_exact(self, len : Int) -> Result[
 /// Example:
 ///
 /// ```mbt nocheck
-/// // Needs a live peer, so only the call shape is shown; the trait-level
-/// // example and the loopback tests carry the runnable coverage.
+/// // Needs a live peer, so only the call shape is shown; the runnable
+/// // coverage lives in net/conn_test.mbt and client/conn_downstream_test.mbt.
 /// @net.Conn::write_all(conn, frame)?
 /// ```
 pub impl @net.Conn for TcpConn with fn write_all(self, data : Bytes) -> Result[
