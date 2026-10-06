@@ -10,8 +10,12 @@ Public API lookup for client authors and second-party developers.
 - `protocol` package: `Op` maps the fifteen assigned operation bytes through `Op::from_byte` / `Op#to_byte`; every reserved byte returns `None`.
 - `protocol` package: `decode_frame` returns `Need`, a borrowing `Frame`, or `DecodeError`; unknown operations are rejected as soon as the five-byte header is visible.
 - `protocol` package: `WirePayload` covers request, response, and server-push payloads for all fifteen operations; `decode_wire_payload` / `encode_wire_payload` check field order, bounds, trailing bytes, and op matching.
+- `protocol` package: `decode_ws_message` decodes the websocket frame subset -- binary data frames only, checked against `WsPeer` direction -- and returns `Need`, a borrowing `Message`, `PeerClose`, or `WsError`; `encode_ws_binary_frame` and `encode_ws_close_frame` emit the server-side frames.
 - `storage` package: the v0 record header uses the frozen 56-byte layout; `decode_record_header` checks length consistency, value bounds, reserved bytes, and replication kind.
 - `storage` package: `validate_segment_identity` checks `MMQS`, format version, and header version.
 - `storage` package: `encode_record_header` calculates CRC32C; `decode_record_header` verifies CRC, key-present consistency, lengths, value bounds, reserved bits, and replication kind.
 - `harness` package: deterministic `FakeClock`, `FakeNet`, `FakeDisk`, and `SplitMix64` seams for virtual time, FIFO delivery, capability-aware faults, and reproducible randomness.
+- `harness` package: `SimEnv` bundles one clock, network, disk, and random stream under a single seed; `reproducible` runs a scenario twice on fresh same-seed environments and reports agreement.
+- `broker` package: `TopicRegistry` holds the in-memory topic metadata behind DECLARE; `declare_topic` replays an identical declaration idempotently and refuses a partition-count mismatch.
+- `net` package: the `Conn` trait (`read_exact` / `write_all` / `close`) is the byte-pipe seam for broker and cluster; the `net/tcp` package adds the native `TcpConn` transport with `connect`.
 - Client, broker, storage-runtime, cluster, tooling, and benchmark surfaces are filled in by `moon doc` once implemented.
