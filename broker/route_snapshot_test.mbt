@@ -213,3 +213,27 @@ test "replaying the same declarations rebuilds an equal view" {
     )
   }
 }
+
+///|
+test "system topics ride the snapshot and route like any topic" {
+  let registry = @broker.TopicRegistry::new()
+  let orders = match
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 3) {
+    Ok(outcome) => outcome
+    Err(_) => fail("declare failed")
+  }
+  let snapshot = @broker.RoutingSnapshot::from_registry(registry, 1UL)
+  // the reserved twin is a first-class routing citizen: present in the
+  // view with the source partition window and routed by the same hash
+  // contract -- publish policy lives at the publish gate, not in routing
+  let twin = match @broker.RoutingSnapshot::lookup(snapshot, b"orders.dlq") {
+    Some(entry) => entry
+    None => fail("the twin must ride the snapshot unfiltered")
+  }
+  assert_true(twin.topic_id != orders.topic_id)
+  assert_eq(twin.partition_count, orders.partition_count)
+  assert_eq(
+    @broker.RoutingSnapshot::route(snapshot, b"orders.dlq", b"user-42"),
+    Ok(@broker.route_partition(b"user-42", twin.partition_count)),
+  )
+}
