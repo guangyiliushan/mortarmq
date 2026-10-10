@@ -1,7 +1,12 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "guangyiliushan/mortarmq/tools"
 
+import {
+  "guangyiliushan/mortarmq/security",
+}
+
 // Values
+pub fn hash_token(BytesView, Bytes) -> Result[Bytes, @security.TokensError]
 
 // Errors
 

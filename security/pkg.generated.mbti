@@ -1,0 +1,46 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/security"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn digest_hex(Bytes) -> Bytes
+
+pub fn parse_tokens(BytesView) -> TokenStore
+
+pub fn sha256(BytesView) -> Bytes
+
+pub fn sha256_hex(BytesView) -> Bytes
+
+pub fn token_line(Bytes, Bytes) -> Result[Bytes, TokensError]
+
+// Errors
+pub(all) suberror TokensError {
+  BadDigest
+  BadRole
+} derive(Eq, @debug.Debug)
+pub fn TokensError::equal(Self, Self) -> Bool
+pub fn TokensError::not_equal(Self, Self) -> Bool
+pub fn TokensError::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct TokenEntry {
+  digest : Bytes
+  role : Bytes
+} derive(Eq, @debug.Debug)
+pub fn TokenEntry::equal(Self, Self) -> Bool
+pub fn TokenEntry::not_equal(Self, Self) -> Bool
+pub fn TokenEntry::to_repr(Self) -> @debug.Repr
+
+pub(all) struct TokenStore {
+  entries : Array[TokenEntry]
+} derive(Eq, @debug.Debug)
+pub fn TokenStore::equal(Self, Self) -> Bool
+pub fn TokenStore::not_equal(Self, Self) -> Bool
+pub fn TokenStore::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits
