@@ -21,7 +21,8 @@
 /// * Every terminal path removes waiters in arrival order, so the served
 ///   order is fair and same-seed runs replay identically.
 /// * The queue holds memory state only. Message bytes never enter it; a
-///   terminal path returns the ticket and the caller builds the response.
+///   terminal path returns the ticket and the caller builds the response
+///   within the bounds the ticket carries.
 
 ///|
 /// Bound one long-poll wait at 5000 ms.
@@ -44,11 +45,15 @@ pub const MAX_WAITING_PULLS : Int = 16
 /// `wait_id` is the queue-local arrival number: increasing from zero, never
 /// reused within one queue, and the tie-breaker that makes terminal order
 /// deterministic. A ticket is the handle one terminal path returns; it is not
-/// valid for a second terminal action.
+/// valid for a second terminal action. `max_msgs` and `max_bytes` carry the
+/// response bounds of the request so the wake path can size its batch
+/// without remembering the request elsewhere.
 pub(all) struct PullTicket {
   member_id : UInt64
   subscription_id : UInt16
   wait_id : UInt64
+  max_msgs : UInt16
+  max_bytes : UInt
 } derive(Eq, Debug)
 
 ///|
@@ -116,6 +121,10 @@ pub fn PullQueue::new() -> PullQueue {
 ///   the cap key and the filter `wake_next` matches.
 /// * `wait_ms` : The requested wait in milliseconds; clamped, not refused,
 ///   above `MAX_PULL_WAIT_MS`.
+/// * `max_msgs` : The response bound on message count; the wake path serves
+///   at most this many messages to the ticket.
+/// * `max_bytes` : The response bound on payload bytes (key plus value); the
+///   wake path stops before the message that would cross it.
 /// * `now_ms` : The monotonic reading the deadline is measured from. Read
 ///   the fake clock in simulations; real adapters pass their own reading.
 ///
@@ -134,12 +143,40 @@ pub fn PullQueue::new() -> PullQueue {
 /// test {
 ///   let queue = @broker.PullQueue::new()
 ///   assert_eq(
-///     @broker.PullQueue::enqueue(queue, 1UL, 7, 5000U.to_uint16(), 0UL),
-///     Ok({ member_id: 1UL, subscription_id: 7, wait_id: 0UL, }),
+///     @broker.PullQueue::enqueue(
+///       queue,
+///       1UL,
+///       7,
+///       5000U.to_uint16(),
+///       65_535U.to_uint16(),
+///       1_048_576U,
+///       0UL,
+///     ),
+///     Ok({
+///       member_id: 1UL,
+///       subscription_id: 7,
+///       wait_id: 0UL,
+///       max_msgs: 65_535U.to_uint16(),
+///       max_bytes: 1_048_576U,
+///     }),
 ///   )
 ///   assert_eq(
-///     @broker.PullQueue::enqueue(queue, 1UL, 7, 5000U.to_uint16(), 0UL),
-///     Ok({ member_id: 1UL, subscription_id: 7, wait_id: 1UL, }),
+///     @broker.PullQueue::enqueue(
+///       queue,
+///       1UL,
+///       7,
+///       5000U.to_uint16(),
+///       65_535U.to_uint16(),
+///       1_048_576U,
+///       0UL,
+///     ),
+///     Ok({
+///       member_id: 1UL,
+///       subscription_id: 7,
+///       wait_id: 1UL,
+///       max_msgs: 65_535U.to_uint16(),
+///       max_bytes: 1_048_576U,
+///     }),
 ///   )
 /// }
 /// ```
@@ -148,6 +185,8 @@ pub fn PullQueue::enqueue(
   member_id : UInt64,
   subscription_id : UInt16,
   wait_ms : UInt16,
+  max_msgs : UInt16,
+  max_bytes : UInt,
   now_ms : UInt64,
 ) -> Result[PullTicket, @protocol.ErrCode] {
   let mut held = 0
@@ -171,6 +210,8 @@ pub fn PullQueue::enqueue(
     member_id,
     subscription_id,
     wait_id: self.state.val.next_wait_id,
+    max_msgs,
+    max_bytes,
   }
   self.state.val.next_wait_id = self.state.val.next_wait_id + 1UL
   self.state.val.waiting.push({ ticket, deadline_ms: now_ms + bounded, })
@@ -182,7 +223,7 @@ pub fn PullQueue::enqueue(
 ///
 /// Each returned ticket is answered with an empty result: the bounded wait
 /// ran out before data arrived. After the call no waiter with a deadline at
-/// or before `now_ms` remains, which is the no-hang guarantee a caller's
+/// or before `now_ms` remains, which is the no-hang guarantee a caller
 /// event loop relies on.
 ///
 /// Parameters:
@@ -198,7 +239,15 @@ pub fn PullQueue::enqueue(
 /// test {
 ///   let queue = @broker.PullQueue::new()
 ///   let ticket = match
-///     @broker.PullQueue::enqueue(queue, 1UL, 7, 5000U.to_uint16(), 0UL) {
+///     @broker.PullQueue::enqueue(
+///       queue,
+///       1UL,
+///       7,
+///       5000U.to_uint16(),
+///       65_535U.to_uint16(),
+///       1_048_576U,
+///       0UL,
+///     ) {
 ///     Ok(ticket) => ticket
 ///     Err(_) => abort("first enqueue must succeed")
 ///   }
@@ -242,7 +291,15 @@ pub fn PullQueue::due(self : PullQueue, now_ms : UInt64) -> Array[PullTicket] {
 /// test {
 ///   let queue = @broker.PullQueue::new()
 ///   let ticket = match
-///     @broker.PullQueue::enqueue(queue, 1UL, 7, 5000U.to_uint16(), 0UL) {
+///     @broker.PullQueue::enqueue(
+///       queue,
+///       1UL,
+///       7,
+///       5000U.to_uint16(),
+///       65_535U.to_uint16(),
+///       1_048_576U,
+///       0UL,
+///     ) {
 ///     Ok(ticket) => ticket
 ///     Err(_) => abort("first enqueue must succeed")
 ///   }
@@ -292,8 +349,28 @@ pub fn PullQueue::wake_next(
 /// ```mbt check
 /// test {
 ///   let queue = @broker.PullQueue::new()
-///   ignore(@broker.PullQueue::enqueue(queue, 1UL, 7, 5000U.to_uint16(), 0UL))
-///   ignore(@broker.PullQueue::enqueue(queue, 1UL, 7, 5000U.to_uint16(), 0UL))
+///   ignore(
+///     @broker.PullQueue::enqueue(
+///       queue,
+///       1UL,
+///       7,
+///       5000U.to_uint16(),
+///       65_535U.to_uint16(),
+///       1_048_576U,
+///       0UL,
+///     ),
+///   )
+///   ignore(
+///     @broker.PullQueue::enqueue(
+///       queue,
+///       1UL,
+///       7,
+///       5000U.to_uint16(),
+///       65_535U.to_uint16(),
+///       1_048_576U,
+///       0UL,
+///     ),
+///   )
 ///   assert_eq(@broker.PullQueue::cancel(queue, 1UL, 7).length(), 2)
 ///   assert_eq(@broker.PullQueue::pending_count(queue), 0)
 /// }
@@ -329,7 +406,17 @@ pub fn PullQueue::cancel(
 /// ```mbt check
 /// test {
 ///   let queue = @broker.PullQueue::new()
-///   ignore(@broker.PullQueue::enqueue(queue, 1UL, 7, 5000U.to_uint16(), 0UL))
+///   ignore(
+///     @broker.PullQueue::enqueue(
+///       queue,
+///       1UL,
+///       7,
+///       5000U.to_uint16(),
+///       65_535U.to_uint16(),
+///       1_048_576U,
+///       0UL,
+///     ),
+///   )
 ///   assert_eq(@broker.PullQueue::pending_count(queue), 1)
 /// }
 /// ```

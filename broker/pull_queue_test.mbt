@@ -16,6 +16,8 @@ async test "a waiting pull completes empty at its five second bound" {
       1UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ) {
     Ok(ticket) => ticket
@@ -43,6 +45,8 @@ async test "a longer request is served at the five second bound" {
       1UL,
       7,
       65_535U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ) {
     Ok(ticket) => ticket
@@ -67,6 +71,8 @@ async test "an arriving record wakes one waiter and leaves the rest waiting" {
       1UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ) {
     Ok(ticket) => ticket
@@ -78,6 +84,8 @@ async test "an arriving record wakes one waiter and leaves the rest waiting" {
       1UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ) {
     Ok(ticket) => ticket
@@ -104,6 +112,8 @@ async test "wake_next takes no waiter of another subscription" {
       1UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ) {
     Ok(ticket) => ticket
@@ -115,6 +125,8 @@ async test "wake_next takes no waiter of another subscription" {
       1UL,
       8,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ),
   )
@@ -137,6 +149,8 @@ async test "the waiting cap refuses a seventeenth pull with the registered code"
       1UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     )
     assert_eq(result is Ok(_), true)
@@ -147,6 +161,8 @@ async test "the waiting cap refuses a seventeenth pull with the registered code"
       1UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ),
     Err(@protocol.MaxWaitingPulls),
@@ -158,6 +174,8 @@ async test "the waiting cap refuses a seventeenth pull with the registered code"
       2UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     )
     is Ok(_),
@@ -169,6 +187,8 @@ async test "the waiting cap refuses a seventeenth pull with the registered code"
       1UL,
       8,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     )
     is Ok(_),
@@ -186,6 +206,8 @@ async test "the waiting cap refuses a seventeenth pull with the registered code"
       1UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     )
     is Ok(_),
@@ -203,6 +225,8 @@ async test "cancel on connection close drops only that member's waiters" {
       1UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ) {
     Ok(ticket) => ticket
@@ -214,6 +238,8 @@ async test "cancel on connection close drops only that member's waiters" {
       1UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ) {
     Ok(ticket) => ticket
@@ -225,6 +251,8 @@ async test "cancel on connection close drops only that member's waiters" {
       2UL,
       7,
       5000U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ) {
     Ok(ticket) => ticket
@@ -250,6 +278,8 @@ async test "a zero wait is already due and returns empty at once" {
       1UL,
       7,
       0U.to_uint16(),
+      65_535U.to_uint16(),
+      1_048_576U,
       @harness.Clock::now_ms(clock),
     ) {
     Ok(ticket) => ticket
@@ -271,6 +301,8 @@ async test "same-seed runs time out identically" {
         1UL,
         7,
         5000U.to_uint16(),
+        65_535U.to_uint16(),
+        1_048_576U,
         @harness.Clock::now_ms(env.clock),
       ) {
       Ok(ticket) => ticket
