@@ -97,11 +97,11 @@ pub extend MmmlRecordType with @moonbitlang/core/debug.Debug::{to_repr}
 ///
 /// ```mbt check
 /// test {
-///   assert_eq(@metadata.MmmlRecordType::TopicCreate.to_uint16(), 0x0001)
-///   assert_eq(@metadata.MmmlRecordType::UnknownFallback.to_uint16(), 0xFFFE)
+///   assert_eq(@metadata.MmmlRecordType::TopicCreate.toUint16(), 0x0001)
+///   assert_eq(@metadata.MmmlRecordType::UnknownFallback.toUint16(), 0xFFFE)
 /// }
 /// ```
-pub fn MmmlRecordType::to_uint16(self : MmmlRecordType) -> UInt16 {
+pub fn MmmlRecordType::toUint16(self : MmmlRecordType) -> UInt16 {
   match self {
     TopicCreate => 0x0001U.to_uint16()
     TopicUpdate => 0x0002U.to_uint16()
@@ -131,13 +131,13 @@ pub fn MmmlRecordType::to_uint16(self : MmmlRecordType) -> UInt16 {
 /// ```mbt check
 /// test {
 ///   assert_eq(
-///     @metadata.MmmlRecordType::from_uint16(0x0050),
+///     @metadata.MmmlRecordType::fromUint16(0x0050),
 ///     Some(@metadata.MmmlRecordType::SnapshotHint),
 ///   )
-///   assert_eq(@metadata.MmmlRecordType::from_uint16(0x1234), None)
+///   assert_eq(@metadata.MmmlRecordType::fromUint16(0x1234), None)
 /// }
 /// ```
-pub fn MmmlRecordType::from_uint16(code : UInt16) -> MmmlRecordType? {
+pub fn MmmlRecordType::fromUint16(code : UInt16) -> MmmlRecordType? {
   match code.to_uint() {
     0x0001U => Some(TopicCreate)
     0x0002U => Some(TopicUpdate)
@@ -162,12 +162,12 @@ pub fn MmmlRecordType::from_uint16(code : UInt16) -> MmmlRecordType? {
 /// `payload_len` and `record_crc32c` are derived by the write path and are
 /// not part of the in-memory DTO, mirroring the v0 storage record header.
 pub(all) struct MmmlHeader {
-  format_version : Byte
-  header_version : Byte
+  formatVersion : Byte
+  headerVersion : Byte
   flags : UInt16
-  record_type : MmmlRecordType
-  leader_epoch : UInt64
-  mutation_id : UInt64
+  recordType : MmmlRecordType
+  leaderEpoch : UInt64
+  mutationId : UInt64
 } derive(Eq, Debug)
 
 ///|
@@ -182,21 +182,14 @@ pub extend MmmlHeader with @moonbitlang/core/debug.Debug::{to_repr}
 /// Encode and decode perform the actual trust-boundary validation; this
 /// constructor exists only as an explicit literal constructor for tests.
 pub fn MmmlHeader::new(
-  format_version~ : Byte,
-  header_version~ : Byte,
+  formatVersion~ : Byte,
+  headerVersion~ : Byte,
   flags~ : UInt16,
-  record_type~ : MmmlRecordType,
-  leader_epoch~ : UInt64,
-  mutation_id~ : UInt64,
+  recordType~ : MmmlRecordType,
+  leaderEpoch~ : UInt64,
+  mutationId~ : UInt64,
 ) -> MmmlHeader {
-  {
-    format_version,
-    header_version,
-    flags,
-    record_type,
-    leader_epoch,
-    mutation_id,
-  }
+  { formatVersion, headerVersion, flags, recordType, leaderEpoch, mutationId, }
 }
 
 ///|
@@ -231,7 +224,7 @@ fn crc32c(data : BytesView) -> UInt {
 }
 
 ///|
-fn read_uint16_be(
+fn readUint16Be(
   data : BytesView,
   offset : Int,
 ) -> Result[UInt16, MetadataFault] {
@@ -242,7 +235,7 @@ fn read_uint16_be(
 }
 
 ///|
-fn read_uint_be(data : BytesView, offset : Int) -> Result[UInt, MetadataFault] {
+fn readUintBe(data : BytesView, offset : Int) -> Result[UInt, MetadataFault] {
   if offset + 4 > data.length() {
     return Err(Malformed)
   }
@@ -255,7 +248,7 @@ fn read_uint_be(data : BytesView, offset : Int) -> Result[UInt, MetadataFault] {
 }
 
 ///|
-fn read_uint64_be(
+fn readUint64Be(
   data : BytesView,
   offset : Int,
 ) -> Result[UInt64, MetadataFault] {
@@ -291,24 +284,24 @@ fn read_uint64_be(
 /// ```mbt check
 /// test {
 ///   let header = @metadata.MmmlHeader::new(
-///     format_version=1,
-///     header_version=1,
+///     formatVersion=1,
+///     headerVersion=1,
 ///     flags=0,
-///     record_type=@metadata.MmmlRecordType::TopicCreate,
-///     leader_epoch=2,
-///     mutation_id=7,
+///     recordType=@metadata.MmmlRecordType::TopicCreate,
+///     leaderEpoch=2,
+///     mutationId=7,
 ///   )
-///   assert_eq(@metadata.encode_mmml_record(header, b"ab") is Ok(_), true)
+///   assert_eq(@metadata.encodeMmmlRecord(header, b"ab") is Ok(_), true)
 /// }
 /// ```
-pub fn encode_mmml_record(
+pub fn encodeMmmlRecord(
   header : MmmlHeader,
   payload : BytesView,
 ) -> Result[Bytes, MetadataFault] {
-  if header.format_version != MMML_FORMAT_VERSION.to_byte() {
+  if header.formatVersion != MMML_FORMAT_VERSION.to_byte() {
     return Err(Malformed)
   }
-  if header.header_version != MMML_HEADER_VERSION.to_byte() {
+  if header.headerVersion != MMML_HEADER_VERSION.to_byte() {
     return Err(Malformed)
   }
   if (header.flags.to_uint() & 0xFFFCU) != 0U {
@@ -316,19 +309,19 @@ pub fn encode_mmml_record(
   }
   let buf = Buffer()
   buf.write_uint_be(payload.length().reinterpret_as_uint())
-  buf.write_uint16_be(header.record_type.to_uint16())
-  buf.write_uint64_be(header.leader_epoch)
-  buf.write_uint64_be(header.mutation_id)
+  buf.write_uint16_be(header.recordType.toUint16())
+  buf.write_uint64_be(header.leaderEpoch)
+  buf.write_uint64_be(header.mutationId)
   buf.write_bytes(payload)
-  let crc_covered = buf.contents()
-  let crc = crc32c(crc_covered[:])
+  let crcCovered = buf.contents()
+  let crc = crc32c(crcCovered[:])
   let out = Buffer()
   out.write_bytes(MMML_MAGIC)
-  out.write_byte(header.format_version)
-  out.write_byte(header.header_version)
+  out.write_byte(header.formatVersion)
+  out.write_byte(header.headerVersion)
   out.write_uint16_be(header.flags)
   out.write_uint_be(crc)
-  out.write_bytes(crc_covered)
+  out.write_bytes(crcCovered)
   Ok(out.contents())
 }
 
@@ -354,26 +347,24 @@ pub fn encode_mmml_record(
 /// ```mbt check
 /// test {
 ///   let header = @metadata.MmmlHeader::new(
-///     format_version=1,
-///     header_version=1,
+///     formatVersion=1,
+///     headerVersion=1,
 ///     flags=0,
-///     record_type=@metadata.MmmlRecordType::TopicCreate,
-///     leader_epoch=2,
-///     mutation_id=7,
+///     recordType=@metadata.MmmlRecordType::TopicCreate,
+///     leaderEpoch=2,
+///     mutationId=7,
 ///   )
-///   let bytes = match @metadata.encode_mmml_record(header, b"ab") {
+///   let bytes = match @metadata.encodeMmmlRecord(header, b"ab") {
 ///     Ok(record) => record
 ///     Err(_) => fail("encoding failed")
 ///   }
 ///   assert_eq(
-///     @metadata.decode_mmml_record(bytes[:]),
+///     @metadata.decodeMmmlRecord(bytes[:]),
 ///     Ok({ header, payload: b"ab", }),
 ///   )
 /// }
 /// ```
-pub fn decode_mmml_record(
-  data : BytesView,
-) -> Result[MmmlRecord, MetadataFault] {
+pub fn decodeMmmlRecord(data : BytesView) -> Result[MmmlRecord, MetadataFault] {
   if data.length() < MMML_HEADER_BYTES {
     return Err(Malformed)
   }
@@ -382,60 +373,60 @@ pub fn decode_mmml_record(
       return Err(Malformed)
     }
   }
-  let format_version = data[4]
-  if format_version != MMML_FORMAT_VERSION.to_byte() {
+  let formatVersion = data[4]
+  if formatVersion != MMML_FORMAT_VERSION.to_byte() {
     return Err(Malformed)
   }
-  let header_version = data[5]
-  if header_version != MMML_HEADER_VERSION.to_byte() {
+  let headerVersion = data[5]
+  if headerVersion != MMML_HEADER_VERSION.to_byte() {
     return Err(Malformed)
   }
-  let flags = match read_uint16_be(data, 6) {
+  let flags = match readUint16Be(data, 6) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
   if (flags.to_uint() & 0xFFFCU) != 0U {
     return Err(Malformed)
   }
-  let stored_crc = match read_uint_be(data, 8) {
+  let storedCrc = match readUintBe(data, 8) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let payload_len = match read_uint_be(data, 12) {
+  let payloadLen = match readUintBe(data, 12) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  if payload_len != (data.length() - MMML_HEADER_BYTES).reinterpret_as_uint() {
+  if payloadLen != (data.length() - MMML_HEADER_BYTES).reinterpret_as_uint() {
     return Err(Malformed)
   }
-  let record_type = match read_uint16_be(data, 16) {
+  let recordType = match readUint16Be(data, 16) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let record_type = match MmmlRecordType::from_uint16(record_type) {
+  let recordType = match MmmlRecordType::fromUint16(recordType) {
     Some(value) => value
     None => return Err(Malformed)
   }
-  let leader_epoch = match read_uint64_be(data, 18) {
+  let leaderEpoch = match readUint64Be(data, 18) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
-  let mutation_id = match read_uint64_be(data, 26) {
+  let mutationId = match readUint64Be(data, 26) {
     Ok(value) => value
     Err(code) => return Err(code)
   }
   let crc_data = data[12:]
-  if stored_crc != crc32c(crc_data) {
+  if storedCrc != crc32c(crc_data) {
     return Err(Malformed)
   }
   Ok({
     header: {
-      format_version,
-      header_version,
+      formatVersion,
+      headerVersion,
       flags,
-      record_type,
-      leader_epoch,
-      mutation_id,
+      recordType,
+      leaderEpoch,
+      mutationId,
     },
     payload: data[MMML_HEADER_BYTES:].to_owned(),
   })

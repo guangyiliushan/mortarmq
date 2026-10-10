@@ -36,107 +36,102 @@ pub const SNAPSHOT_SLOT_B : Bytes = b"mmml-snapshot-b.checkpoint"
 ///|
 /// One decoded snapshot: the rebuilt machine plus its log position.
 ///
-/// `end_offset` is the byte offset just past the last log record the
+/// `endOffset` is the byte offset just past the last log record the
 /// snapshot includes (the resume point for replay); `epoch` is the
-/// leader_epoch of the last included record, 0 when the snapshot is of
+/// leaderEpoch of the last included record, 0 when the snapshot is of
 /// an empty log.
 pub(all) struct SnapshotState {
   machine : DeclareMachine
   epoch : UInt64
-  end_offset : UInt64
+  endOffset : UInt64
 }
 
 ///|
-fn snapshot_header_payload(end_offset : UInt64) -> Bytes {
+fn snapshotHeaderPayload(endOffset : UInt64) -> Bytes {
   let buf = Buffer()
   buf.write_uint16_be(SNAPSHOT_FORMAT_VERSION)
-  buf.write_uint64_be(end_offset)
+  buf.write_uint64_be(endOffset)
   buf.contents()
 }
 
 ///|
-fn snapshot_footer_payload() -> Bytes {
+fn snapshotFooterPayload() -> Bytes {
   let buf = Buffer()
   buf.write_uint16_be(SNAPSHOT_FORMAT_VERSION)
   buf.contents()
 }
 
 ///|
-fn snapshot_record(
+fn snapshotRecord(
   epoch : UInt64,
   payload : Bytes,
 ) -> Result[Bytes, MetadataFault] {
-  encode_mmml_record(
+  encodeMmmlRecord(
     MmmlHeader::new(
-      format_version=1,
-      header_version=1,
+      formatVersion=1,
+      headerVersion=1,
       flags=0,
-      record_type=SnapshotHint,
-      leader_epoch=epoch,
-      mutation_id=0,
+      recordType=SnapshotHint,
+      leaderEpoch=epoch,
+      mutationId=0,
     ),
     payload[:],
   )
 }
 
 ///|
-fn encode_topic_entry(name : String, partition_count : UInt) -> Bytes {
-  let name_bytes = @utf8.encode(name)
+fn encodeTopicEntry(name : String, partitionCount : UInt) -> Bytes {
+  let nameBytes = @utf8.encode(name)
   let buf = Buffer()
   buf.write_byte(1)
-  buf.write_uint16_be(name_bytes.length().to_uint16())
-  buf.write_bytes(name_bytes)
-  buf.write_uint_be(partition_count)
+  buf.write_uint16_be(nameBytes.length().to_uint16())
+  buf.write_bytes(nameBytes)
+  buf.write_uint_be(partitionCount)
   buf.contents()
 }
 
 ///|
-fn encode_accepted_entry(
+fn encodeAcceptedEntry(
   key : String,
-  mutation_id : UInt64,
+  mutationId : UInt64,
   body : DeclareBody,
 ) -> Bytes {
-  let key_bytes = @utf8.encode(key)
+  let keyBytes = @utf8.encode(key)
   let buf = Buffer()
   buf.write_byte(2)
-  buf.write_uint16_be(key_bytes.length().to_uint16())
-  buf.write_bytes(key_bytes)
-  buf.write_uint64_be(mutation_id)
-  buf.write_uint16_be(body.to_record_type().to_uint16())
-  buf.write_bytes(body.to_payload())
+  buf.write_uint16_be(keyBytes.length().to_uint16())
+  buf.write_bytes(keyBytes)
+  buf.write_uint64_be(mutationId)
+  buf.write_uint16_be(body.toRecordType().toUint16())
+  buf.write_bytes(body.toPayload())
   buf.contents()
 }
 
 ///|
 /// Encode one complete snapshot file: header record, one state record
 /// per topic and per accepted-mutation entry, footer record.
-pub fn encode_snapshot(state : SnapshotState) -> Result[Bytes, MetadataFault] {
+pub fn encodeSnapshot(state : SnapshotState) -> Result[Bytes, MetadataFault] {
   let buf = Buffer()
-  match
-    snapshot_record(state.epoch, snapshot_header_payload(state.end_offset)) {
+  match snapshotRecord(state.epoch, snapshotHeaderPayload(state.endOffset)) {
     Ok(record) => buf.write_bytes(record)
     Err(fault) => return Err(fault)
   }
-  for (name, partition_count) in state.machine.topics.to_array() {
-    match
-      snapshot_record(state.epoch, encode_topic_entry(name, partition_count)) {
+  for (name, partitionCount) in state.machine.topics.to_array() {
+    match snapshotRecord(state.epoch, encodeTopicEntry(name, partitionCount)) {
       Ok(record) => buf.write_bytes(record)
       Err(fault) => return Err(fault)
     }
   }
   for (key, table) in state.machine.accepted.to_array() {
-    for (mutation_id, body) in table.to_array() {
+    for (mutationId, body) in table.to_array() {
       match
-        snapshot_record(
-          state.epoch,
-          encode_accepted_entry(key, mutation_id, body),
-        ) {
+        snapshotRecord(state.epoch, encodeAcceptedEntry(key, mutationId, body)) {
         Ok(record) => buf.write_bytes(record)
         Err(fault) => return Err(fault)
       }
     }
   }
-  match snapshot_record(state.epoch, snapshot_footer_payload()) {
+  match snapshotRecord(state.epoch, snapshotFooterPayload()) {
     Ok(record) => buf.write_bytes(record)
     Err(fault) => return Err(fault)
   }
@@ -144,58 +139,58 @@ pub fn encode_snapshot(state : SnapshotState) -> Result[Bytes, MetadataFault] {
 }
 
 ///|
-fn decode_state_entry(payload : BytesView, machine : DeclareMachine) -> Unit? {
+fn decodeStateEntry(payload : BytesView, machine : DeclareMachine) -> Unit? {
   if payload.length() < 1 {
     return None
   }
   match payload[0].to_uint() {
     1U => {
-      let name_len = match read_uint16_be(payload, 1) {
+      let nameLen = match readUint16Be(payload, 1) {
         Ok(value) => value.to_int()
         Err(_) => return None
       }
-      if payload.length() != 3 + name_len + 4 {
+      if payload.length() != 3 + nameLen + 4 {
         return None
       }
-      let name = @utf8.decode(payload[3:3 + name_len]) catch {
+      let name = @utf8.decode(payload[3:3 + nameLen]) catch {
         Malformed(_) => return None
       }
-      let partition_count = match read_uint_be(payload, 3 + name_len) {
+      let partitionCount = match readUintBe(payload, 3 + nameLen) {
         Ok(value) => value
         Err(_) => return None
       }
-      machine.topics.set(name, partition_count)
+      machine.topics.set(name, partitionCount)
       Some(())
     }
     2U => {
-      let key_len = match read_uint16_be(payload, 1) {
+      let keyLen = match readUint16Be(payload, 1) {
         Ok(value) => value.to_int()
         Err(_) => return None
       }
-      if payload.length() < 3 + key_len + 8 + 2 {
+      if payload.length() < 3 + keyLen + 8 + 2 {
         return None
       }
-      let key = @utf8.decode(payload[3:3 + key_len]) catch {
+      let key = @utf8.decode(payload[3:3 + keyLen]) catch {
         Malformed(_) => return None
       }
-      let mutation_id = match read_uint64_be(payload, 3 + key_len) {
+      let mutationId = match readUint64Be(payload, 3 + keyLen) {
         Ok(value) => value
         Err(_) => return None
       }
-      let body_code = match read_uint16_be(payload, 11 + key_len) {
+      let bodyCode = match readUint16Be(payload, 11 + keyLen) {
         Ok(value) => value
         Err(_) => return None
       }
-      let body_type = match MmmlRecordType::from_uint16(body_code) {
+      let bodyType = match MmmlRecordType::fromUint16(bodyCode) {
         Some(value) => value
         None => return None
       }
-      let body = match decode_declare_body(body_type, payload[13 + key_len:]) {
+      let body = match decodeDeclareBody(bodyType, payload[13 + keyLen:]) {
         Some(value) => value
         None => return None
       }
       let table = machine.accepted.get_or_init(key, () => Map([]))
-      table.set(mutation_id, body)
+      table.set(mutationId, body)
       Some(())
     }
     _ => None
@@ -213,35 +208,33 @@ fn decode_state_entry(payload : BytesView, machine : DeclareMachine) -> Unit? {
 ///   the footer is missing or is not the last record, or the file has
 ///   trailing bytes. The whole snapshot is then refused; the caller
 ///   falls back instead of trusting a guess.
-pub fn decode_snapshot(
-  data : BytesView,
-) -> Result[SnapshotState, MetadataFault] {
+pub fn decodeSnapshot(data : BytesView) -> Result[SnapshotState, MetadataFault] {
   if data.length() < 2 * MMML_HEADER_BYTES {
     return Err(Malformed)
   }
-  let header = match decode_mmml_record(data[:MMML_HEADER_BYTES + 10]) {
+  let header = match decodeMmmlRecord(data[:MMML_HEADER_BYTES + 10]) {
     Ok(record) => record
     Err(fault) => return Err(fault)
   }
-  if header.header.record_type != SnapshotHint ||
-    header.header.mutation_id != 0UL ||
+  if header.header.recordType != SnapshotHint ||
+    header.header.mutationId != 0UL ||
     header.payload.length() != 10 {
     return Err(Malformed)
   }
-  let version = match read_uint16_be(header.payload[:], 0) {
+  let version = match readUint16Be(header.payload[:], 0) {
     Ok(value) => value
     Err(fault) => return Err(fault)
   }
   if version != SNAPSHOT_FORMAT_VERSION {
     return Err(Malformed)
   }
-  let end_offset = match read_uint64_be(header.payload[:], 2) {
+  let endOffset = match readUint64Be(header.payload[:], 2) {
     Ok(value) => value
     Err(fault) => return Err(fault)
   }
   let machine = DeclareMachine::new()
   let mut position = MMML_HEADER_BYTES + 10
-  let mut saw_footer = false
+  let mut sawFooter = false
   for ;; {
     if position == data.length() {
       break
@@ -249,53 +242,52 @@ pub fn decode_snapshot(
     if position + MMML_HEADER_BYTES > data.length() {
       return Err(Malformed)
     }
-    let payload_len = match read_uint_be(data, position + 12) {
+    let payloadLen = match readUintBe(data, position + 12) {
       Ok(value) => value.reinterpret_as_int()
       Err(fault) => return Err(fault)
     }
-    let record_len = MMML_HEADER_BYTES + payload_len
-    if position + record_len > data.length() {
+    let recordLen = MMML_HEADER_BYTES + payloadLen
+    if position + recordLen > data.length() {
       return Err(Malformed)
     }
-    let record = match
-      decode_mmml_record(data[position:position + record_len]) {
+    let record = match decodeMmmlRecord(data[position:position + recordLen]) {
       Ok(value) => value
       Err(fault) => return Err(fault)
     }
-    if record.header.record_type != SnapshotHint ||
-      record.header.mutation_id != 0UL ||
-      record.header.leader_epoch != header.header.leader_epoch {
+    if record.header.recordType != SnapshotHint ||
+      record.header.mutationId != 0UL ||
+      record.header.leaderEpoch != header.header.leaderEpoch {
       return Err(Malformed)
     }
-    position = position + record_len
+    position = position + recordLen
     if position == data.length() {
       if record.payload.length() != 2 {
         return Err(Malformed)
       }
-      let footer_version = match read_uint16_be(record.payload[:], 0) {
+      let footerVersion = match readUint16Be(record.payload[:], 0) {
         Ok(value) => value
         Err(fault) => return Err(fault)
       }
-      if footer_version != SNAPSHOT_FORMAT_VERSION {
+      if footerVersion != SNAPSHOT_FORMAT_VERSION {
         return Err(Malformed)
       }
-      saw_footer = true
+      sawFooter = true
     } else {
-      match decode_state_entry(record.payload[:], machine) {
+      match decodeStateEntry(record.payload[:], machine) {
         Some(_) => ()
         None => return Err(Malformed)
       }
     }
   }
-  if !saw_footer {
+  if !sawFooter {
     return Err(Malformed)
   }
-  machine.max_epoch = header.header.leader_epoch
-  Ok({ machine, epoch: header.header.leader_epoch, end_offset, })
+  machine.maxEpoch = header.header.leaderEpoch
+  Ok({ machine, epoch: header.header.leaderEpoch, endOffset, })
 }
 
 ///|
-fn slot_path(dir : Bytes, slot : Bytes) -> Bytes {
+fn slotPath(dir : Bytes, slot : Bytes) -> Bytes {
   dir + b"/" + slot
 }
 
@@ -311,20 +303,20 @@ fn slot_path(dir : Bytes, slot : Bytes) -> Bytes {
 ///
 /// * `DiskFault` -- the write, fsync, or rename step faulted. The
 ///   previous generations in both slots are left as they were.
-pub async fn save_snapshot(
+pub async fn saveSnapshot(
   disk : &@harness.Disk,
   dir : Bytes,
   state : SnapshotState,
 ) -> Result[Unit, MetadataFault] {
-  let bytes = match encode_snapshot(state) {
+  let bytes = match encodeSnapshot(state) {
     Ok(value) => value
     Err(fault) => return Err(fault)
   }
-  let older_slot = match load_snapshot(disk, dir, SNAPSHOT_SLOT_A) {
+  let olderSlot = match loadSnapshot(disk, dir, SNAPSHOT_SLOT_A) {
     Ok(first) =>
-      match load_snapshot(disk, dir, SNAPSHOT_SLOT_B) {
+      match loadSnapshot(disk, dir, SNAPSHOT_SLOT_B) {
         Ok(second) =>
-          if first.end_offset <= second.end_offset {
+          if first.endOffset <= second.endOffset {
             SNAPSHOT_SLOT_A
           } else {
             SNAPSHOT_SLOT_B
@@ -333,7 +325,7 @@ pub async fn save_snapshot(
       }
     Err(_) => SNAPSHOT_SLOT_A
   }
-  let target = slot_path(dir, older_slot)
+  let target = slotPath(dir, olderSlot)
   let part = target + b".part"
   match @harness.Disk::write(disk, part, bytes) {
     Ok(_) => ()
@@ -357,16 +349,16 @@ pub async fn save_snapshot(
 /// * `DiskFault` -- the slot could not be read (including `PathMissing`
 ///   when the slot has never been written).
 /// * `Malformed` -- the slot bytes failed snapshot validation.
-pub async fn load_snapshot(
+pub async fn loadSnapshot(
   disk : &@harness.Disk,
   dir : Bytes,
   slot : Bytes,
 ) -> Result[SnapshotState, MetadataFault] {
-  let bytes = match @harness.Disk::read(disk, slot_path(dir, slot)) {
+  let bytes = match @harness.Disk::read(disk, slotPath(dir, slot)) {
     Ok(value) => value
     Err(fault) => return Err(DiskFault(fault))
   }
-  decode_snapshot(bytes[:])
+  decodeSnapshot(bytes[:])
 }
 
 ///|
@@ -379,7 +371,7 @@ pub async fn load_snapshot(
 /// DECLARE machine and skips SnapshotHint and other record types. A
 /// snapshot whose end offset lies past the log end is refused like a
 /// corrupt one (the pair is inconsistent), and replay enforces the
-/// non-decreasing leader_epoch chain from REQ-STO-006. A log record
+/// non-decreasing leaderEpoch chain from REQ-STO-006. A log record
 /// that fails validation aborts recovery with its offset so the
 /// quarantine path can act on the exact record; nothing is skipped.
 ///
@@ -390,20 +382,20 @@ pub async fn load_snapshot(
 ///   accepted-mutation table.
 /// * `DiskFault` -- a slot failed to read for a reason other than a
 ///   missing path or a validation refusal (those fall through the chain).
-pub async fn recover_snapshot(
+pub async fn recoverSnapshot(
   disk : &@harness.Disk,
   dir : Bytes,
   log : Bytes,
 ) -> Result[SnapshotState, MetadataFault] {
   let mut best : SnapshotState? = None
   for slot in [SNAPSHOT_SLOT_A, SNAPSHOT_SLOT_B] {
-    match load_snapshot(disk, dir, slot) {
+    match loadSnapshot(disk, dir, slot) {
       Ok(candidate) =>
-        if candidate.end_offset <= log.length().to_uint64() {
+        if candidate.endOffset <= log.length().to_uint64() {
           match best {
             None => best = Some(candidate)
             Some(current) =>
-              if candidate.end_offset > current.end_offset {
+              if candidate.endOffset > current.endOffset {
                 best = Some(candidate)
               }
           }
@@ -421,7 +413,7 @@ pub async fn recover_snapshot(
     Some(state) => {
       machine = state.machine
       epoch = state.epoch
-      position = state.end_offset.to_int()
+      position = state.endOffset.to_int()
     }
   }
   for ;; {
@@ -431,27 +423,27 @@ pub async fn recover_snapshot(
     if position + MMML_HEADER_BYTES > log.length() {
       return Err(Corruption(position.reinterpret_as_uint()))
     }
-    let payload_len = match read_uint_be(log[:], position + 12) {
+    let payloadLen = match readUintBe(log[:], position + 12) {
       Ok(value) => value.reinterpret_as_int()
       Err(_) => return Err(Corruption(position.reinterpret_as_uint()))
     }
-    let record_len = MMML_HEADER_BYTES + payload_len
-    if position + record_len > log.length() {
+    let recordLen = MMML_HEADER_BYTES + payloadLen
+    if position + recordLen > log.length() {
       return Err(Corruption(position.reinterpret_as_uint()))
     }
-    let record = match decode_mmml_record(log[position:position + record_len]) {
+    let record = match decodeMmmlRecord(log[position:position + recordLen]) {
       Ok(value) => value
       Err(_) => return Err(Corruption(position.reinterpret_as_uint()))
     }
-    if record.header.leader_epoch < epoch {
+    if record.header.leaderEpoch < epoch {
       return Err(Corruption(position.reinterpret_as_uint()))
     }
-    match decode_declare_body(record.header.record_type, record.payload[:]) {
+    match decodeDeclareBody(record.header.recordType, record.payload[:]) {
       Some(body) =>
         match
           machine.submit(
-            record.header.mutation_id,
-            record.header.leader_epoch,
+            record.header.mutationId,
+            record.header.leaderEpoch,
             body,
           ) {
           Created | Deleted | IdempotentOk => ()
@@ -460,8 +452,8 @@ pub async fn recover_snapshot(
         }
       None => ()
     }
-    epoch = record.header.leader_epoch
-    position = position + record_len
+    epoch = record.header.leaderEpoch
+    position = position + recordLen
   }
-  Ok({ machine, epoch, end_offset: position.to_uint64(), })
+  Ok({ machine, epoch, endOffset: position.to_uint64(), })
 }

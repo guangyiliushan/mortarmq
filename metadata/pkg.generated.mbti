@@ -23,21 +23,21 @@ pub const SNAPSHOT_SLOT_A : Bytes = b"mmml-snapshot-a.checkpoint"
 
 pub const SNAPSHOT_SLOT_B : Bytes = b"mmml-snapshot-b.checkpoint"
 
-pub fn decode_declare_body(MmmlRecordType, BytesView) -> DeclareBody?
+pub fn decodeDeclareBody(MmmlRecordType, BytesView) -> DeclareBody?
 
-pub fn decode_mmml_record(BytesView) -> Result[MmmlRecord, MetadataFault]
+pub fn decodeMmmlRecord(BytesView) -> Result[MmmlRecord, MetadataFault]
 
-pub fn decode_snapshot(BytesView) -> Result[SnapshotState, MetadataFault]
+pub fn decodeSnapshot(BytesView) -> Result[SnapshotState, MetadataFault]
 
-pub fn encode_mmml_record(MmmlHeader, BytesView) -> Result[Bytes, MetadataFault]
+pub fn encodeMmmlRecord(MmmlHeader, BytesView) -> Result[Bytes, MetadataFault]
 
-pub fn encode_snapshot(SnapshotState) -> Result[Bytes, MetadataFault]
+pub fn encodeSnapshot(SnapshotState) -> Result[Bytes, MetadataFault]
 
-pub async fn load_snapshot(&@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
+pub async fn loadSnapshot(&@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
 
-pub async fn recover_snapshot(&@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
+pub async fn recoverSnapshot(&@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
 
-pub async fn save_snapshot(&@harness.Disk, Bytes, SnapshotState) -> Result[Unit, MetadataFault]
+pub async fn saveSnapshot(&@harness.Disk, Bytes, SnapshotState) -> Result[Unit, MetadataFault]
 
 // Errors
 pub(all) suberror MetadataFault {
@@ -56,18 +56,18 @@ pub(all) enum DeclareBody {
 } derive(Eq, @debug.Debug)
 pub fn DeclareBody::equal(Self, Self) -> Bool
 pub fn DeclareBody::not_equal(Self, Self) -> Bool
-pub fn DeclareBody::to_payload(Self) -> Bytes
-pub fn DeclareBody::to_record_type(Self) -> MmmlRecordType
+pub fn DeclareBody::toPayload(Self) -> Bytes
+pub fn DeclareBody::toRecordType(Self) -> MmmlRecordType
 pub fn DeclareBody::to_repr(Self) -> @debug.Repr
 
 pub(all) struct DeclareMachine {
   topics : Map[String, UInt]
   accepted : Map[String, Map[UInt64, DeclareBody]]
-  mut max_epoch : UInt64
+  mut maxEpoch : UInt64
 }
-pub fn DeclareMachine::leader_epoch(Self) -> UInt64
+pub fn DeclareMachine::leaderEpoch(Self) -> UInt64
 pub fn DeclareMachine::new() -> Self
-pub fn DeclareMachine::partition_count(Self, String) -> UInt?
+pub fn DeclareMachine::partitionCount(Self, String) -> UInt?
 pub fn DeclareMachine::submit(Self, UInt64, UInt64, DeclareBody) -> DeclareOutcome
 
 pub(all) enum DeclareOutcome {
@@ -86,12 +86,12 @@ pub(all) struct MetadataGuard {
   mut entries : Array[QuarantineEntry]
 }
 pub fn MetadataGuard::entries(Self) -> Array[QuarantineEntry]
-pub fn MetadataGuard::escalate_to_quarantine(Self) -> Unit
+pub fn MetadataGuard::escalateToQuarantine(Self) -> Unit
 pub fn MetadataGuard::mode(Self) -> MetadataMode
 pub fn MetadataGuard::new() -> Self
-pub fn MetadataGuard::note_log_corruption(Self, UInt, UInt) -> Unit
-pub fn MetadataGuard::restore_healthy(Self) -> Unit
-pub fn MetadataGuard::write_refusal_code(Self) -> UInt16?
+pub fn MetadataGuard::noteLogCorruption(Self, UInt, UInt) -> Unit
+pub fn MetadataGuard::restoreHealthy(Self) -> Unit
+pub fn MetadataGuard::writeRefusalCode(Self) -> UInt16?
 
 pub(all) enum MetadataMode {
   Healthy
@@ -103,15 +103,15 @@ pub fn MetadataMode::not_equal(Self, Self) -> Bool
 pub fn MetadataMode::to_repr(Self) -> @debug.Repr
 
 pub(all) struct MmmlHeader {
-  format_version : Byte
-  header_version : Byte
+  formatVersion : Byte
+  headerVersion : Byte
   flags : UInt16
-  record_type : MmmlRecordType
-  leader_epoch : UInt64
-  mutation_id : UInt64
+  recordType : MmmlRecordType
+  leaderEpoch : UInt64
+  mutationId : UInt64
 } derive(Eq, @debug.Debug)
 pub fn MmmlHeader::equal(Self, Self) -> Bool
-pub fn MmmlHeader::new(format_version~ : Byte, header_version~ : Byte, flags~ : UInt16, record_type~ : MmmlRecordType, leader_epoch~ : UInt64, mutation_id~ : UInt64) -> Self
+pub fn MmmlHeader::new(formatVersion~ : Byte, headerVersion~ : Byte, flags~ : UInt16, recordType~ : MmmlRecordType, leaderEpoch~ : UInt64, mutationId~ : UInt64) -> Self
 pub fn MmmlHeader::not_equal(Self, Self) -> Bool
 pub fn MmmlHeader::to_repr(Self) -> @debug.Repr
 
@@ -139,10 +139,10 @@ pub(all) enum MmmlRecordType {
   UnknownFallback
 } derive(Eq, @debug.Debug)
 pub fn MmmlRecordType::equal(Self, Self) -> Bool
-pub fn MmmlRecordType::from_uint16(UInt16) -> Self?
+pub fn MmmlRecordType::fromUint16(UInt16) -> Self?
 pub fn MmmlRecordType::not_equal(Self, Self) -> Bool
+pub fn MmmlRecordType::toUint16(Self) -> UInt16
 pub fn MmmlRecordType::to_repr(Self) -> @debug.Repr
-pub fn MmmlRecordType::to_uint16(Self) -> UInt16
 
 pub(all) struct QuarantineEntry {
   offset : UInt
@@ -155,7 +155,7 @@ pub fn QuarantineEntry::to_repr(Self) -> @debug.Repr
 pub(all) struct SnapshotState {
   machine : DeclareMachine
   epoch : UInt64
-  end_offset : UInt64
+  endOffset : UInt64
 }
 
 // Type aliases
