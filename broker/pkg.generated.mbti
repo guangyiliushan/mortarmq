@@ -23,6 +23,30 @@ pub fn DeclareOutcome::equal(Self, Self) -> Bool
 pub fn DeclareOutcome::not_equal(Self, Self) -> Bool
 pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
 
+pub(all) struct RouteEntry {
+  topic_id : UInt16
+  partition_count : UInt16
+} derive(Eq, @debug.Debug)
+pub fn RouteEntry::equal(Self, Self) -> Bool
+pub fn RouteEntry::not_equal(Self, Self) -> Bool
+pub fn RouteEntry::to_repr(Self) -> @debug.Repr
+
+pub struct RoutingSnapshot {
+  // private fields
+}
+pub fn RoutingSnapshot::applied(Self) -> UInt64
+pub fn RoutingSnapshot::empty() -> Self
+pub fn RoutingSnapshot::from_registry(TopicRegistry, UInt64) -> Self
+pub fn RoutingSnapshot::lookup(Self, Bytes) -> RouteEntry?
+pub fn RoutingSnapshot::route(Self, Bytes, Bytes) -> Result[UInt16, @protocol.ErrCode]
+
+pub struct RoutingTable {
+  // private fields
+}
+pub fn RoutingTable::current(Self) -> RoutingSnapshot
+pub fn RoutingTable::new() -> Self
+pub fn RoutingTable::publish(Self, RoutingSnapshot) -> Unit
+
 pub struct TopicRegistry {
   // private fields
 }
