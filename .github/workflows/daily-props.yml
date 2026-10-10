@@ -1,0 +1,63 @@
+# Daily L2 property tier (REQ-QUA-002): the random-seed sweep the commit
+# budget cannot afford. CF4 is the daily-tier property in the M3 registry
+# (INV-010); the commit tier runs the seed-pinned CF1-CF3 inside the
+# regular suite (ci.yml `stable` gates 5-7).
+name: daily-props
+
+on:
+  schedule:
+    # 02:23 UTC daily. Off the top of the hour on purpose -- the :00 cron
+    # slots are the busiest on shared runners.
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Sweeps are independent of any ref; never cancel a running sweep in
+# favor of the next scheduled one.
+concurrency:
+  group: daily-props
+  cancel-in-progress: false
+
+env:
+  # Matches ci.yml: bootstrap hotfix note plus the competition compliance
+  # floor, enforced by assert-moonc.sh.
+  MOONBIT_INSTALL_VERSION: "latest"
+  MOONC_VERSION_FLOOR: "0.10.14"
+
+jobs:
+  daily-tier:
+    name: daily property tier (CF4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # This job never pushes; keeping the token out of .git/config
+          # means a compromised build step cannot reuse it.
+          persist-credentials: false
+
+      - name: install moon
+        uses: $/.github/actions/install-moon
+
+      - name: assert moonc >= compliance floor
+        run: bash .github/scripts/assert-moonc.sh
+
+      - name: moon version (audit evidence)
+        run: moon version --all && moonrun --version
+
+      # A fresh runner ships an empty registry index; see the note in
+      # ci.yml `stable`.
+      - name: moon update
+        run: moon update
+
+      # MORTARMQ_PROP_DAILY flips frame_props_daily_test.mbt into registry
+      # daily mode: run-unique seed (logged for reproduction), count=1000,
+      # max_size=256. The registry budget is <=30min; the sweep runs in
+      # seconds and the timeout is the guard, not the expectation.
+      - name: CF4 daily sweep (random seed, count=1000, max_size=256)
+        env:
+          MORTARMQ_PROP_DAILY: "1"
+        run: moon test protocol/frame_props_daily_test.mbt

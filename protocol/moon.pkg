@@ -5,6 +5,7 @@ import {
 import {
   "moonbitlang/core/bench",
   "moonbitlang/core/quickcheck",
+  "moonbitlang/core/env",
   "guangyiliushan/mortarmq/harness",
   "moonbitlang/async",
 } for "test"
