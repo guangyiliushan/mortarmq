@@ -103,6 +103,32 @@ pub fn PendingLevel::equal(Self, Self) -> Bool
 pub fn PendingLevel::not_equal(Self, Self) -> Bool
 pub fn PendingLevel::to_repr(Self) -> @debug.Repr
 
+pub struct PubBudget {
+  // private fields
+}
+pub fn PubBudget::admit(Self, UInt) -> Result[Unit, PubError]
+pub fn PubBudget::complete(Self, UInt) -> Unit
+pub fn PubBudget::new(UInt16, UInt) -> Self
+pub fn PubBudget::report(Self) -> PubReport
+pub fn PubBudget::with_defaults() -> Self
+
+pub(all) enum PubError {
+  OverBudgetCount
+  OverBudgetBytes
+} derive(Eq, @debug.Debug)
+pub fn PubError::equal(Self, Self) -> Bool
+pub fn PubError::not_equal(Self, Self) -> Bool
+pub fn PubError::to_err_code(Self) -> @protocol.ErrCode
+pub fn PubError::to_repr(Self) -> @debug.Repr
+
+pub(all) struct PubReport {
+  outstanding_count : UInt16
+  outstanding_bytes : UInt
+} derive(Eq, @debug.Debug)
+pub fn PubReport::equal(Self, Self) -> Bool
+pub fn PubReport::not_equal(Self, Self) -> Bool
+pub fn PubReport::to_repr(Self) -> @debug.Repr
+
 pub(all) struct ReturnedCredit {
   count : UInt16
   bytes : UInt
