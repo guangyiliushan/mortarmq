@@ -54,13 +54,13 @@ pub extend DeclareOutcome with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 /// Durable-idempotency state: active topics, the per-key accepted table,
-/// and the highest leaderEpoch applied. All three are carried verbatim
+/// and the highest leader_epoch applied. All three are carried verbatim
 /// by the metadata snapshot; nothing here may be rebuilt from anything
 /// but the MMML log and its snapshots.
 pub(all) struct DeclareMachine {
   topics : Map[String, UInt]
   accepted : Map[String, Map[UInt64, DeclareBody]]
-  mut maxEpoch : UInt64
+  mut max_epoch : UInt64
 }
 
 ///|
@@ -73,14 +73,14 @@ fn DeclareBody::key(self : DeclareBody) -> String {
 
 ///|
 pub fn DeclareMachine::new() -> DeclareMachine {
-  { topics: Map([]), accepted: Map([]), maxEpoch: 0UL, }
+  { topics: Map([]), accepted: Map([]), max_epoch: 0UL, }
 }
 
 ///|
-/// The highest leaderEpoch this machine has accepted; also the epoch a
+/// The highest leader_epoch this machine has accepted; also the epoch a
 /// new snapshot header must carry.
-pub fn DeclareMachine::leaderEpoch(self : DeclareMachine) -> UInt64 {
-  self.maxEpoch
+pub fn DeclareMachine::leader_epoch(self : DeclareMachine) -> UInt64 {
+  self.max_epoch
 }
 
 ///|
@@ -90,11 +90,11 @@ pub fn DeclareMachine::leaderEpoch(self : DeclareMachine) -> UInt64 {
 /// mutation_id with the same body replays as `IdempotentOk` unconditionally
 /// (REQ-STO-007 is epoch-independent); a known mutation_id with a
 /// different body is `MutationFenced` (0x2006, re-initiate); a new
-/// mutation_id from a stale leaderEpoch is `MutationFenced` the same way
+/// mutation_id from a stale leader_epoch is `MutationFenced` the same way
 /// (0x2006 covers "mutation_id/epoch 过期"); only then does the
 /// name/count check run, where `NameCountMismatch` (0x2001) stays the
 /// S1 registry layer verdict. Rejected mutations never enter the table
-/// and never advance `maxEpoch`.
+/// and never advance `max_epoch`.
 ///
 /// # Errors
 ///
@@ -102,12 +102,12 @@ pub fn DeclareMachine::leaderEpoch(self : DeclareMachine) -> UInt64 {
 /// and only accepted mutations advance state.
 pub fn DeclareMachine::submit(
   self : DeclareMachine,
-  mutationId : UInt64,
-  leaderEpoch : UInt64,
+  mutation_id : UInt64,
+  leader_epoch : UInt64,
   body : DeclareBody,
 ) -> DeclareOutcome {
   let table = self.accepted.get_or_init(body.key(), () => Map([]))
-  match table.get(mutationId) {
+  match table.get(mutation_id) {
     Some(accepted) =>
       if accepted == body {
         IdempotentOk
@@ -115,27 +115,27 @@ pub fn DeclareMachine::submit(
         MutationFenced
       }
     None =>
-      if leaderEpoch < self.maxEpoch {
+      if leader_epoch < self.max_epoch {
         MutationFenced
       } else {
         match body {
-          Create(name, partitionCount) =>
+          Create(name, partition_count) =>
             match self.topics.get(name) {
               Some(committed) =>
-                if committed == partitionCount {
-                  table.set(mutationId, body)
-                  if leaderEpoch > self.maxEpoch {
-                    self.maxEpoch = leaderEpoch
+                if committed == partition_count {
+                  table.set(mutation_id, body)
+                  if leader_epoch > self.max_epoch {
+                    self.max_epoch = leader_epoch
                   }
                   IdempotentOk
                 } else {
                   NameCountMismatch
                 }
               None => {
-                self.topics.set(name, partitionCount)
-                table.set(mutationId, body)
-                if leaderEpoch > self.maxEpoch {
-                  self.maxEpoch = leaderEpoch
+                self.topics.set(name, partition_count)
+                table.set(mutation_id, body)
+                if leader_epoch > self.max_epoch {
+                  self.max_epoch = leader_epoch
                 }
                 Created
               }
@@ -144,16 +144,16 @@ pub fn DeclareMachine::submit(
             match self.topics.get(name) {
               Some(_) => {
                 self.topics.remove(name)
-                table.set(mutationId, body)
-                if leaderEpoch > self.maxEpoch {
-                  self.maxEpoch = leaderEpoch
+                table.set(mutation_id, body)
+                if leader_epoch > self.max_epoch {
+                  self.max_epoch = leader_epoch
                 }
                 Deleted
               }
               None => {
-                table.set(mutationId, body)
-                if leaderEpoch > self.maxEpoch {
-                  self.maxEpoch = leaderEpoch
+                table.set(mutation_id, body)
+                if leader_epoch > self.max_epoch {
+                  self.max_epoch = leader_epoch
                 }
                 IdempotentOk
               }
@@ -164,7 +164,7 @@ pub fn DeclareMachine::submit(
 }
 
 ///|
-pub fn DeclareMachine::partitionCount(
+pub fn DeclareMachine::partition_count(
   self : DeclareMachine,
   name : String,
 ) -> UInt? {
@@ -173,7 +173,7 @@ pub fn DeclareMachine::partitionCount(
 
 ///|
 /// Record type a DECLARE body occupies in the MMML log.
-pub fn DeclareBody::toRecordType(self : DeclareBody) -> MmmlRecordType {
+pub fn DeclareBody::to_record_type(self : DeclareBody) -> MmmlRecordType {
   match self {
     Create(_, _) => TopicCreate
     Delete(_) => TopicDelete
@@ -185,16 +185,16 @@ pub fn DeclareBody::toRecordType(self : DeclareBody) -> MmmlRecordType {
 /// a u16 big-endian byte length of the UTF-8 name, the name bytes, and
 /// for creates a u32 big-endian partition count. Decoding is the exact
 /// inverse or rejects the bytes as malformed.
-pub fn DeclareBody::toPayload(self : DeclareBody) -> Bytes {
-  let nameBytes = match self {
+pub fn DeclareBody::to_payload(self : DeclareBody) -> Bytes {
+  let name_bytes = match self {
     Create(name, _) => @utf8.encode(name)
     Delete(name) => @utf8.encode(name)
   }
   let buf = Buffer()
-  buf.write_uint16_be(nameBytes.length().to_uint16())
-  buf.write_bytes(nameBytes)
+  buf.write_uint16_be(name_bytes.length().to_uint16())
+  buf.write_bytes(name_bytes)
   match self {
-    Create(_, partitionCount) => buf.write_uint_be(partitionCount)
+    Create(_, partition_count) => buf.write_uint_be(partition_count)
     Delete(_) => ()
   }
   buf.contents()
@@ -206,29 +206,29 @@ pub fn DeclareBody::toPayload(self : DeclareBody) -> Bytes {
 /// Returns `None` for record types that are not DECLARE mutations, for
 /// truncated or overlong payloads, and for names that are not valid
 /// UTF-8; the caller refuses those bytes at the trust boundary.
-pub fn decodeDeclareBody(
-  recordType : MmmlRecordType,
+pub fn decode_declare_body(
+  record_type : MmmlRecordType,
   payload : BytesView,
 ) -> DeclareBody? {
-  let isCreate = match recordType {
+  let is_create = match record_type {
     TopicCreate => true
     TopicDelete => false
     _ => return None
   }
-  let nameLen = match readUint16Be(payload, 0) {
+  let name_len = match read_uint16_be(payload, 0) {
     Ok(value) => value.to_int()
     Err(_) => return None
   }
-  let tail = if isCreate { 4 } else { 0 }
-  if payload.length() != 2 + nameLen + tail {
+  let tail = if is_create { 4 } else { 0 }
+  if payload.length() != 2 + name_len + tail {
     return None
   }
-  let name = @utf8.decode(payload[2:2 + nameLen]) catch {
+  let name = @utf8.decode(payload[2:2 + name_len]) catch {
     Malformed(_) => return None
   }
-  if isCreate {
-    match readUintBe(payload, 2 + nameLen) {
-      Ok(partitionCount) => Some(Create(name, partitionCount))
+  if is_create {
+    match read_uint_be(payload, 2 + name_len) {
+      Ok(partition_count) => Some(Create(name, partition_count))
       Err(_) => None
     }
   } else {

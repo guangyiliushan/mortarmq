@@ -8,7 +8,7 @@ test "declare applies a topic create exactly once" {
     machine.submit(1UL, 0UL, @metadata.DeclareBody::Create("orders", 3)),
     @metadata.DeclareOutcome::Created,
   )
-  assert_eq(machine.partitionCount("orders"), Some(3U))
+  assert_eq(machine.partition_count("orders"), Some(3U))
 }
 
 ///|
@@ -20,7 +20,7 @@ test "declare replays the same mutation_id as idempotent" {
     machine.submit(1UL, 0UL, body),
     @metadata.DeclareOutcome::IdempotentOk,
   )
-  assert_eq(machine.partitionCount("orders"), Some(3U))
+  assert_eq(machine.partition_count("orders"), Some(3U))
 }
 
 ///|
@@ -34,7 +34,7 @@ test "declare collapses same-name submissions as idempotent" {
     machine.submit(2UL, 0UL, @metadata.DeclareBody::Create("orders", 3)),
     @metadata.DeclareOutcome::IdempotentOk,
   )
-  assert_eq(machine.partitionCount("orders"), Some(3U))
+  assert_eq(machine.partition_count("orders"), Some(3U))
 }
 
 ///|
@@ -52,7 +52,7 @@ test "declare fences a mutation_id reused with a different body" {
     machine.submit(1UL, 0UL, @metadata.DeclareBody::Delete("orders")),
     @metadata.DeclareOutcome::MutationFenced,
   )
-  assert_eq(machine.partitionCount("orders"), Some(3U))
+  assert_eq(machine.partition_count("orders"), Some(3U))
 }
 
 ///|
@@ -70,7 +70,7 @@ test "declare rejects a mismatched count without recording the mutation" {
     machine.submit(2UL, 0UL, @metadata.DeclareBody::Create("orders", 9)),
     @metadata.DeclareOutcome::NameCountMismatch,
   )
-  assert_eq(machine.partitionCount("orders"), Some(3U))
+  assert_eq(machine.partition_count("orders"), Some(3U))
 }
 
 ///|
@@ -97,17 +97,17 @@ test "declare delete keeps accepted history so replays never resurrect" {
     machine.submit(3UL, 0UL, @metadata.DeclareBody::Delete("orders")),
     @metadata.DeclareOutcome::Deleted,
   )
-  assert_eq(machine.partitionCount("orders"), None)
+  assert_eq(machine.partition_count("orders"), None)
   assert_eq(
     machine.submit(1UL, 0UL, @metadata.DeclareBody::Create("orders", 3)),
     @metadata.DeclareOutcome::IdempotentOk,
   )
-  assert_eq(machine.partitionCount("orders"), None)
+  assert_eq(machine.partition_count("orders"), None)
   assert_eq(
     machine.submit(4UL, 0UL, @metadata.DeclareBody::Create("orders", 3)),
     @metadata.DeclareOutcome::Created,
   )
-  assert_eq(machine.partitionCount("orders"), Some(3U))
+  assert_eq(machine.partition_count("orders"), Some(3U))
 }
 
 ///|
@@ -136,7 +136,7 @@ test "declare payload round-trips create and delete bodies" {
   ]
   for body in bodies {
     match
-      @metadata.decodeDeclareBody(body.toRecordType(), body.toPayload()[:]) {
+      @metadata.decode_declare_body(body.to_record_type(), body.to_payload()[:]) {
       Some(decoded) => assert_eq(decoded, body)
       None => fail("payload round-trip failed")
     }
@@ -146,41 +146,44 @@ test "declare payload round-trips create and delete bodies" {
 ///|
 test "declare payload rejects truncated and foreign bytes" {
   let body = @metadata.DeclareBody::Create("orders", 3)
-  let payload = body.toPayload()
+  let payload = body.to_payload()
   assert_eq(
-    @metadata.decodeDeclareBody(
+    @metadata.decode_declare_body(
       @metadata.MmmlRecordType::TopicCreate,
       payload[:payload.length() - 1],
     ),
     None,
   )
   assert_eq(
-    @metadata.decodeDeclareBody(
+    @metadata.decode_declare_body(
       @metadata.MmmlRecordType::ConfigUpdate,
       payload[:],
     ),
     None,
   )
   assert_eq(
-    @metadata.decodeDeclareBody(@metadata.MmmlRecordType::TopicCreate, b"zz"[:]),
+    @metadata.decode_declare_body(
+      @metadata.MmmlRecordType::TopicCreate,
+      b"zz"[:],
+    ),
     None,
   )
 }
 
 ///|
-fn runOrder(
+fn run_order(
   order : Array[(UInt64, @metadata.DeclareBody)],
 ) -> Array[@metadata.DeclareOutcome] {
   let machine = @metadata.DeclareMachine::new()
   let out : Array[@metadata.DeclareOutcome] = []
-  for (mutationId, body) in order {
-    out.push(machine.submit(mutationId, 7UL, body))
+  for (mutation_id, body) in order {
+    out.push(machine.submit(mutation_id, 7UL, body))
   }
   out
 }
 
 ///|
-fn countCreated(outcomes : Array[@metadata.DeclareOutcome]) -> Int {
+fn count_created(outcomes : Array[@metadata.DeclareOutcome]) -> Int {
   let mut n = 0
   for outcome in outcomes {
     match outcome {
@@ -192,7 +195,7 @@ fn countCreated(outcomes : Array[@metadata.DeclareOutcome]) -> Int {
 }
 
 ///|
-fn countIdempotent(outcomes : Array[@metadata.DeclareOutcome]) -> Int {
+fn count_idempotent(outcomes : Array[@metadata.DeclareOutcome]) -> Int {
   let mut n = 0
   for outcome in outcomes {
     match outcome {
@@ -219,9 +222,9 @@ test "R5 concurrent identical declares are exactly once in every order" {
     [c, b, a],
   ]
   for order in orders {
-    let outcomes = runOrder(order)
-    assert_eq(countCreated(outcomes), 1)
-    assert_eq(countIdempotent(outcomes), order.length() - 1)
+    let outcomes = run_order(order)
+    assert_eq(count_created(outcomes), 1)
+    assert_eq(count_idempotent(outcomes), order.length() - 1)
   }
 }
 
@@ -230,9 +233,9 @@ test "R5 concurrent distinct declares create each topic exactly once" {
   let a = (1UL, @metadata.DeclareBody::Create("orders", 3))
   let b = (2UL, @metadata.DeclareBody::Create("payments", 1))
   for order in [[a, b], [b, a]] {
-    let outcomes = runOrder(order)
-    assert_eq(countCreated(outcomes), 2)
-    assert_eq(countIdempotent(outcomes), 0)
+    let outcomes = run_order(order)
+    assert_eq(count_created(outcomes), 2)
+    assert_eq(count_idempotent(outcomes), 0)
   }
 }
 
@@ -241,7 +244,7 @@ test "stale leader epoch mutations are fenced but replay is unconditional" {
   let machine = @metadata.DeclareMachine::new()
   let body = @metadata.DeclareBody::Create("orders", 3)
   assert_eq(machine.submit(1UL, 7UL, body), @metadata.DeclareOutcome::Created)
-  assert_eq(machine.leaderEpoch(), 7UL)
+  assert_eq(machine.leader_epoch(), 7UL)
   assert_eq(
     machine.submit(2UL, 5UL, body),
     @metadata.DeclareOutcome::MutationFenced,
@@ -250,12 +253,12 @@ test "stale leader epoch mutations are fenced but replay is unconditional" {
     machine.submit(1UL, 5UL, body),
     @metadata.DeclareOutcome::IdempotentOk,
   )
-  assert_eq(machine.leaderEpoch(), 7UL)
+  assert_eq(machine.leader_epoch(), 7UL)
   assert_eq(
     machine.submit(3UL, 9UL, @metadata.DeclareBody::Create("payments", 1)),
     @metadata.DeclareOutcome::Created,
   )
-  assert_eq(machine.leaderEpoch(), 9UL)
+  assert_eq(machine.leader_epoch(), 9UL)
   assert_eq(
     machine.submit(4UL, 9UL, @metadata.DeclareBody::Create("audit", 2)),
     @metadata.DeclareOutcome::Created,

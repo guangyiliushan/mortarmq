@@ -3,7 +3,7 @@
 ///
 /// Record damage (a CRC failure or a gap in the metadata log) MUST enter
 /// quarantine and MUST never be silently skipped: recovery aborts at the
-/// damaged record (see `recoverSnapshot`) and the guard records the
+/// damaged record (see `recover_snapshot`) and the guard records the
 /// refused region so the operator runbook (RB-2) can act on it. The
 /// system degrades to read-only on any anomaly and may escalate to
 /// quarantined; the write path is then refused with the registered
@@ -69,7 +69,7 @@ pub fn MetadataGuard::new() -> MetadataGuard {
 ///|
 /// Record one damaged log region and degrade to read-only. The damaged
 /// record is quarantined here; it is never skipped or repaired in place.
-pub fn MetadataGuard::noteLogCorruption(
+pub fn MetadataGuard::note_log_corruption(
   self : MetadataGuard,
   offset : UInt,
   length : UInt,
@@ -81,7 +81,7 @@ pub fn MetadataGuard::noteLogCorruption(
 ///|
 /// Escalate to quarantined: writes stay refused and the state now asks
 /// for human intervention (RB-2) instead of a retry.
-pub fn MetadataGuard::escalateToQuarantine(self : MetadataGuard) -> Unit {
+pub fn MetadataGuard::escalate_to_quarantine(self : MetadataGuard) -> Unit {
   self.mode = Quarantined
 }
 
@@ -89,7 +89,7 @@ pub fn MetadataGuard::escalateToQuarantine(self : MetadataGuard) -> Unit {
 /// Clear the guard after a recovery path rebuilt trustworthy state
 /// (for example a fallback generation plus replay). Entries stay on
 /// record for the operator; only the write gate reopens.
-pub fn MetadataGuard::restoreHealthy(self : MetadataGuard) -> Unit {
+pub fn MetadataGuard::restore_healthy(self : MetadataGuard) -> Unit {
   self.mode = Healthy
 }
 
@@ -106,7 +106,7 @@ pub fn MetadataGuard::entries(self : MetadataGuard) -> Array[QuarantineEntry] {
 ///|
 /// The registered write-path refusal code for the current mode, or
 /// `None` while the write path is open.
-pub fn MetadataGuard::writeRefusalCode(self : MetadataGuard) -> UInt16? {
+pub fn MetadataGuard::write_refusal_code(self : MetadataGuard) -> UInt16? {
   match self.mode {
     Healthy => None
     ReadOnly => Some(METADATA_READ_ONLY_CODE)
