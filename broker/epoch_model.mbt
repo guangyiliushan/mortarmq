@@ -125,7 +125,7 @@ pub fn fence_operation(
 ///|
 /// The one-partition ownership change callback, eight flat parameters.
 ///
-/// Parameters in order: group_id, topic id, partition, the subscription id
+/// Parameters in order: group_id, topic_id, partition, the subscription id
 /// of the member losing the partition, the owner losing it, the owner
 /// gaining it, the superseded ownership epoch, the new ownership epoch.
 /// The parameter list is the event shape (R12a style: semantics pinned,
@@ -147,7 +147,7 @@ pub type OwnershipChangedHandler = (
 /// The handler a coordinator starts with: nothing is subscribed.
 fn ownership_changed_noop(
   _group_id : UInt16,
-  _topic : UInt16,
+  _topic_id : UInt16,
   _partition : UInt16,
   _subscription : UInt16,
   _old_owner : UInt64,
