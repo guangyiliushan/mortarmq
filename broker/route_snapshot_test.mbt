@@ -34,7 +34,14 @@ test "an empty snapshot sits at position zero and knows no topics" {
 test "from_registry freezes the registry as it stood" {
   let registry = @broker.TopicRegistry::new()
   let _ = @broker.TopicRegistry::declare_topic(registry, b"orders", 3)
-  let _ = @broker.TopicRegistry::declare_topic(registry, b"payments", 1)
+  let payments = match @broker.TopicRegistry::declare_topic(
+    registry,
+    b"payments",
+    1,
+  ) {
+    Ok(outcome) => outcome
+    Err(_) => fail("declare failed")
+  }
   let snapshot = @broker.RoutingSnapshot::from_registry(registry, 5UL)
   // later registry movement must not leak into the frozen view
   let _ = @broker.TopicRegistry::declare_topic(registry, b"users", 7)
@@ -49,7 +56,7 @@ test "from_registry freezes the registry as it stood" {
   )
   assert_eq(
     @broker.RoutingSnapshot::lookup(snapshot, b"payments"),
-    Some({ topic_id: 2U.to_uint16(), partition_count: 1U.to_uint16(), }),
+    Some({ topic_id: payments.topic_id, partition_count: 1U.to_uint16(), }),
   )
   assert_eq(@broker.RoutingSnapshot::lookup(snapshot, b"users"), None)
 }
@@ -64,7 +71,10 @@ test "publishing swaps the current view and leaves the previous view alone" {
   let seen = @broker.RoutingTable::current(table)
   let keys : Array[Bytes] = [b"a", b"user-42", b""]
   let seen_indexes = routed_via(seen, b"orders", keys)
-  let _ = @broker.TopicRegistry::declare_topic(registry, b"users", 7)
+  let users = match @broker.TopicRegistry::declare_topic(registry, b"users", 7) {
+    Ok(outcome) => outcome
+    Err(_) => fail("declare failed")
+  }
   @broker.RoutingTable::publish(
     table,
     @broker.RoutingSnapshot::from_registry(registry, 2UL),
@@ -76,7 +86,7 @@ test "publishing swaps the current view and leaves the previous view alone" {
   assert_eq(@broker.RoutingTable::current(table).applied(), 2UL)
   assert_eq(
     @broker.RoutingTable::current(table).lookup(b"users"),
-    Some({ topic_id: 2U.to_uint16(), partition_count: 7U.to_uint16(), }),
+    Some({ topic_id: users.topic_id, partition_count: 7U.to_uint16(), }),
   )
 }
 
