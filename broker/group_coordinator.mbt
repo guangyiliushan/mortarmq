@@ -439,19 +439,19 @@ fn GroupCoordinator::emit_ownership_changed(
   old_epoch : UInt64,
   new_epoch : UInt64,
 ) -> Unit {
-  let group = self.group_id
+  let group_id = self.group_id
   let part = partition.to_uint16()
   let fence = self.on_fence
   let release = self.on_release
   let waiters = self.on_waiters
   fence(
-    group, topic_id, part, subscription_id, old_owner, new_owner, old_epoch, new_epoch,
+    group_id, topic_id, part, subscription_id, old_owner, new_owner, old_epoch, new_epoch,
   )
   release(
-    group, topic_id, part, subscription_id, old_owner, new_owner, old_epoch, new_epoch,
+    group_id, topic_id, part, subscription_id, old_owner, new_owner, old_epoch, new_epoch,
   )
   waiters(
-    group, topic_id, part, subscription_id, old_owner, new_owner, old_epoch, new_epoch,
+    group_id, topic_id, part, subscription_id, old_owner, new_owner, old_epoch, new_epoch,
   )
 }
 
