@@ -184,6 +184,7 @@ pub impl Net for FakeNet with fn receive(self, peer : UInt16) -> Bytes? {
 ///|
 priv struct DiskState {
   files : Map[Bytes, Bytes]
+  mut capacity_bytes : UInt64
   mut disk_full : Bool
   mut kill_at_op : Int
   mut op_count : Int
@@ -202,10 +203,14 @@ pub extend FakeDisk with @moonbitlang/core/debug.Debug::{to_repr}
 pub extend FakeDisk with Disk::{write, read, fsync, rename, capabilities}
 
 ///|
+pub extend FakeDisk with DiskUsage::{total_bytes, used_bytes}
+
+///|
 pub fn FakeDisk::new() -> FakeDisk {
   {
     state: Ref::Ref({
       files: Map([]),
+      capacity_bytes: 1UL << 40,
       disk_full: false,
       kill_at_op: 0,
       op_count: 0,
@@ -246,6 +251,31 @@ pub fn FakeDisk::set_kill_at(self : FakeDisk, op_number : Int) -> Unit {
 /// Enable or disable write and fsync failure injection.
 pub fn FakeDisk::set_disk_full(self : FakeDisk, full : Bool) -> Unit {
   self.state.val.disk_full = full
+}
+
+///|
+/// Size the volume the watermark gate reads through `DiskUsage`.
+///
+/// `used_bytes` is the live sum of every stored file, so segments and
+/// ledger-style files share one volume exactly like the production
+/// accounting. The default capacity is 1 TiB, effectively unlimited for
+/// tests that do not set one.
+pub fn FakeDisk::set_capacity(self : FakeDisk, total_bytes : UInt64) -> Unit {
+  self.state.val.capacity_bytes = total_bytes
+}
+
+///|
+pub impl DiskUsage for FakeDisk with fn total_bytes(self) -> UInt64 {
+  self.state.val.capacity_bytes
+}
+
+///|
+pub impl DiskUsage for FakeDisk with fn used_bytes(self) -> UInt64 {
+  let mut used = 0UL
+  for _path, data in self.state.val.files {
+    used = used + data.length().to_uint64()
+  }
+  used
 }
 
 ///|

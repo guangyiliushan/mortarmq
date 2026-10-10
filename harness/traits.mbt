@@ -69,3 +69,15 @@ pub(open) trait Disk {
 pub(open) trait Rng {
   fn next_uint64(Self) -> UInt64
 }
+
+///|
+/// Report durable volume usage through a capability-free seam.
+///
+/// Usage is volume-level: every durable writer to the volume -- segments,
+/// delivery ledger, metadata -- is counted together, so no per-file-type
+/// accounting exists. Production adapters live outside this package with
+/// the other adapters; fakes model capacity deterministically.
+pub(open) trait DiskUsage {
+  fn total_bytes(Self) -> UInt64
+  fn used_bytes(Self) -> UInt64
+}

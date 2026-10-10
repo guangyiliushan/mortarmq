@@ -49,12 +49,16 @@ pub async fn FakeDisk::fsync(Self, Bytes) -> Result[Unit, HarnessFault]
 pub fn FakeDisk::new() -> Self
 pub async fn FakeDisk::read(Self, Bytes) -> Result[Bytes, HarnessFault]
 pub async fn FakeDisk::rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
+pub fn FakeDisk::set_capacity(Self, UInt64) -> Unit
 pub fn FakeDisk::set_disk_full(Self, Bool) -> Unit
 pub fn FakeDisk::set_kill_at(Self, Int) -> Unit
 pub fn FakeDisk::snapshot(Self) -> Array[(Bytes, Bytes)]
 pub fn FakeDisk::to_repr(Self) -> @debug.Repr
+pub fn FakeDisk::total_bytes(Self) -> UInt64
+pub fn FakeDisk::used_bytes(Self) -> UInt64
 pub async fn FakeDisk::write(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
 pub impl Disk for FakeDisk
+pub impl DiskUsage for FakeDisk
 
 pub(all) struct FakeNet {
   // private fields
@@ -97,6 +101,11 @@ pub(open) trait Disk {
   async fn fsync(Self, Bytes) -> Result[Unit, HarnessFault]
   async fn rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
   fn capabilities(Self) -> DiskCapabilities
+}
+
+pub(open) trait DiskUsage {
+  fn total_bytes(Self) -> UInt64
+  fn used_bytes(Self) -> UInt64
 }
 
 pub(open) trait Net {

@@ -65,13 +65,16 @@ pub extend AppendedRecord with @moonbitlang/core/debug.Debug::{to_repr}
 /// Why an append did not complete.
 ///
 /// The variants name which trust boundary refused: the record request
-/// itself, or the durable file operation. A capacity refusal joins this
-/// vocabulary once the watermark gate exists.
+/// itself, the watermark gate, or the durable file operation.
 pub(all) suberror AppendFault {
   /// Wrap a record-validation fault raised while building the request.
   Record(StorageFault)
   /// Wrap a disk fault raised while publishing the new record area.
   Disk(@harness.HarnessFault)
+  /// Report a watermark-gate refusal decided before any disk operation
+  /// ran. The wire mapping to 0x4004 STORAGE_HIGH_WATERMARK belongs to
+  /// the protocol/delivery layer, not this module.
+  Capacity
 } derive(Eq, Debug)
 
 ///|
@@ -211,6 +214,8 @@ pub fn SegmentWriter::segment_count(self : SegmentWriter) -> Int {
 ///
 /// * `Record(Malformed)` when the request cannot become a valid v0 record;
 ///   the writer state is unchanged.
+/// * `Capacity` when a supplied watermark gate refuses the projected size;
+///   the writer state is unchanged and no disk operation ran.
 /// * `Disk(fault)` when the write fails -- the writer state is unchanged --
 ///   or when only the fsync fails, in which case the complete record is
 ///   already in the file and the writer state includes it.
@@ -252,6 +257,7 @@ pub async fn SegmentWriter::append(
   timestamp_unix_ms? : UInt64 = 0UL,
   leader_epoch? : UInt = 0,
   replication_flags? : Byte = b'\x00',
+  watermark? : Watermark,
 ) -> Result[AppendedRecord, AppendFault] {
   let flags : UInt16 = if key.length() > 0 { 1 } else { 0 }
   let header = RecordHeader::new(
@@ -268,6 +274,16 @@ pub async fn SegmentWriter::append(
   let record = match encode_record_header(header, key, value) {
     Ok(bytes) => bytes
     Err(code) => return Err(Record(code))
+  }
+  // The watermark gate runs before any disk operation so a refusal never
+  // leaves half a record behind; the projected size includes this record.
+  match watermark {
+    Some(gate) =>
+      match gate.check_append(record.length()) {
+        Ok(_) => ()
+        Err(fault) => return Err(fault)
+      }
+    None => ()
   }
   // Decide the target segment without mutating state, so a failed write
   // leaves the series exactly as it was.

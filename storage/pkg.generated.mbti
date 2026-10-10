@@ -63,6 +63,7 @@ pub async fn write_checkpoint(&@harness.Disk, Bytes, SegmentCheckpoint) -> Resul
 pub(all) suberror AppendFault {
   Record(StorageFault)
   Disk(@harness.HarnessFault)
+  Capacity
 } derive(Eq, @debug.Debug)
 pub fn AppendFault::equal(Self, Self) -> Bool
 pub fn AppendFault::not_equal(Self, Self) -> Bool
@@ -200,7 +201,7 @@ pub(all) struct SegmentWriter {
 } derive(@debug.Debug)
 pub fn SegmentWriter::active_bytes(Self) -> Int
 pub fn SegmentWriter::active_path(Self) -> Bytes
-pub async fn SegmentWriter::append(Self, &@harness.Disk, Bytes, Bytes, producer_id? : UInt64, producer_seq? : UInt64, timestamp_unix_ms? : UInt64, leader_epoch? : UInt, replication_flags? : Byte) -> Result[AppendedRecord, AppendFault]
+pub async fn SegmentWriter::append(Self, &@harness.Disk, Bytes, Bytes, producer_id? : UInt64, producer_seq? : UInt64, timestamp_unix_ms? : UInt64, leader_epoch? : UInt, replication_flags? : Byte, watermark? : Watermark) -> Result[AppendedRecord, AppendFault]
 pub fn SegmentWriter::new(Bytes, segment_max_bytes? : Int, start_sequence? : UInt64) -> Self
 pub fn SegmentWriter::next_sequence(Self) -> UInt64
 pub fn SegmentWriter::segment_count(Self) -> Int
@@ -217,6 +218,27 @@ pub(all) struct SeriesRecovery {
 pub fn SeriesRecovery::equal(Self, Self) -> Bool
 pub fn SeriesRecovery::not_equal(Self, Self) -> Bool
 pub fn SeriesRecovery::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Watermark {
+  usage : &@harness.DiskUsage
+  warn_percent : UInt64
+  high_percent : UInt64
+  full_percent : UInt64
+}
+pub fn Watermark::check_append(Self, Int) -> Result[Unit, AppendFault]
+pub fn Watermark::new(&@harness.DiskUsage, warn_percent? : UInt64, high_percent? : UInt64, full_percent? : UInt64) -> Self
+pub fn Watermark::tier(Self) -> WatermarkTier
+pub fn Watermark::used_percent(Self) -> UInt64
+
+pub(all) enum WatermarkTier {
+  Normal
+  Warn
+  High
+  Full
+} derive(Eq, @debug.Debug)
+pub fn WatermarkTier::equal(Self, Self) -> Bool
+pub fn WatermarkTier::not_equal(Self, Self) -> Bool
+pub fn WatermarkTier::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
