@@ -1,4 +1,4 @@
-/// Tests for the `hash-token` developer tool (REQ-SEC-001).
+/// Tests for the `hash-token` developer tool.
 ///
 /// The tool is the generation half of the tokens-file path: it renders
 /// `digest<TAB>role` for a token so the plaintext never reaches the file,

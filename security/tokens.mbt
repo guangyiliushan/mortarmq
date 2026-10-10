@@ -1,11 +1,11 @@
-/// The frozen tokens-file format (REQ-SEC-001).
+/// The frozen tokens-file format.
 ///
 /// One entry per line: `digest<TAB>role`. `digest` is exactly 64 lowercase
 /// hex bytes of the token's SHA-256 (32 raw bytes); `role` is a non-empty
 /// run of printable ASCII without spaces. The file stores digests only —
 /// the token plaintext never lands on disk.
 ///
-/// Line discipline (ruling v1.1): a malformed line is treated exactly as if
+/// Line discipline: a malformed line is treated exactly as if
 /// the entry did not exist — it is skipped without a distinct error — so a
 /// verification failure never distinguishes "no such token" from "corrupt
 /// line". Generate lines with `hash-token` / `token_line` so they cannot be

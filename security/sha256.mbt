@@ -1,7 +1,7 @@
 /// SHA-256 as specified by FIPS 180-4 (Secure Hash Standard).
 ///
 /// This is the single implementation shared by the `hash-token` developer
-/// tool and the server-side token verification path (REQ-SEC-001): the
+/// tool and the server-side token verification path: the
 /// digest computed when a tokens file entry is generated must be exactly the
 /// digest the verifier recomputes, so both sides call these functions. The
 /// implementation is pure MoonBit with no platform calls, so the same code

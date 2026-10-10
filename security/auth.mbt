@@ -1,5 +1,5 @@
-/// The token-verification discipline (REQ-SEC-001, REQ-SEC-002) as one
-/// self-contained module API (Q15): CONNECT calls `authenticate` and maps
+/// The token-verification discipline as one
+/// self-contained module API: CONNECT calls `authenticate` and maps
 /// its verdict onto 0x0006 AUTH_FAILED; nothing outside this file compares
 /// token material.
 ///
@@ -11,11 +11,11 @@
 /// instruction whose outcome is the answer the caller is about to receive
 /// anyway — and never on partial content.
 ///
-/// Failure discipline (REQ-SEC-002): every failure — unknown token, empty
+/// Failure discipline: every failure — unknown token, empty
 /// store, malformed input — leaves through one exit that pauses 100ms and
 /// returns the same generic `Rejected` verdict. Failure timing and value
 /// carry no reason. Hashing the presented token is deliberately not
-/// constant time (T073 won't-defend column), and a leaked tokens file is
+/// constant time (an explicit threat-model non-goal), and a leaked tokens file is
 /// only as strong as token entropy (ops: ≥128-bit random tokens).
 ///
 /// Cost model: the pause is pure failure-path latency. A success adds no
@@ -43,7 +43,7 @@ pub const AUTH_FAILURE_DELAY_MS : Int = 100
 
 ///|
 /// The only authentication failure. It deliberately carries no reason
-/// (REQ-SEC-002): unknown token, wrong token, and empty store are one
+///: unknown token, wrong token, and empty store are one
 /// indistinguishable outcome.
 pub(all) suberror AuthFail {
   Rejected

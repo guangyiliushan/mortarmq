@@ -1,4 +1,4 @@
-/// The `hash-token` developer tool (REQ-SEC-001).
+/// The `hash-token` developer tool.
 ///
 /// Renders one tokens-file line `digest<TAB>role` for a token so the
 /// plaintext never reaches the file. The digest is computed by the same
@@ -9,7 +9,7 @@
 ///
 /// Deployment note: tokens are stored as fast-hashed digests, so a leaked
 /// tokens file is only as strong as the token entropy. Operations must
-/// issue random tokens of at least 128 bits (T073 won't-defend column).
+/// issue random tokens of at least 128 bits (an explicit threat-model non-goal).
 
 ///|
 /// Hash `token` into one `digest<TAB>role` tokens-file line.

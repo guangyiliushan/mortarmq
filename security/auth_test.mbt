@@ -1,6 +1,6 @@
-/// Tests for the authentication discipline (REQ-SEC-001, REQ-SEC-002).
+/// Tests for the authentication discipline.
 ///
-/// `authenticate` is the security module's whole verdict surface (Q15):
+/// `authenticate` is the security module's whole verdict surface:
 /// CONNECT calls it and maps the result onto 0x0006 AUTH_FAILED. Contract:
 /// a known token yields its role with no pause; every failure — unknown
 /// token, empty store, near-miss digest — is the same generic verdict after
@@ -59,7 +59,7 @@ async test "authenticate rejects an unknown token with one 100ms pause" {
 async test "every failure is the same verdict and the same pause" {
   let empty_store = @security.parse_tokens(b"")
   let cases = [
-    (test_store(), b"abx"), // near miss on \"abc\"
+    (test_store(), b"abx"), // near miss on "abc"
     (test_store(), b"unknown-token"),
     (empty_store, b"abc"),
     (empty_store, b""),

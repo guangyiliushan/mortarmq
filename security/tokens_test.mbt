@@ -1,8 +1,8 @@
-/// Tests for the frozen tokens-file format (REQ-SEC-001): one entry per
+/// Tests for the frozen tokens-file format: one entry per
 /// line, `digest<TAB>role`, where `digest` is 64 lowercase hex bytes of the
 /// token's SHA-256 and `role` is a non-empty printable-ASCII name. The
 /// token plaintext never appears in the file. Malformed lines are treated
-/// as if the entry did not exist (ruling v1.1): they are skipped, never
+/// as if the entry did not exist: they are skipped, never
 /// reported with detail.
 
 ///|
