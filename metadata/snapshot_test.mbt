@@ -442,7 +442,7 @@ async test "recovery degradation drives the gate without skipping damage" {
 }
 
 ///|
-async test "a truncated log tail is corruption at the gap offset" {
+async test "a torn log tail is discarded as an unfinished append" {
   let m1 = mutation_record(1UL, 1UL, @metadata.DeclareBody::Create("orders", 3))
   let m2 = mutation_record(
     2UL,
@@ -450,12 +450,15 @@ async test "a truncated log tail is corruption at the gap offset" {
     @metadata.DeclareBody::Create("payments", 1),
   )
   let log = join([m1, m2[:20].to_owned()])
+  let machine = machine_with([(1UL, @metadata.DeclareBody::Create("orders", 3))])
   let fake = @harness.FakeDisk::new()
   let disk : &@harness.Disk = fake
   match @metadata.recover_snapshot(disk, b"meta", log) {
-    Err(@metadata.Corruption(offset)) =>
-      assert_eq(offset, m1.length().reinterpret_as_uint())
-    _ => fail("expected a gap abort")
+    Ok(state) => {
+      assert_eq(state.end_offset, m1.length().to_uint64())
+      assert_eq(fingerprint(state.machine), fingerprint(machine))
+    }
+    Err(_) => fail("expected prefix recovery over a torn tail")
   }
 }
 

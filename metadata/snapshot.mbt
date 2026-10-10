@@ -382,6 +382,10 @@ pub async fn load_snapshot(
 /// non-decreasing leader_epoch chain from REQ-STO-006. A log record
 /// that fails validation aborts recovery with its offset so the
 /// quarantine path can act on the exact record; nothing is skipped.
+/// The one exception is a torn tail: a final record whose declared
+/// length runs past the log end is an unfinished append from a crash,
+/// never an acknowledged mutation, and is discarded by stopping at its
+/// first byte (Kafka log-recovery convention; REQ-STO-005 clause 1).
 ///
 /// # Errors
 ///
@@ -429,15 +433,15 @@ pub async fn recover_snapshot(
       break
     }
     if position + MMML_HEADER_BYTES > log.length() {
-      return Err(Corruption(position.reinterpret_as_uint()))
+      break
     }
     let payload_len = match read_uint_be(log[:], position + 12) {
       Ok(value) => value.reinterpret_as_int()
-      Err(_) => return Err(Corruption(position.reinterpret_as_uint()))
+      Err(_) => break
     }
     let record_len = MMML_HEADER_BYTES + payload_len
     if position + record_len > log.length() {
-      return Err(Corruption(position.reinterpret_as_uint()))
+      break
     }
     let record = match decode_mmml_record(log[position:position + record_len]) {
       Ok(value) => value
