@@ -61,6 +61,10 @@ pub(open) trait Disk {
     Unit,
     HarnessFault,
   ]
+  /// Delete a file so its bytes stop counting against the volume. A
+  /// missing path reports `PathMissing`; this is the relief valve
+  /// retention (`delete_before`) reclaims space through.
+  async fn remove(Self, path : Bytes) -> Result[Unit, HarnessFault]
   fn capabilities(Self) -> DiskCapabilities
 }
 

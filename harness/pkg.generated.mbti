@@ -48,6 +48,7 @@ pub fn FakeDisk::capabilities(Self) -> DiskCapabilities
 pub async fn FakeDisk::fsync(Self, Bytes) -> Result[Unit, HarnessFault]
 pub fn FakeDisk::new() -> Self
 pub async fn FakeDisk::read(Self, Bytes) -> Result[Bytes, HarnessFault]
+pub async fn FakeDisk::remove(Self, Bytes) -> Result[Unit, HarnessFault]
 pub async fn FakeDisk::rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
 pub fn FakeDisk::set_capacity(Self, UInt64) -> Unit
 pub fn FakeDisk::set_disk_full(Self, Bool) -> Unit
@@ -100,6 +101,7 @@ pub(open) trait Disk {
   async fn read(Self, Bytes) -> Result[Bytes, HarnessFault]
   async fn fsync(Self, Bytes) -> Result[Unit, HarnessFault]
   async fn rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
+  async fn remove(Self, Bytes) -> Result[Unit, HarnessFault]
   fn capabilities(Self) -> DiskCapabilities
 }
 

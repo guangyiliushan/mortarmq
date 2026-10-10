@@ -29,6 +29,8 @@ pub fn decode_index_file(BytesView) -> Result[Array[IndexEntry], StorageFault]
 
 pub fn decode_record_header(BytesView) -> Result[RecordHeader, StorageFault]
 
+pub async fn delete_before(&@harness.Disk, Bytes, Int, UInt64) -> Result[Int, StorageFault]
+
 pub fn encode_checkpoint(SegmentCheckpoint) -> Bytes
 
 pub fn encode_index_entry(IndexEntry) -> Bytes

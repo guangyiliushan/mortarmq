@@ -200,7 +200,14 @@ pub(all) struct FakeDisk {
 pub extend FakeDisk with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-pub extend FakeDisk with Disk::{write, read, fsync, rename, capabilities}
+pub extend FakeDisk with Disk::{
+  write,
+  read,
+  fsync,
+  rename,
+  remove,
+  capabilities,
+}
 
 ///|
 pub extend FakeDisk with DiskUsage::{total_bytes, used_bytes}
@@ -357,6 +364,24 @@ pub impl Disk for FakeDisk with fn rename(
     Some(data) => {
       self.state.val.files[new_path] = data
       self.state.val.files.remove(old_path)
+      Ok(())
+    }
+    None => Err(PathMissing)
+  }
+}
+
+///|
+pub impl Disk for FakeDisk with fn remove(self, path : Bytes) -> Result[
+  Unit,
+  HarnessFault,
+] {
+  if count_op_and_check_kill(self.state.val) {
+    return Err(Killed)
+  }
+  // Removal is the capacity relief valve and runs even on a full disk.
+  match self.state.val.files.get(path) {
+    Some(_) => {
+      self.state.val.files.remove(path)
       Ok(())
     }
     None => Err(PathMissing)
