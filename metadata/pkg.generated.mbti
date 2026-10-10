@@ -28,6 +28,33 @@ pub fn MetadataFault::not_equal(Self, Self) -> Bool
 pub fn MetadataFault::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+pub(all) enum DeclareBody {
+  Create(String, UInt)
+  Delete(String)
+} derive(Eq, @debug.Debug)
+pub fn DeclareBody::equal(Self, Self) -> Bool
+pub fn DeclareBody::not_equal(Self, Self) -> Bool
+pub fn DeclareBody::to_repr(Self) -> @debug.Repr
+
+pub(all) struct DeclareMachine {
+  topics : Map[String, UInt]
+  accepted : Map[String, Map[UInt64, DeclareBody]]
+}
+pub fn DeclareMachine::new() -> Self
+pub fn DeclareMachine::partition_count(Self, String) -> UInt?
+pub fn DeclareMachine::submit(Self, UInt64, DeclareBody) -> DeclareOutcome
+
+pub(all) enum DeclareOutcome {
+  Created
+  Deleted
+  IdempotentOk
+  MutationFenced
+  NameCountMismatch
+} derive(Eq, @debug.Debug)
+pub fn DeclareOutcome::equal(Self, Self) -> Bool
+pub fn DeclareOutcome::not_equal(Self, Self) -> Bool
+pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
+
 pub(all) struct MmmlHeader {
   format_version : Byte
   header_version : Byte
