@@ -1,0 +1,75 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/metadata"
+
+import {
+  "guangyiliushan/mortarmq/harness",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub const MMML_FORMAT_VERSION : Int = 1
+
+pub const MMML_HEADER_BYTES : Int = 34
+
+pub const MMML_HEADER_VERSION : Int = 1
+
+pub fn decode_mmml_record(BytesView) -> Result[MmmlRecord, MetadataFault]
+
+pub fn encode_mmml_record(MmmlHeader, BytesView) -> Result[Bytes, MetadataFault]
+
+// Errors
+pub(all) suberror MetadataFault {
+  Malformed
+  Corruption(UInt)
+  DiskFault(@harness.HarnessFault)
+} derive(Eq, @debug.Debug)
+pub fn MetadataFault::equal(Self, Self) -> Bool
+pub fn MetadataFault::not_equal(Self, Self) -> Bool
+pub fn MetadataFault::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct MmmlHeader {
+  format_version : Byte
+  header_version : Byte
+  flags : UInt16
+  record_type : MmmlRecordType
+  leader_epoch : UInt64
+  mutation_id : UInt64
+} derive(Eq, @debug.Debug)
+pub fn MmmlHeader::equal(Self, Self) -> Bool
+pub fn MmmlHeader::new(format_version~ : Byte, header_version~ : Byte, flags~ : UInt16, record_type~ : MmmlRecordType, leader_epoch~ : UInt64, mutation_id~ : UInt64) -> Self
+pub fn MmmlHeader::not_equal(Self, Self) -> Bool
+pub fn MmmlHeader::to_repr(Self) -> @debug.Repr
+
+pub(all) struct MmmlRecord {
+  header : MmmlHeader
+  payload : Bytes
+} derive(Eq, @debug.Debug)
+pub fn MmmlRecord::equal(Self, Self) -> Bool
+pub fn MmmlRecord::not_equal(Self, Self) -> Bool
+pub fn MmmlRecord::to_repr(Self) -> @debug.Repr
+
+pub(all) enum MmmlRecordType {
+  TopicCreate
+  TopicUpdate
+  TopicDelete
+  GroupCreate
+  GroupUpdate
+  GroupDelete
+  BrokerRegister
+  BrokerDeregister
+  LeaderElect
+  LeaderResign
+  ConfigUpdate
+  SnapshotHint
+  UnknownFallback
+} derive(Eq, @debug.Debug)
+pub fn MmmlRecordType::equal(Self, Self) -> Bool
+pub fn MmmlRecordType::from_uint16(UInt16) -> Self?
+pub fn MmmlRecordType::not_equal(Self, Self) -> Bool
+pub fn MmmlRecordType::to_repr(Self) -> @debug.Repr
+pub fn MmmlRecordType::to_uint16(Self) -> UInt16
+
+// Type aliases
+
+// Traits
