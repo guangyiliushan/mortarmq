@@ -6,6 +6,10 @@ import {
 }
 
 // Values
+pub const AUTH_FAILURE_DELAY_MS : Int = 100
+
+pub async fn[D : Delay] authenticate(TokenStore, BytesView, D) -> Result[Bytes, AuthFail]
+
 pub fn digest_hex(Bytes) -> Bytes
 
 pub fn parse_tokens(BytesView) -> TokenStore
@@ -17,6 +21,13 @@ pub fn sha256_hex(BytesView) -> Bytes
 pub fn token_line(Bytes, Bytes) -> Result[Bytes, TokensError]
 
 // Errors
+pub(all) suberror AuthFail {
+  Rejected
+} derive(Eq, @debug.Debug)
+pub fn AuthFail::equal(Self, Self) -> Bool
+pub fn AuthFail::not_equal(Self, Self) -> Bool
+pub fn AuthFail::to_repr(Self) -> @debug.Repr
+
 pub(all) suberror TokensError {
   BadDigest
   BadRole
@@ -44,3 +55,6 @@ pub fn TokenStore::to_repr(Self) -> @debug.Repr
 // Type aliases
 
 // Traits
+pub(open) trait Delay {
+  async fn sleep_ms(Self, Int) -> Unit
+}

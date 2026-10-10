@@ -1,5 +1,10 @@
-// Shared security primitives: SHA-256 digests and the tokens file format.
+// Shared security primitives: SHA-256 digests, the tokens file format, and
+// the token-verification discipline.
 
 import {
   "moonbitlang/core/debug",
 }
+
+import {
+  "moonbitlang/async",
+} for "test"
