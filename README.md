@@ -15,7 +15,7 @@
 - **Consumers pull against a credit window.** Flow control is decided next to the messages rather than queued somewhere else.
 - **One client library, three targets** — native, browser over WebSocket, and a wasm-gc pure core.
 
-v0 is a single process. Three-node clustering with a majority-fsync quorum and lease-based failover is a stretch goal, not the mainline. TLS, configuration hot reload, dynamic membership, dynamic tokens and topic wildcards are out of scope for v0; each has a recorded upgrade path in [the upgrade guide](./docs/en/guides/upgrade.md).
+v0 is a single process. Three-node clustering with a majority-fsync quorum and lease-based failover is a stretch goal, not the mainline. **Honest boundaries**: v0 ships without TLS / hot reload / authz / Raft metadata. Dynamic membership, dynamic tokens and topic wildcards are out of scope too; each has a recorded upgrade path in [the upgrade guide](./docs/en/guides/upgrade.md).
 
 ## Quick Start
 
