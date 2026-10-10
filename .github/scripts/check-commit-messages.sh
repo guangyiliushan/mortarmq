@@ -148,6 +148,16 @@ run_range_self_test() {
       exit 1
     fi
 
+    # single-commit fallback: the root commit has no parent
+    local root
+    root=$(git rev-list --max-parents=0 HEAD)
+    if PUSH_BEFORE=0000000000000000000000000000000000000000 PUSH_AFTER="$root" bash "$checker" >/dev/null 2>&1; then
+      printf 'single-commit fallback self-test passed\n'
+    else
+      printf 'single-commit fallback self-test rejected a valid root commit\n' >&2
+      exit 1
+    fi
+
     if PUSH_BEFORE=main PUSH_AFTER="$fixed_head" bash "$checker" >/dev/null 2>&1; then
       printf 'push-range self-test accepted an invalid commit\n' >&2
       exit 1
