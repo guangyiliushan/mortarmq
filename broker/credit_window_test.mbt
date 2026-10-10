@@ -375,7 +375,7 @@ test "the ownership change port releases only the fenced partition tranche" {
   // at Revoking->Released and frees exactly partition 0's tranche.
   @broker.CreditRegistry::on_ownership_changed(
     registry,
-    b"g",
+    7U.to_uint16(),
     1U.to_uint16(),
     0U.to_uint16(),
     sub_one(),
@@ -398,7 +398,7 @@ test "the ownership change port releases only the fenced partition tranche" {
   // A replay of the same event releases nothing twice.
   @broker.CreditRegistry::on_ownership_changed(
     registry,
-    b"g",
+    7U.to_uint16(),
     1U.to_uint16(),
     0U.to_uint16(),
     sub_one(),
@@ -411,7 +411,7 @@ test "the ownership change port releases only the fenced partition tranche" {
   // An epoch the tranche was not booked under releases nothing.
   @broker.CreditRegistry::on_ownership_changed(
     registry,
-    b"g",
+    7U.to_uint16(),
     1U.to_uint16(),
     1U.to_uint16(),
     sub_one(),

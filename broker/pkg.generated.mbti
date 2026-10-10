@@ -71,7 +71,7 @@ pub fn CreditRegistry::admit(Self, UInt16, UInt16, UInt64, UInt64, UInt) -> Resu
 pub fn CreditRegistry::apply(Self, UInt16, CreditMode, UInt16, UInt, UInt, UInt64) -> Result[CreditReport, CreditError]
 pub fn CreditRegistry::discard(Self, UInt16) -> Unit
 pub fn CreditRegistry::new() -> Self
-pub fn CreditRegistry::on_ownership_changed(Self, Bytes, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Unit
+pub fn CreditRegistry::on_ownership_changed(Self, UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Unit
 pub fn CreditRegistry::register(Self, CreditWindow) -> Unit
 pub fn CreditRegistry::report(Self, UInt16) -> Result[CreditReport, CreditError]
 

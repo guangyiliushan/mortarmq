@@ -540,7 +540,7 @@ pub fn CreditRegistry::report(
 /// tranche is a no-op: a replayed event can never release twice.
 pub fn CreditRegistry::on_ownership_changed(
   self : CreditRegistry,
-  _group : Bytes,
+  _group_id : UInt16,
   _topic : UInt16,
   partition : UInt16,
   subscription_id : UInt16,
