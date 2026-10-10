@@ -57,7 +57,7 @@ fn machine_with(
 ) -> @metadata.DeclareMachine {
   let machine = @metadata.DeclareMachine::new()
   for (mutation_id, body) in submits {
-    ignore(machine.submit(mutation_id, body))
+    ignore(machine.submit(mutation_id, 0UL, body))
   }
   machine
 }
@@ -500,5 +500,27 @@ async test "a snapshot past the log end falls back to full replay" {
       assert_eq(fingerprint(state.machine), fingerprint(machine))
     }
     Err(_) => fail("fallback over an over-reaching snapshot failed")
+  }
+}
+
+///|
+async test "concurrent serializations recover to one identical state" {
+  let m1 = mutation_record(1UL, 7UL, @metadata.DeclareBody::Create("orders", 3))
+  let m2 = mutation_record(2UL, 7UL, @metadata.DeclareBody::Create("orders", 3))
+  let machine = machine_with([
+    (1UL, @metadata.DeclareBody::Create("orders", 3)),
+    (2UL, @metadata.DeclareBody::Create("orders", 3)),
+  ])
+  for log in [join([m1, m2]), join([m2, m1])] {
+    let fake = @harness.FakeDisk::new()
+    let disk : &@harness.Disk = fake
+    match @metadata.recover_snapshot(disk, b"meta", log) {
+      Ok(state) => {
+        assert_eq(state.end_offset, log.length().to_uint64())
+        assert_eq(state.epoch, 7UL)
+        assert_eq(fingerprint(state.machine), fingerprint(machine))
+      }
+      Err(_) => fail("concurrent serialization recovery failed")
+    }
   }
 }

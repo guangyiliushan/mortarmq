@@ -53,12 +53,14 @@ pub extend DeclareOutcome with Eq::{not_equal, equal}
 pub extend DeclareOutcome with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-/// Durable-idempotency state: active topics and the per-key accepted table.
-/// Both maps are carried verbatim by the metadata snapshot (T057); nothing
-/// here may be rebuilt from anything but the MMML log and its snapshots.
+/// Durable-idempotency state: active topics, the per-key accepted table,
+/// and the highest leader_epoch applied. All three are carried verbatim
+/// by the metadata snapshot; nothing here may be rebuilt from anything
+/// but the MMML log and its snapshots.
 pub(all) struct DeclareMachine {
   topics : Map[String, UInt]
   accepted : Map[String, Map[UInt64, DeclareBody]]
+  mut max_epoch : UInt64
 }
 
 ///|
@@ -71,11 +73,28 @@ fn DeclareBody::key(self : DeclareBody) -> String {
 
 ///|
 pub fn DeclareMachine::new() -> DeclareMachine {
-  { topics: Map([]), accepted: Map([]), }
+  { topics: Map([]), accepted: Map([]), max_epoch: 0UL, }
+}
+
+///|
+/// The highest leader_epoch this machine has accepted; also the epoch a
+/// new snapshot header must carry.
+pub fn DeclareMachine::leader_epoch(self : DeclareMachine) -> UInt64 {
+  self.max_epoch
 }
 
 ///|
 /// Submit one DECLARE mutation and return its observable outcome.
+///
+/// Outcome order is the contract (ruling: 0x2006 before 0x2001): a known
+/// mutation_id with the same body replays as `IdempotentOk` unconditionally
+/// (REQ-STO-007 is epoch-independent); a known mutation_id with a
+/// different body is `MutationFenced` (0x2006, re-initiate); a new
+/// mutation_id from a stale leader_epoch is `MutationFenced` the same way
+/// (0x2006 covers "mutation_id/epoch 过期"); only then does the
+/// name/count check run, where `NameCountMismatch` (0x2001) stays the
+/// S1 registry layer verdict. Rejected mutations never enter the table
+/// and never advance `max_epoch`.
 ///
 /// # Errors
 ///
@@ -84,6 +103,7 @@ pub fn DeclareMachine::new() -> DeclareMachine {
 pub fn DeclareMachine::submit(
   self : DeclareMachine,
   mutation_id : UInt64,
+  leader_epoch : UInt64,
   body : DeclareBody,
 ) -> DeclareOutcome {
   let table = self.accepted.get_or_init(body.key(), () => Map([]))
@@ -95,34 +115,50 @@ pub fn DeclareMachine::submit(
         MutationFenced
       }
     None =>
-      match body {
-        Create(name, partition_count) =>
-          match self.topics.get(name) {
-            Some(committed) =>
-              if committed == partition_count {
+      if leader_epoch < self.max_epoch {
+        MutationFenced
+      } else {
+        match body {
+          Create(name, partition_count) =>
+            match self.topics.get(name) {
+              Some(committed) =>
+                if committed == partition_count {
+                  table.set(mutation_id, body)
+                  if leader_epoch > self.max_epoch {
+                    self.max_epoch = leader_epoch
+                  }
+                  IdempotentOk
+                } else {
+                  NameCountMismatch
+                }
+              None => {
+                self.topics.set(name, partition_count)
                 table.set(mutation_id, body)
-                IdempotentOk
-              } else {
-                NameCountMismatch
+                if leader_epoch > self.max_epoch {
+                  self.max_epoch = leader_epoch
+                }
+                Created
               }
-            None => {
-              self.topics.set(name, partition_count)
-              table.set(mutation_id, body)
-              Created
             }
-          }
-        Delete(name) =>
-          match self.topics.get(name) {
-            Some(_) => {
-              self.topics.remove(name)
-              table.set(mutation_id, body)
-              Deleted
+          Delete(name) =>
+            match self.topics.get(name) {
+              Some(_) => {
+                self.topics.remove(name)
+                table.set(mutation_id, body)
+                if leader_epoch > self.max_epoch {
+                  self.max_epoch = leader_epoch
+                }
+                Deleted
+              }
+              None => {
+                table.set(mutation_id, body)
+                if leader_epoch > self.max_epoch {
+                  self.max_epoch = leader_epoch
+                }
+                IdempotentOk
+              }
             }
-            None => {
-              table.set(mutation_id, body)
-              IdempotentOk
-            }
-          }
+        }
       }
   }
 }

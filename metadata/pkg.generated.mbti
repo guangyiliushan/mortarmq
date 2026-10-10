@@ -63,10 +63,12 @@ pub fn DeclareBody::to_repr(Self) -> @debug.Repr
 pub(all) struct DeclareMachine {
   topics : Map[String, UInt]
   accepted : Map[String, Map[UInt64, DeclareBody]]
+  mut max_epoch : UInt64
 }
+pub fn DeclareMachine::leader_epoch(Self) -> UInt64
 pub fn DeclareMachine::new() -> Self
 pub fn DeclareMachine::partition_count(Self, String) -> UInt?
-pub fn DeclareMachine::submit(Self, UInt64, DeclareBody) -> DeclareOutcome
+pub fn DeclareMachine::submit(Self, UInt64, UInt64, DeclareBody) -> DeclareOutcome
 
 pub(all) enum DeclareOutcome {
   Created

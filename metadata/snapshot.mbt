@@ -290,6 +290,7 @@ pub fn decode_snapshot(
   if !saw_footer {
     return Err(Malformed)
   }
+  machine.max_epoch = header.header.leader_epoch
   Ok({ machine, epoch: header.header.leader_epoch, end_offset, })
 }
 
@@ -447,7 +448,12 @@ pub async fn recover_snapshot(
     }
     match decode_declare_body(record.header.record_type, record.payload[:]) {
       Some(body) =>
-        match machine.submit(record.header.mutation_id, body) {
+        match
+          machine.submit(
+            record.header.mutation_id,
+            record.header.leader_epoch,
+            body,
+          ) {
           Created | Deleted | IdempotentOk => ()
           MutationFenced | NameCountMismatch =>
             return Err(Corruption(position.reinterpret_as_uint()))
