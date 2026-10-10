@@ -87,6 +87,7 @@ pub(all) enum DeliveryState {
   Acked
   RetryScheduled(UInt16)
   DeadLetterQueued
+  Quarantined
 } derive(Eq, Debug)
 
 ///|
@@ -165,6 +166,7 @@ pub(all) suberror DeliveryError {
   AlreadyAcked
   AlreadyDeadLettered
   InvalidTransition
+  DlqPathOverflow
   Capacity
   Malformed
   DiskFault(@harness.HarnessFault)
@@ -185,6 +187,7 @@ pub extend DeliveryError with @moonbitlang/core/debug.Debug::{to_repr}
 priv struct Entry {
   state : DeliveryState
   fenced_delivery_id : UInt64
+  dlq_sequence : UInt64
 }
 
 ///|
@@ -282,7 +285,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
     Some(entry) =>
       match entry.state {
         Delivering(_, _, _) | Acked => return Err(InvalidTransition)
-        DeadLetterQueued => return Err(AlreadyDeadLettered)
+        DeadLetterQueued | Quarantined => return Err(AlreadyDeadLettered)
         RetryScheduled(count) => count + 1
       }
   }
@@ -315,6 +318,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
   group.entries[key.sequence] = {
     state: Delivering(delivery_id, owner_conn, attempt),
     fenced_delivery_id,
+    dlq_sequence: 0UL,
   }
   self.groups[key.group_id] = {
     entries: group.entries,
@@ -356,7 +360,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
   match entry.state {
     Acked => return Ok(Duplicate)
     RetryScheduled(_) => return Err(UnknownDelivery)
-    DeadLetterQueued => return Err(AlreadyDeadLettered)
+    DeadLetterQueued | Quarantined => return Err(AlreadyDeadLettered)
     Delivering(current_id, owner_conn, attempt) =>
       if current_id != delivery_id {
         return Err(UnknownDelivery)
@@ -379,6 +383,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
         group.entries[key.sequence] = {
           state: Acked,
           fenced_delivery_id: entry.fenced_delivery_id,
+          dlq_sequence: 0UL,
         }
         self.groups[key.group_id] = group
         return Ok(Applied)
@@ -450,6 +455,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
         group.entries[sequence] = {
           state: RetryScheduled(attempt),
           fenced_delivery_id: delivery_id,
+          dlq_sequence: 0UL,
         }
       }
       _ => ()
@@ -516,14 +522,29 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
   }
   match entry.state {
     Acked => return Err(AlreadyAcked)
-    DeadLetterQueued => return Err(AlreadyDeadLettered)
+    DeadLetterQueued | Quarantined => return Err(AlreadyDeadLettered)
     RetryScheduled(_) => return Err(UnknownDelivery)
     Delivering(current_id, owner_conn, attempt) => {
       if current_id != delivery_id {
         return Err(UnknownDelivery)
       }
       match outcome {
-        Terminal | Poison | Slow => return Err(InvalidTransition)
+        Slow => return Err(InvalidTransition)
+        Terminal | Poison =>
+          return self.mark_dead_letter_pending(
+            disk,
+            key,
+            current_id,
+            owner_conn,
+            attempt,
+            if outcome == DeliveryOutcome::Terminal {
+              NackReason::Terminal
+            } else {
+              NackReason::Poison
+            },
+            now_unix_ms,
+            precheck,
+          )
         Retry => ()
       }
       self.resolve_failure(
@@ -570,7 +591,7 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(
   }
   match entry.state {
     Acked => return Err(AlreadyAcked)
-    DeadLetterQueued => return Err(AlreadyDeadLettered)
+    DeadLetterQueued | Quarantined => return Err(AlreadyDeadLettered)
     RetryScheduled(_) => return Err(UnknownDelivery)
     Delivering(current_id, owner_conn, attempt) =>
       if current_id != delivery_id {
@@ -592,6 +613,39 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(
 }
 
 ///|
+/// Everything the DLQ flow needs to know about the failed delivery: the
+/// dead-letter reason, the final attempt, whether the delivery came from a
+/// `.dlq` topic (layer 1 of the loop guard), and the record as delivered.
+pub(all) struct DeadLetterRequest {
+  from_dlq_topic : Bool
+  reason : NackReason
+  attempt : UInt16
+  source : DeadLetterSource
+} derive(Eq, Debug)
+
+///|
+pub extend DeadLetterRequest with Eq::{not_equal, equal}
+
+///|
+pub extend DeadLetterRequest with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+/// The two terminal outcomes of the DLQ flow. `Enqueued` carries the DLQ
+/// record's broker sequence (its partition is the source partition, the
+/// frozen mapping); `Quarantined` is the loop-guard outcome with no DLQ
+/// record at all.
+pub(all) enum DeadLetterResult {
+  Enqueued(UInt64)
+  Quarantined
+} derive(Eq, Debug)
+
+///|
+pub extend DeadLetterResult with Eq::{not_equal, equal}
+
+///|
+pub extend DeadLetterResult with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 /// The shared failure transition: journal the failure, then either
 /// schedule the next attempt or exhaust the budget into `DeadLetterQueued`.
 async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
@@ -606,14 +660,20 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
   now_unix_ms : UInt64,
   precheck : (Int) -> Result[Unit, DeliveryError],
 ) -> Result[RetryPlan, DeliveryError] {
-  let exhausted = attempt >= MAX_ATTEMPTS
-  let (event_kind, delay_ms) = if exhausted {
-    (NackTerminal, 0U)
-  } else if kind == Timeout {
-    (Timeout, backoff_delay(attempt, rng))
-  } else {
-    (NackRetry, backoff_delay(attempt, rng))
+  if attempt >= MAX_ATTEMPTS {
+    return self.mark_dead_letter_pending(
+      disk,
+      key,
+      delivery_id,
+      owner_conn,
+      attempt,
+      NackReason::Retry,
+      now_unix_ms,
+      precheck,
+    )
   }
+  let event_kind = if kind == Timeout { Timeout } else { NackRetry }
+  let delay_ms = backoff_delay(attempt, rng)
   let event = LedgerEvent::new(
     group_id=key.group_id,
     event=event_kind,
@@ -630,23 +690,241 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
     Err(code) => return Err(ledger_to_delivery_error(code))
   }
   let group = self.group_state(key.group_id)
-  if exhausted {
-    group.entries[key.sequence] = {
-      state: DeadLetterQueued,
-      fenced_delivery_id: entry_fence(group, key.sequence),
-    }
-  } else {
-    group.entries[key.sequence] = {
-      state: RetryScheduled(attempt),
-      fenced_delivery_id: entry_fence(group, key.sequence),
-    }
+  group.entries[key.sequence] = {
+    state: RetryScheduled(attempt),
+    fenced_delivery_id: entry_fence(group, key.sequence),
+    dlq_sequence: 0UL,
   }
   self.groups[key.group_id] = group
-  if exhausted {
-    Ok(DeadLettered(attempt))
-  } else {
-    Ok(Scheduled(attempt, delay_ms))
+  Ok(Scheduled(attempt, delay_ms))
+}
+
+///|
+/// Journal the terminal failure (`NACK_TERMINAL`) and park the entry in
+/// `DeadLetterQueued` awaiting its DLQ record. The caller completes the flow
+/// with `complete_dead_letter`; a crash between the two steps recovers as a
+/// pending dead-letter and the completion is re-run (design fault 11).
+async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
+  self : DeliveryMachine,
+  disk : D,
+  key : DeliveryKey,
+  delivery_id : UInt64,
+  owner_conn : UInt64,
+  attempt : UInt16,
+  reason : NackReason,
+  now_unix_ms : UInt64,
+  precheck : (Int) -> Result[Unit, DeliveryError],
+) -> Result[RetryPlan, DeliveryError] {
+  let event = LedgerEvent::new(
+    group_id=key.group_id,
+    event=NackTerminal,
+    sequence=key.sequence,
+    delivery_id~,
+    owner_conn~,
+    attempt~,
+    delay_ms=0U,
+    reason~,
+    timestamp=now_unix_ms,
+  )
+  match self.writer.append(disk, event, adapt_gate(precheck)) {
+    Ok(_) => ()
+    Err(code) => return Err(ledger_to_delivery_error(code))
   }
+  let group = self.group_state(key.group_id)
+  group.entries[key.sequence] = {
+    state: DeadLetterQueued,
+    fenced_delivery_id: entry_fence(group, key.sequence),
+    dlq_sequence: 0UL,
+  }
+  self.groups[key.group_id] = group
+  Ok(DeadLettered(attempt))
+}
+
+///|
+/// Journal `SOURCE_TERMINATED` without a DLQ record and park the entry in
+/// `Quarantined`: the loop guards refused re-entry and the message awaits
+/// human intervention (0x0030 semantics).
+async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
+  self : DeliveryMachine,
+  disk : D,
+  key : DeliveryKey,
+  request : DeadLetterRequest,
+  now_unix_ms : UInt64,
+  precheck : (Int) -> Result[Unit, DeliveryError],
+) -> Result[Unit, DeliveryError] {
+  let event = LedgerEvent::new(
+    group_id=key.group_id,
+    event=SourceTerminated,
+    sequence=key.sequence,
+    delivery_id=0UL,
+    owner_conn=0UL,
+    attempt=request.attempt,
+    delay_ms=0U,
+    reason=request.reason,
+    timestamp=now_unix_ms,
+  )
+  match self.writer.append(disk, event, adapt_gate(precheck)) {
+    Ok(_) => ()
+    Err(code) => return Err(ledger_to_delivery_error(code))
+  }
+  let group = self.group_state(key.group_id)
+  group.entries[key.sequence] = {
+    state: Quarantined,
+    fenced_delivery_id: entry_fence(group, key.sequence),
+    dlq_sequence: 0UL,
+  }
+  self.groups[key.group_id] = group
+  Ok(())
+}
+
+///|
+/// Complete the DLQ flow for an entry parked in `DeadLetterQueued`: run the
+/// three loop guards, write the MMDL record into the source's `.dlq`
+/// partition stream through `dlq_write`, then journal `DLQ_WRITTEN` and
+/// `SOURCE_TERMINATED` (the frozen order: the DLQ record is durable before
+/// the source is terminated, design faults 10/11).
+///
+/// Loop guards, in order: a `.dlq` topic is terminal (no `.dlq.dlq`); a
+/// death path that already lists this `(topic, partition, group)` refuses
+/// re-entry; a death path at the frozen bound of 8 reports
+/// `DlqPathOverflow` (0x0030) after quarantining. Guard hits quarantine the
+/// message with no DLQ record. A value that is itself an envelope (a
+/// manually replayed DLQ message) is flattened into the new envelope's
+/// original payload and death path, so envelopes never nest.
+///
+/// The honest blind spot (REQ-DEL-002 boundary): a client that replays a
+/// message through ordinary PUB with the raw original payload loses the
+/// death path, and the broker -- which never parses user payloads -- starts
+/// the path over. Only envelope-carrying replays are loop-proofed.
+///
+/// Completion is idempotent: a second call reports the stored DLQ sequence
+/// without writing again.
+pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
+  self : DeliveryMachine,
+  disk : D,
+  key : DeliveryKey,
+  request : DeadLetterRequest,
+  dlq_write : (Bytes) -> Result[UInt64, DeliveryError],
+  now_unix_ms : UInt64,
+  precheck : (Int) -> Result[Unit, DeliveryError],
+) -> Result[DeadLetterResult, DeliveryError] {
+  match self.check_key(key) {
+    Ok(_) => ()
+    Err(code) => return Err(code)
+  }
+  let group = self.group_state(key.group_id)
+  let entry = match group.entries.get(key.sequence) {
+    Some(entry) => entry
+    None => return Err(UnknownDelivery)
+  }
+  match entry.state {
+    DeadLetterQueued => ()
+    _ => return Err(InvalidTransition)
+  }
+  if entry.dlq_sequence != 0UL {
+    return Ok(Enqueued(entry.dlq_sequence))
+  }
+  let mut death_path : Array[DlqHop] = []
+  let mut original_key = request.source.key
+  let mut original_value = request.source.value
+  if is_mmdl(request.source.value[:]) {
+    match decode_mmdl(request.source.value[:]) {
+      Ok(inner) => {
+        death_path = inner.death_path
+        original_key = inner.original_key
+        original_value = inner.original_value
+      }
+      Err(_) => ()
+    }
+  }
+  let triple = DlqHop::new(
+    topic_id=self.topic_id,
+    partition=self.partition,
+    group_id=key.group_id,
+  )
+  if request.from_dlq_topic {
+    match self.journal_quarantine(disk, key, request, now_unix_ms, precheck) {
+      Ok(_) => ()
+      Err(code) => return Err(code)
+    }
+    return Ok(Quarantined)
+  }
+  for hop in death_path {
+    if hop == triple {
+      match self.journal_quarantine(disk, key, request, now_unix_ms, precheck) {
+        Ok(_) => ()
+        Err(code) => return Err(code)
+      }
+      return Ok(Quarantined)
+    }
+  }
+  if death_path.length() >= 8 {
+    match self.journal_quarantine(disk, key, request, now_unix_ms, precheck) {
+      Ok(_) => ()
+      Err(code) => return Err(code)
+    }
+    return Err(DlqPathOverflow)
+  }
+  death_path.push(triple)
+  let envelope = MmdlEnvelope::new(
+    reason=request.reason,
+    source_topic_id=self.topic_id,
+    source_partition=self.partition,
+    source_sequence=key.sequence,
+    source_producer_id=request.source.producer_id,
+    source_producer_seq=request.source.producer_seq,
+    consumer_group_id=key.group_id,
+    attempt=request.attempt,
+    failed_unix_ms=now_unix_ms,
+    death_path~,
+    original_key~,
+    original_value~,
+  )
+  let bytes = match encode_mmdl(envelope) {
+    Ok(bytes) => bytes
+    Err(code) => return Err(code)
+  }
+  let dlq_sequence = match dlq_write(bytes) {
+    Ok(sequence) => sequence
+    Err(code) => return Err(code)
+  }
+  let written = LedgerEvent::new(
+    group_id=key.group_id,
+    event=DlqWritten,
+    sequence=key.sequence,
+    delivery_id=dlq_sequence,
+    owner_conn=0UL,
+    attempt=request.attempt,
+    delay_ms=0U,
+    reason=request.reason,
+    timestamp=now_unix_ms,
+  )
+  match self.writer.append(disk, written, adapt_gate(precheck)) {
+    Ok(_) => ()
+    Err(code) => return Err(ledger_to_delivery_error(code))
+  }
+  let terminated = LedgerEvent::new(
+    group_id=key.group_id,
+    event=SourceTerminated,
+    sequence=key.sequence,
+    delivery_id=0UL,
+    owner_conn=0UL,
+    attempt=request.attempt,
+    delay_ms=0U,
+    reason=request.reason,
+    timestamp=now_unix_ms,
+  )
+  match self.writer.append(disk, terminated, adapt_gate(precheck)) {
+    Ok(_) => ()
+    Err(code) => return Err(ledger_to_delivery_error(code))
+  }
+  group.entries[key.sequence] = {
+    state: DeadLetterQueued,
+    fenced_delivery_id: entry_fence(group, key.sequence),
+    dlq_sequence,
+  }
+  self.groups[key.group_id] = group
+  Ok(Enqueued(dlq_sequence))
 }
 
 ///|
@@ -682,31 +960,56 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
       Some(entry) => entry.fenced_delivery_id
       None => 0UL
     }
+    let prior_dlq = match group.entries.get(event.sequence) {
+      Some(entry) => entry.dlq_sequence
+      None => 0UL
+    }
     match event.event {
       Deliver =>
         group.entries[event.sequence] = {
           state: Delivering(event.delivery_id, event.owner_conn, event.attempt),
           fenced_delivery_id: prior_fenced,
+          dlq_sequence: prior_dlq,
         }
       Ack =>
         group.entries[event.sequence] = {
           state: Acked,
           fenced_delivery_id: prior_fenced,
+          dlq_sequence: 0UL,
         }
       Fenced =>
         group.entries[event.sequence] = {
           state: RetryScheduled(event.attempt),
           fenced_delivery_id: event.delivery_id,
+          dlq_sequence: prior_dlq,
         }
       NackRetry | Timeout =>
         group.entries[event.sequence] = {
           state: RetryScheduled(event.attempt),
           fenced_delivery_id: prior_fenced,
+          dlq_sequence: prior_dlq,
         }
       NackTerminal =>
         group.entries[event.sequence] = {
           state: DeadLetterQueued,
           fenced_delivery_id: prior_fenced,
+          dlq_sequence: prior_dlq,
+        }
+      DlqWritten =>
+        group.entries[event.sequence] = {
+          state: DeadLetterQueued,
+          fenced_delivery_id: prior_fenced,
+          dlq_sequence: event.delivery_id,
+        }
+      SourceTerminated =>
+        group.entries[event.sequence] = {
+          state: if prior_dlq != 0UL {
+            DeadLetterQueued
+          } else {
+            Quarantined
+          },
+          fenced_delivery_id: prior_fenced,
+          dlq_sequence: prior_dlq,
         }
       _ => return Err(Malformed)
     }
@@ -740,6 +1043,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           group.entries[sequence] = {
             state: RetryScheduled(attempt),
             fenced_delivery_id: entry.fenced_delivery_id,
+            dlq_sequence: entry.dlq_sequence,
           }
         _ => ()
       }

@@ -65,7 +65,7 @@ async test "retry backoff is 1s/2s/4s/8s with the frozen jitter bound" {
       disk,
       rng,
       bundle.delivery_id,
-      @delivery.Retry,
+      @delivery.DeliveryOutcome::Retry,
       2000,
     )
     match plan {
@@ -99,7 +99,7 @@ async test "the same seed reproduces the same backoff draw" {
       disk,
       rng,
       bundle.delivery_id,
-      @delivery.Retry,
+      @delivery.DeliveryOutcome::Retry,
       2000,
     )
     match plan {
@@ -129,7 +129,7 @@ async test "the 6th delivery is never enqueued after max attempts (L1)" {
       disk,
       rng,
       bundle.delivery_id,
-      @delivery.Retry,
+      @delivery.DeliveryOutcome::Retry,
       2000,
     )
     round = round + 1
@@ -248,7 +248,7 @@ async test "failure paths on resolved entries are idempotent no-ops" {
       rng,
       retry_key(1),
       1UL,
-      @delivery.Retry,
+      @delivery.DeliveryOutcome::Retry,
       2000,
       retry_gate,
     ) {
@@ -259,8 +259,7 @@ async test "failure paths on resolved entries are idempotent no-ops" {
     Err(@delivery.AlreadyAcked) => assert_eq(true, true)
     _ => fail("expected AlreadyAcked from a late timeout")
   }
-  // WP-04.04 wires Terminal/Poison to the DLQ write; until then they are
-  // refused instead of half-implemented.
+  // WP-04.04: Terminal/Poison enter the DLQ flow immediately.
   match machine.begin_delivery(disk, retry_key(2), 7, 1000, retry_gate) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
@@ -271,16 +270,22 @@ async test "failure paths on resolved entries are idempotent no-ops" {
       rng,
       retry_key(2),
       2UL,
-      @delivery.Terminal,
+      @delivery.DeliveryOutcome::Terminal,
       2000,
       retry_gate,
     ) {
-    Err(@delivery.InvalidTransition) => assert_eq(true, true)
-    _ => fail("expected Terminal to be refused until WP-04.04")
+    Ok(@delivery.DeadLettered(attempt)) => assert_eq(attempt, 1)
+    _ => fail("expected Terminal to dead-letter")
   }
   // The fenced delivery's NACK is STALE_OWNER, its sibling rule to ACK.
+  match machine.begin_delivery(disk, retry_key(3), 7, 1000, retry_gate) {
+    Ok(_) => ()
+    Err(_) => fail("begin_delivery failed")
+  }
   match
-    machine.on_ownership_changed(disk, 1, 1, 0, 55, 7, 9, 3, 4, 2500, gate) {
+    machine.on_ownership_changed(
+      disk, 1, 1, 0, 55, 7, 9, 3, 4, 2500, retry_gate,
+    ) {
     Ok(_) => ()
     Err(_) => fail("on_ownership_changed failed")
   }
@@ -288,9 +293,9 @@ async test "failure paths on resolved entries are idempotent no-ops" {
     machine.nack(
       disk,
       rng,
-      retry_key(2),
-      2UL,
-      @delivery.Retry,
+      retry_key(3),
+      3UL,
+      @delivery.DeliveryOutcome::Retry,
       3000,
       retry_gate,
     ) {
@@ -316,7 +321,7 @@ async test "recover restores a pending retry from the durable event" {
       rng,
       retry_key(1),
       bundle.delivery_id,
-      @delivery.Retry,
+      @delivery.DeliveryOutcome::Retry,
       2000,
       retry_gate,
     ) {

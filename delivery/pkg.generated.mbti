@@ -19,7 +19,13 @@ pub const RETRY_BACKOFF_BASE_MS : UInt = 1000
 
 pub fn decode_ledger_event(BytesView) -> Result[LedgerEvent, LedgerFault]
 
+pub fn decode_mmdl(BytesView) -> Result[MmdlEnvelope, DeliveryError]
+
 pub fn encode_ledger_event(LedgerEvent) -> Bytes
+
+pub fn encode_mmdl(MmdlEnvelope) -> Result[Bytes, DeliveryError]
+
+pub fn is_mmdl(BytesView) -> Bool
 
 pub async fn[D : @harness.Disk] read_ledger_events(D, Bytes) -> Result[Array[LedgerEvent], LedgerFault]
 
@@ -30,6 +36,7 @@ pub(all) suberror DeliveryError {
   AlreadyAcked
   AlreadyDeadLettered
   InvalidTransition
+  DlqPathOverflow
   Capacity
   Malformed
   DiskFault(@harness.HarnessFault)
@@ -56,6 +63,34 @@ pub fn AckResult::equal(Self, Self) -> Bool
 pub fn AckResult::not_equal(Self, Self) -> Bool
 pub fn AckResult::to_repr(Self) -> @debug.Repr
 
+pub(all) struct DeadLetterRequest {
+  from_dlq_topic : Bool
+  reason : NackReason
+  attempt : UInt16
+  source : DeadLetterSource
+} derive(Eq, @debug.Debug)
+pub fn DeadLetterRequest::equal(Self, Self) -> Bool
+pub fn DeadLetterRequest::not_equal(Self, Self) -> Bool
+pub fn DeadLetterRequest::to_repr(Self) -> @debug.Repr
+
+pub(all) enum DeadLetterResult {
+  Enqueued(UInt64)
+  Quarantined
+} derive(Eq, @debug.Debug)
+pub fn DeadLetterResult::equal(Self, Self) -> Bool
+pub fn DeadLetterResult::not_equal(Self, Self) -> Bool
+pub fn DeadLetterResult::to_repr(Self) -> @debug.Repr
+
+pub(all) struct DeadLetterSource {
+  producer_id : UInt64
+  producer_seq : UInt64
+  key : Bytes
+  value : Bytes
+} derive(Eq, @debug.Debug)
+pub fn DeadLetterSource::equal(Self, Self) -> Bool
+pub fn DeadLetterSource::not_equal(Self, Self) -> Bool
+pub fn DeadLetterSource::to_repr(Self) -> @debug.Repr
+
 pub(all) struct DeliveryAttempt {
   delivery_id : UInt64
   attempt : UInt16
@@ -81,6 +116,7 @@ pub(all) struct DeliveryMachine {
 }
 pub async fn[D : @harness.Disk] DeliveryMachine::ack(Self, D, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[AckResult, DeliveryError]
 pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(Self, D, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[DeliveryAttempt, DeliveryError]
+pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(Self, D, DeliveryKey, DeadLetterRequest, (Bytes) -> Result[UInt64, DeliveryError], UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[DeadLetterResult, DeliveryError]
 pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(Self, D, R, DeliveryKey, UInt64, DeliveryOutcome, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[RetryPlan, DeliveryError]
 pub fn DeliveryMachine::new(UInt16, UInt16, LedgerWriter) -> Self
 pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(Self, D, UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[Unit, DeliveryError]
@@ -104,10 +140,21 @@ pub(all) enum DeliveryState {
   Acked
   RetryScheduled(UInt16)
   DeadLetterQueued
+  Quarantined
 } derive(Eq, @debug.Debug)
 pub fn DeliveryState::equal(Self, Self) -> Bool
 pub fn DeliveryState::not_equal(Self, Self) -> Bool
 pub fn DeliveryState::to_repr(Self) -> @debug.Repr
+
+pub(all) struct DlqHop {
+  topic_id : UInt16
+  partition : UInt16
+  group_id : UInt16
+} derive(Eq, @debug.Debug)
+pub fn DlqHop::equal(Self, Self) -> Bool
+pub fn DlqHop::new(topic_id~ : UInt16, partition~ : UInt16, group_id~ : UInt16) -> Self
+pub fn DlqHop::not_equal(Self, Self) -> Bool
+pub fn DlqHop::to_repr(Self) -> @debug.Repr
 
 pub(all) struct LedgerEvent {
   group_id : UInt16
@@ -148,6 +195,22 @@ pub fn LedgerWriter::new(Bytes) -> Result[Self, LedgerFault]
 pub fn LedgerWriter::path(Self) -> Bytes
 pub async fn[D : @harness.Disk] LedgerWriter::sync(Self, D) -> Result[Unit, LedgerFault]
 pub fn LedgerWriter::unflushed_events(Self) -> Int
+
+pub(all) struct MmdlEnvelope {
+  reason : NackReason
+  source_topic_id : UInt16
+  source_partition : UInt16
+  source_sequence : UInt64
+  source_producer_id : UInt64
+  source_producer_seq : UInt64
+  consumer_group_id : UInt16
+  attempt : UInt16
+  failed_unix_ms : UInt64
+  death_path : Array[DlqHop]
+  original_key : Bytes
+  original_value : Bytes
+}
+pub fn MmdlEnvelope::new(reason~ : NackReason, source_topic_id~ : UInt16, source_partition~ : UInt16, source_sequence~ : UInt64, source_producer_id~ : UInt64, source_producer_seq~ : UInt64, consumer_group_id~ : UInt16, attempt~ : UInt16, failed_unix_ms~ : UInt64, death_path~ : Array[DlqHop], original_key~ : Bytes, original_value~ : Bytes) -> Self
 
 pub(all) enum NackReason {
   Retry
