@@ -154,7 +154,8 @@ pub fn SegmentWriter::segment_path(self : SegmentWriter, index : Int) -> Bytes {
 }
 
 ///|
-fn segment_path_of(base_path : Bytes, index : Int) -> Bytes {
+/// Derive the file path of one segment of the series.
+pub fn segment_path_of(base_path : Bytes, index : Int) -> Bytes {
   base_path + b"." + @utf8.encode(index.to_string())
 }
 
