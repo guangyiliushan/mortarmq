@@ -14,6 +14,66 @@ pub fn route_partition(Bytes, UInt16) -> UInt16
 // Errors
 
 // Types and methods
+pub(all) enum CreditError {
+  UnknownSubscription
+  StaleGeneration
+  MessageExceedsCredit
+  NoCredit
+  Backpressure
+} derive(Eq, @debug.Debug)
+pub fn CreditError::equal(Self, Self) -> Bool
+pub fn CreditError::not_equal(Self, Self) -> Bool
+pub fn CreditError::to_repr(Self) -> @debug.Repr
+
+pub(all) enum CreditMode {
+  Set
+  Add
+} derive(Eq, @debug.Debug)
+pub fn CreditMode::equal(Self, Self) -> Bool
+pub fn CreditMode::not_equal(Self, Self) -> Bool
+pub fn CreditMode::to_repr(Self) -> @debug.Repr
+
+pub struct CreditRegistry {
+  // private fields
+}
+pub fn CreditRegistry::admit(Self, UInt16, UInt16, UInt64, UInt64, UInt) -> Result[Unit, CreditError]
+pub fn CreditRegistry::apply(Self, UInt16, CreditMode, UInt16, UInt, UInt, UInt64) -> Result[CreditReport, CreditError]
+pub fn CreditRegistry::discard(Self, UInt16) -> Unit
+pub fn CreditRegistry::new() -> Self
+pub fn CreditRegistry::on_ownership_changed(Self, Bytes, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Unit
+pub fn CreditRegistry::register(Self, CreditWindow) -> Unit
+pub fn CreditRegistry::report(Self, UInt16) -> Result[CreditReport, CreditError]
+
+pub(all) struct CreditReport {
+  granted_count : UInt16
+  granted_bytes : UInt
+  outstanding_count : UInt16
+  outstanding_bytes : UInt
+  credit_epoch : UInt64
+} derive(Eq, @debug.Debug)
+pub fn CreditReport::equal(Self, Self) -> Bool
+pub fn CreditReport::not_equal(Self, Self) -> Bool
+pub fn CreditReport::to_repr(Self) -> @debug.Repr
+
+pub struct CreditReturnTracker {
+  // private fields
+}
+pub fn CreditReturnTracker::new(UInt16, UInt, UInt16, UInt, UInt64) -> Self
+pub fn CreditReturnTracker::record_ack(Self, UInt64, UInt) -> Unit
+pub fn CreditReturnTracker::should_flush(Self, UInt64, UInt16, UInt) -> Bool
+pub fn CreditReturnTracker::take(Self) -> ReturnedCredit?
+pub fn CreditReturnTracker::with_window_defaults(UInt16, UInt) -> Self
+
+pub struct CreditWindow {
+  // private fields
+}
+pub fn CreditWindow::admit(Self, UInt16, UInt64, UInt64, UInt) -> Result[Unit, CreditError]
+pub fn CreditWindow::apply(Self, CreditMode, UInt16, UInt, UInt, UInt64) -> Result[CreditReport, CreditError]
+pub fn CreditWindow::id(Self) -> UInt16
+pub fn CreditWindow::new(UInt16, UInt, UInt64, UInt16, UInt, UInt16, UInt, UInt16) -> Self
+pub fn CreditWindow::release_partition(Self, UInt16, UInt64) -> Bool
+pub fn CreditWindow::report(Self) -> CreditReport
+
 pub(all) struct DeclareOutcome {
   topic_id : UInt16
   partition_count : UInt16
@@ -22,6 +82,14 @@ pub(all) struct DeclareOutcome {
 pub fn DeclareOutcome::equal(Self, Self) -> Bool
 pub fn DeclareOutcome::not_equal(Self, Self) -> Bool
 pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
+
+pub(all) struct ReturnedCredit {
+  count : UInt16
+  bytes : UInt
+} derive(Eq, @debug.Debug)
+pub fn ReturnedCredit::equal(Self, Self) -> Bool
+pub fn ReturnedCredit::not_equal(Self, Self) -> Bool
+pub fn ReturnedCredit::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RouteEntry {
   topic_id : UInt16
