@@ -134,3 +134,68 @@ pub fn DeclareMachine::partition_count(
 ) -> UInt? {
   self.topics.get(name)
 }
+
+///|
+/// Record type a DECLARE body occupies in the MMML log.
+pub fn DeclareBody::to_record_type(self : DeclareBody) -> MmmlRecordType {
+  match self {
+    Create(_, _) => TopicCreate
+    Delete(_) => TopicDelete
+  }
+}
+
+///|
+/// v0 mutation payload layout, frozen alongside the 34-byte envelope:
+/// a u16 big-endian byte length of the UTF-8 name, the name bytes, and
+/// for creates a u32 big-endian partition count. Decoding is the exact
+/// inverse or rejects the bytes as malformed.
+pub fn DeclareBody::to_payload(self : DeclareBody) -> Bytes {
+  let name_bytes = match self {
+    Create(name, _) => @utf8.encode(name)
+    Delete(name) => @utf8.encode(name)
+  }
+  let buf = Buffer()
+  buf.write_uint16_be(name_bytes.length().to_uint16())
+  buf.write_bytes(name_bytes)
+  match self {
+    Create(_, partition_count) => buf.write_uint_be(partition_count)
+    Delete(_) => ()
+  }
+  buf.contents()
+}
+
+///|
+/// Decode one mutation payload for a DECLARE-capable record type.
+///
+/// Returns `None` for record types that are not DECLARE mutations, for
+/// truncated or overlong payloads, and for names that are not valid
+/// UTF-8; the caller refuses those bytes at the trust boundary.
+pub fn decode_declare_body(
+  record_type : MmmlRecordType,
+  payload : BytesView,
+) -> DeclareBody? {
+  let is_create = match record_type {
+    TopicCreate => true
+    TopicDelete => false
+    _ => return None
+  }
+  let name_len = match read_uint16_be(payload, 0) {
+    Ok(value) => value.to_int()
+    Err(_) => return None
+  }
+  let tail = if is_create { 4 } else { 0 }
+  if payload.length() != 2 + name_len + tail {
+    return None
+  }
+  let name = @utf8.decode(payload[2:2 + name_len]) catch {
+    Malformed(_) => return None
+  }
+  if is_create {
+    match read_uint_be(payload, 2 + name_len) {
+      Ok(partition_count) => Some(Create(name, partition_count))
+      Err(_) => None
+    }
+  } else {
+    Some(Delete(name))
+  }
+}

@@ -13,9 +13,27 @@ pub const MMML_HEADER_BYTES : Int = 34
 
 pub const MMML_HEADER_VERSION : Int = 1
 
+pub const SNAPSHOT_FORMAT_VERSION : UInt16 = 1
+
+pub const SNAPSHOT_SLOT_A : Bytes = b"mmml-snapshot-a.checkpoint"
+
+pub const SNAPSHOT_SLOT_B : Bytes = b"mmml-snapshot-b.checkpoint"
+
+pub fn decode_declare_body(MmmlRecordType, BytesView) -> DeclareBody?
+
 pub fn decode_mmml_record(BytesView) -> Result[MmmlRecord, MetadataFault]
 
+pub fn decode_snapshot(BytesView) -> Result[SnapshotState, MetadataFault]
+
 pub fn encode_mmml_record(MmmlHeader, BytesView) -> Result[Bytes, MetadataFault]
+
+pub fn encode_snapshot(SnapshotState) -> Result[Bytes, MetadataFault]
+
+pub async fn load_snapshot(&@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
+
+pub async fn recover_snapshot(&@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
+
+pub async fn save_snapshot(&@harness.Disk, Bytes, SnapshotState) -> Result[Unit, MetadataFault]
 
 // Errors
 pub(all) suberror MetadataFault {
@@ -34,6 +52,8 @@ pub(all) enum DeclareBody {
 } derive(Eq, @debug.Debug)
 pub fn DeclareBody::equal(Self, Self) -> Bool
 pub fn DeclareBody::not_equal(Self, Self) -> Bool
+pub fn DeclareBody::to_payload(Self) -> Bytes
+pub fn DeclareBody::to_record_type(Self) -> MmmlRecordType
 pub fn DeclareBody::to_repr(Self) -> @debug.Repr
 
 pub(all) struct DeclareMachine {
@@ -96,6 +116,12 @@ pub fn MmmlRecordType::from_uint16(UInt16) -> Self?
 pub fn MmmlRecordType::not_equal(Self, Self) -> Bool
 pub fn MmmlRecordType::to_repr(Self) -> @debug.Repr
 pub fn MmmlRecordType::to_uint16(Self) -> UInt16
+
+pub(all) struct SnapshotState {
+  machine : DeclareMachine
+  epoch : UInt64
+  end_offset : UInt64
+}
 
 // Type aliases
 
