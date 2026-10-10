@@ -653,6 +653,21 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
 }
 
 ///|
+async fn t_recovery_machine(
+  disk : @harness.FakeDisk,
+  path : Bytes,
+) -> @delivery.DeliveryMachine {
+  let writer = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  match @delivery.DeliveryMachine::recover(disk, 1, 0, writer) {
+    Ok(machine) => machine
+    Err(_) => fail("recover failed")
+  }
+}
+
+///|
 /// Wire hints are hints: the ledger adjudicates the attempt (the request
 /// carries none) and the source coordinates (from the machine's own key),
 /// so forged envelope claims cannot move the recorded facts.
@@ -742,4 +757,225 @@ async test "forged wire hints are adjudicated by the ledger" {
     }
     Err(_) => fail("ledger scan failed")
   }
+}
+
+///|
+/// The pending branch of the event-order contract (NACK_TERMINAL alone):
+/// a DLQ write that did not land re-runs its completion after restart
+/// with no duplicate side effects.
+async test "a failed DLQ write re-runs its completion after restart" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = dlq_machine(path)
+  let rng = @harness.SplitMix64::new(1UL)
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+    Ok(_) => ()
+    Err(_) => fail("begin_delivery failed")
+  }
+  match
+    machine.nack(
+      disk,
+      rng,
+      dlq_key(1),
+      1UL,
+      @delivery.DeliveryOutcome::Terminal,
+      2000,
+      dlq_gate,
+    ) {
+    Ok(_) => ()
+    Err(_) => fail("nack failed")
+  }
+  // The DLQ write fails: the envelope never becomes durable.
+  let broken = (_bytes : Bytes) => {
+    Err(@delivery.DeliveryError::DiskFault(@harness.DiskFull))
+  }
+  match
+    machine.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(false, @delivery.NackReason::Terminal, b"v"),
+      broken,
+      3000,
+      dlq_gate,
+    ) {
+    Err(@delivery.DeliveryError::DiskFault(@harness.DiskFull)) =>
+      assert_eq(true, true)
+    _ => fail("expected the DLQ write failure")
+  }
+  // Only NACK_TERMINAL is durable: the pending branch of the contract.
+  match @delivery.read_ledger_events(disk, path) {
+    Ok(events) => {
+      assert_eq(events.length(), 2)
+      assert_eq(events[1].event, @delivery.NackTerminal)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+  let recovered = t_recovery_machine(disk, path)
+  assert_eq(recovered.state_of(dlq_key(1)), Some(@delivery.DeadLetterQueued(1)))
+  let captured = Ref::Ref(b"")
+  let port = (bytes : Bytes) => {
+    captured.val = bytes
+    Ok(42UL)
+  }
+  match
+    recovered.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(false, @delivery.NackReason::Terminal, b"v"),
+      port,
+      4000,
+      dlq_gate,
+    ) {
+    Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
+    _ => fail("expected the completion to re-run")
+  }
+  // The frozen order landed exactly once.
+  match @delivery.read_ledger_events(disk, path) {
+    Ok(events) => {
+      assert_eq(events.length(), 4)
+      assert_eq(events[2].event, @delivery.DlqWritten)
+      assert_eq(events[3].event, @delivery.SourceTerminated)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+}
+
+///|
+/// The quarantine branch of the event-order contract (NACK_TERMINAL ->
+/// SOURCE_TERMINATED, no DLQ_WRITTEN): terminal across restart, with no
+/// DLQ record ever written.
+async test "the quarantine terminal state survives restart" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = dlq_machine(path)
+  let rng = @harness.SplitMix64::new(1UL)
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+    Ok(_) => ()
+    Err(_) => fail("begin_delivery failed")
+  }
+  match
+    machine.nack(
+      disk,
+      rng,
+      dlq_key(1),
+      1UL,
+      @delivery.DeliveryOutcome::Terminal,
+      2000,
+      dlq_gate,
+    ) {
+    Ok(_) => ()
+    Err(_) => fail("nack failed")
+  }
+  let calls = Ref::Ref(0)
+  let port = (_bytes : Bytes) => {
+    calls.val = calls.val + 1
+    Ok(42UL)
+  }
+  match
+    machine.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(true, @delivery.NackReason::Terminal, b"v"),
+      port,
+      3000,
+      dlq_gate,
+    ) {
+    Ok(@delivery.Quarantined) => ()
+    _ => fail("expected quarantine")
+  }
+  assert_eq(calls.val, 0)
+  let recovered = t_recovery_machine(disk, path)
+  assert_eq(recovered.state_of(dlq_key(1)), Some(@delivery.Quarantined))
+  match
+    recovered.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(true, @delivery.NackReason::Terminal, b"v"),
+      port,
+      4000,
+      dlq_gate,
+    ) {
+    Err(@delivery.InvalidTransition) => assert_eq(true, true)
+    _ => fail("expected the terminal state to refuse completion")
+  }
+  match recovered.begin_delivery(disk, dlq_key(1), 7, 4000, dlq_gate) {
+    Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
+    _ => fail("expected redelivery to stay refused")
+  }
+  match @delivery.read_ledger_events(disk, path) {
+    Ok(events) => {
+      // Exactly NACK_TERMINAL -> SOURCE_TERMINATED: no DLQ record exists.
+      assert_eq(events.length(), 3)
+      assert_eq(events[1].event, @delivery.NackTerminal)
+      assert_eq(events[2].event, @delivery.SourceTerminated)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+}
+
+///|
+/// The loop guards read the death path out of the envelope itself (the
+/// persisted message value), so protection is exactly as strong after a
+/// restart as before one.
+async test "loop protection still holds after a restart" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = dlq_machine(path)
+  let rng = @harness.SplitMix64::new(1UL)
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+    Ok(_) => ()
+    Err(_) => fail("begin_delivery failed")
+  }
+  match
+    machine.nack(
+      disk,
+      rng,
+      dlq_key(1),
+      1UL,
+      @delivery.DeliveryOutcome::Terminal,
+      2000,
+      dlq_gate,
+    ) {
+    Ok(_) => ()
+    Err(_) => fail("nack failed")
+  }
+  // Crash before the completion; the replayed envelope (already listing
+  // this machine's hop) survives only as the message's value bytes.
+  let recovered = t_recovery_machine(disk, path)
+  let inner = @delivery.MmdlEnvelope::new(
+    reason=@delivery.NackReason::Retry,
+    source_topic_id=1,
+    source_partition=0,
+    source_sequence=1UL,
+    source_producer_id=3UL,
+    source_producer_seq=4UL,
+    consumer_group_id=1,
+    attempt=5,
+    failed_unix_ms=200UL,
+    death_path=[hop(1, 0, 1)],
+    original_key=b"ik",
+    original_value=b"iv",
+  )
+  let replayed = match @delivery.encode_mmdl(inner) {
+    Ok(bytes) => bytes
+    Err(_) => fail("envelope encoding failed")
+  }
+  let calls = Ref::Ref(0)
+  let port = (_bytes : Bytes) => {
+    calls.val = calls.val + 1
+    Ok(42UL)
+  }
+  match
+    recovered.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(false, @delivery.NackReason::Terminal, replayed),
+      port,
+      3000,
+      dlq_gate,
+    ) {
+    Ok(@delivery.Quarantined) => assert_eq(true, true)
+    _ => fail("expected the restored loop guard to quarantine")
+  }
+  assert_eq(calls.val, 0)
 }
