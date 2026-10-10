@@ -3,39 +3,52 @@
 /// The decoder owns field-order, fixed-width, bound, trailing-byte, and
 /// operation/payload matching checks. Semantic topic syntax, authentication,
 /// quota, and replication policy remain with their later subsystems.
+///
+/// Decoding borrows: every variable-length field is a `BytesView` slice of the
+/// caller's input buffer and stays valid only until that buffer is reused. A
+/// consumer that keeps a field past that point calls `to_owned()` at its
+/// ownership boundary and stores the copy.
 
 ///|
 /// Carry the token and client capabilities requested by `CONNECT`.
+///
+/// `token` borrows from the decode input (see the module contract).
 pub(all) struct ConnectPayload {
   protocol_version : Byte
   client_flags : UInt16
-  token : Bytes
+  token : BytesView
 } derive(Eq, Debug)
 
 ///|
 /// Carry the topic metadata requested by `DECLARE`.
+///
+/// `topic` borrows from the decode input (see the module contract).
 pub(all) struct DeclarePayload {
-  topic : Bytes
+  topic : BytesView
   partition_count : UInt16
   flags : UInt16
 } derive(Eq, Debug)
 
 ///|
 /// Carry an idempotent `PUB` value and its producer identity.
+///
+/// `key` and `value` borrow from the decode input (see the module contract).
 pub(all) struct PubPayload {
   topic_id : UInt16
   partition : UInt16
   producer_id : UInt64
   producer_seq : UInt64
   flags : UInt16
-  key : Bytes
-  value : Bytes
+  key : BytesView
+  value : BytesView
 } derive(Eq, Debug)
 
 ///|
 /// Carry a consumer-group subscription and its initial credit window.
+///
+/// `group` borrows from the decode input (see the module contract).
 pub(all) struct SubPayload {
-  group : Bytes
+  group : BytesView
   topic_id : UInt16
   partition : UInt16
   start_policy : Byte
@@ -71,17 +84,21 @@ pub(all) struct NackPayload {
 
 ///|
 /// Carry a protocol-level diagnostic.
+///
+/// `message` borrows from the decode input (see the module contract).
 pub(all) struct ErrPayload {
   code : ErrCode
   request_op : Op
-  message : Bytes
+  message : BytesView
 } derive(Eq, Debug)
 
 ///|
 /// Carry an opaque operation result in the common `OK` envelope.
+///
+/// `result` borrows from the decode input (see the module contract).
 pub(all) struct OkPayload {
   request_op : Op
-  result : Bytes
+  result : BytesView
 } derive(Eq, Debug)
 
 ///|
@@ -93,6 +110,8 @@ pub(all) struct OkPayload {
 
 ///|
 /// Deliver one stored message to a subscribed client.
+///
+/// `key` and `value` borrow from the decode input (see the module contract).
 pub(all) struct MsgPayload {
   subscription_id : UInt16
   topic_id : UInt16
@@ -104,8 +123,8 @@ pub(all) struct MsgPayload {
   producer_id : UInt64
   producer_seq : UInt64
   flags : UInt16
-  key : Bytes
-  value : Bytes
+  key : BytesView
+  value : BytesView
 } derive(Eq, Debug)
 
 ///|
@@ -372,7 +391,7 @@ fn checked_len(value : BytesView, maximum : Int) -> Result[Int, ErrCode] {
 }
 
 ///|
-fn Cursor::key_value(self : Cursor) -> Result[(Bytes, Bytes), ErrCode] {
+fn Cursor::key_value(self : Cursor) -> Result[(BytesView, BytesView), ErrCode] {
   let key_length = match self.read_uint16_be() {
     Ok(value) => value.to_int()
     Err(code) => return Err(code)
@@ -381,7 +400,7 @@ fn Cursor::key_value(self : Cursor) -> Result[(Bytes, Bytes), ErrCode] {
     return Err(MalformedPayload)
   }
   let key = match self.take(key_length) {
-    Ok(value) => value.to_owned()
+    Ok(value) => value
     Err(code) => return Err(code)
   }
   let value_length = match self.read_uint_be() {
@@ -394,7 +413,7 @@ fn Cursor::key_value(self : Cursor) -> Result[(Bytes, Bytes), ErrCode] {
     Err(code) => return Err(code)
   }
   let value = match self.take(value_length) {
-    Ok(value) => value.to_owned()
+    Ok(value) => value
     Err(code) => return Err(code)
   }
   Ok((key, value))
@@ -419,7 +438,7 @@ fn decode_connect(data : BytesView) -> Result[WirePayload, ErrCode] {
     Err(code) => return Err(code)
   }
   let token = match cursor.take(token_length) {
-    Ok(value) => value.to_owned()
+    Ok(value) => value
     Err(code) => return Err(code)
   }
   let reserved = match cursor.read_uint_be() {
@@ -446,7 +465,7 @@ fn decode_declare(data : BytesView) -> Result[WirePayload, ErrCode] {
     return Err(MalformedPayload)
   }
   let topic = match cursor.take(topic_length) {
-    Ok(value) => value.to_owned()
+    Ok(value) => value
     Err(code) => return Err(code)
   }
   let partition_count = match cursor.read_uint16_be() {
@@ -515,7 +534,7 @@ fn decode_sub(data : BytesView) -> Result[WirePayload, ErrCode] {
     Err(code) => return Err(code)
   }
   let group = match cursor.take(group_length) {
-    Ok(value) => value.to_owned()
+    Ok(value) => value
     Err(code) => return Err(code)
   }
   let topic_id = match cursor.read_uint16_be() {
@@ -690,7 +709,7 @@ fn decode_error(data : BytesView) -> Result[WirePayload, ErrCode] {
     return Err(MalformedPayload)
   }
   let message = match cursor.take(message_length) {
-    Ok(value) => value.to_owned()
+    Ok(value) => value
     Err(code) => return Err(code)
   }
   match cursor.finished() {
@@ -718,7 +737,7 @@ fn decode_ok(data : BytesView) -> Result[WirePayload, ErrCode] {
     return Err(MalformedPayload)
   }
   let result = match cursor.take(result_length) {
-    Ok(value) => value.to_owned()
+    Ok(value) => value
     Err(code) => return Err(code)
   }
   match cursor.finished() {
@@ -732,6 +751,7 @@ fn decode_ok(data : BytesView) -> Result[WirePayload, ErrCode] {
 ///
 /// The payload must match `op`; semantic validation (topic syntax, producer
 /// sequencing, quotas, and authorization) remains in later subsystems.
+/// Decoded variable-length fields borrow from `data`; see the module contract.
 ///
 /// # Example
 ///
@@ -1147,7 +1167,7 @@ fn encode_connect(payload : ConnectPayload) -> Result[Bytes, ErrCode] {
   let buf = Buffer()
   buf.write_byte(payload.protocol_version)
   buf.write_uint16_be(payload.client_flags)
-  match write_field(buf, payload.token[:], 0xFFFF) {
+  match write_field(buf, payload.token, 0xFFFF) {
     Ok(_) => ()
     Err(code) => return Err(code)
   }
@@ -1158,7 +1178,7 @@ fn encode_connect(payload : ConnectPayload) -> Result[Bytes, ErrCode] {
 ///|
 fn encode_declare(payload : DeclarePayload) -> Result[Bytes, ErrCode] {
   let buf = Buffer()
-  match write_field(buf, payload.topic[:], MAX_TOPIC_LEN.reinterpret_as_int()) {
+  match write_field(buf, payload.topic, MAX_TOPIC_LEN.reinterpret_as_int()) {
     Ok(_) => ()
     Err(code) => return Err(code)
   }
@@ -1195,7 +1215,7 @@ fn encode_pub(payload : PubPayload) -> Result[Bytes, ErrCode] {
   buf.write_uint64_be(payload.producer_id)
   buf.write_uint64_be(payload.producer_seq)
   buf.write_uint16_be(payload.flags)
-  match write_key_value(buf, payload.key[:], payload.value[:]) {
+  match write_key_value(buf, payload.key, payload.value) {
     Ok(_) => ()
     Err(code) => return Err(code)
   }
@@ -1208,7 +1228,7 @@ fn encode_sub(payload : SubPayload) -> Result[Bytes, ErrCode] {
     return Err(MalformedPayload)
   }
   let buf = Buffer()
-  match write_field(buf, payload.group[:], 0xFFFF) {
+  match write_field(buf, payload.group, 0xFFFF) {
     Ok(_) => ()
     Err(code) => return Err(code)
   }
@@ -1250,7 +1270,7 @@ fn encode_nack(payload : NackPayload) -> Result[Bytes, ErrCode] {
 
 ///|
 fn encode_error(payload : ErrPayload) -> Result[Bytes, ErrCode] {
-  match checked_len(payload.message[:], MAX_ERR_MESSAGE.reinterpret_as_int()) {
+  match checked_len(payload.message, MAX_ERR_MESSAGE.reinterpret_as_int()) {
     Ok(_) => ()
     Err(code) => return Err(code)
   }
@@ -1258,19 +1278,19 @@ fn encode_error(payload : ErrPayload) -> Result[Bytes, ErrCode] {
   buf.write_uint16_be(payload.code.to_uint16().to_uint16())
   buf.write_byte(payload.request_op.to_byte())
   buf.write_uint16_be(payload.message.length().to_uint16())
-  buf.write_bytes(payload.message[:])
+  buf.write_bytes(payload.message)
   Ok(buf.contents())
 }
 
 ///|
 fn encode_ok(payload : OkPayload) -> Result[Bytes, ErrCode] {
-  match checked_len(payload.result[:], MAX_OK_RESULT_LEN.reinterpret_as_int()) {
+  match checked_len(payload.result, MAX_OK_RESULT_LEN.reinterpret_as_int()) {
     Ok(_) => ()
     Err(code) => return Err(code)
   }
   let buf = Buffer()
   buf.write_byte(payload.request_op.to_byte())
-  write_fixed_field(buf, payload.result[:])
+  write_fixed_field(buf, payload.result)
   Ok(buf.contents())
 }
 
@@ -1302,7 +1322,7 @@ fn encode_msg(payload : MsgPayload) -> Result[Bytes, ErrCode] {
   buf.write_uint64_be(payload.producer_id)
   buf.write_uint64_be(payload.producer_seq)
   buf.write_uint16_be(payload.flags)
-  match write_key_value(buf, payload.key[:], payload.value[:]) {
+  match write_key_value(buf, payload.key, payload.value) {
     Ok(_) => ()
     Err(code) => return Err(code)
   }

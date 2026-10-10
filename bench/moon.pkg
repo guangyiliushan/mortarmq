@@ -1,1 +1,2 @@
-// Placeholder package: codec benchmarks and kill -9 fault injection.
+// Placeholder package: kill -9 fault injection (codec benchmarks live in
+// protocol/codec_bench_test.mbt per the A01 codec directory contract).

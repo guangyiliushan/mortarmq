@@ -3,6 +3,7 @@ import {
 }
 
 import {
+  "moonbitlang/core/bench",
   "moonbitlang/core/quickcheck",
   "guangyiliushan/mortarmq/harness",
   "moonbitlang/async",

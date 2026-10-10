@@ -55,7 +55,7 @@ pub fn AckPayload::to_repr(Self) -> @debug.Repr
 pub(all) struct ConnectPayload {
   protocol_version : Byte
   client_flags : UInt16
-  token : Bytes
+  token : BytesView
 } derive(Eq, @debug.Debug)
 pub fn ConnectPayload::equal(Self, Self) -> Bool
 pub fn ConnectPayload::not_equal(Self, Self) -> Bool
@@ -87,7 +87,7 @@ pub fn CreditPayload::not_equal(Self, Self) -> Bool
 pub fn CreditPayload::to_repr(Self) -> @debug.Repr
 
 pub(all) struct DeclarePayload {
-  topic : Bytes
+  topic : BytesView
   partition_count : UInt16
   flags : UInt16
 } derive(Eq, @debug.Debug)
@@ -161,7 +161,7 @@ pub fn ErrCode::to_uint16(Self) -> UInt
 pub(all) struct ErrPayload {
   code : ErrCode
   request_op : Op
-  message : Bytes
+  message : BytesView
 } derive(Eq, @debug.Debug)
 pub fn ErrPayload::equal(Self, Self) -> Bool
 pub fn ErrPayload::not_equal(Self, Self) -> Bool
@@ -189,8 +189,8 @@ pub(all) struct MsgPayload {
   producer_id : UInt64
   producer_seq : UInt64
   flags : UInt16
-  key : Bytes
-  value : Bytes
+  key : BytesView
+  value : BytesView
 } derive(Eq, @debug.Debug)
 pub fn MsgPayload::equal(Self, Self) -> Bool
 pub fn MsgPayload::not_equal(Self, Self) -> Bool
@@ -227,7 +227,7 @@ pub fn NoticePayload::to_repr(Self) -> @debug.Repr
 
 pub(all) struct OkPayload {
   request_op : Op
-  result : Bytes
+  result : BytesView
 } derive(Eq, @debug.Debug)
 pub fn OkPayload::equal(Self, Self) -> Bool
 pub fn OkPayload::not_equal(Self, Self) -> Bool
@@ -262,8 +262,8 @@ pub(all) struct PubPayload {
   producer_id : UInt64
   producer_seq : UInt64
   flags : UInt16
-  key : Bytes
-  value : Bytes
+  key : BytesView
+  value : BytesView
 } derive(Eq, @debug.Debug)
 pub fn PubPayload::equal(Self, Self) -> Bool
 pub fn PubPayload::not_equal(Self, Self) -> Bool
@@ -285,7 +285,7 @@ pub fn PullPayload::not_equal(Self, Self) -> Bool
 pub fn PullPayload::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SubPayload {
-  group : Bytes
+  group : BytesView
   topic_id : UInt16
   partition : UInt16
   start_policy : Byte
