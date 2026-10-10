@@ -17,6 +17,25 @@
 /// carry no reason. Hashing the presented token is deliberately not
 /// constant time (T073 won't-defend column), and a leaked tokens file is
 /// only as strong as token entropy (ops: ≥128-bit random tokens).
+///
+/// Cost model: the pause is pure failure-path latency. A success adds no
+/// delay; a failure adds exactly one fixed 100ms pause — never twice, never
+/// more — plus microsecond-scale compute (one SHA-256 pass over the token
+/// and one 32-byte accumulate) and holds only the failing connection's own
+/// state plus one timer. The pause runs on an asynchronous timer: it burns
+/// no CPU while it waits and never occupies a worker thread.
+///
+/// Overload interlock: explicit overload rejection lives in the
+/// backpressure layer and runs at admission, before authentication. Under
+/// overload, new work is refused fast with the 0x4xxx backpressure codes
+/// and never reaches the pause, so a failure storm cannot queue pauses
+/// behind admitted work. The auth stage is bounded by the auth timeout and
+/// the half-frame timeout, and a failed attempt closes the connection, so
+/// one connection yields at most one pause per attempt. With `F` concurrent
+/// failing connections the fixed cost is `F` timers, `F` times
+/// microsecond-scale compute, and O(F) connection state — the 100ms
+/// multiplies no shared resource and amplifies nothing but the attacker's
+/// own dwell time.
 
 ///|
 /// The uniform pause applied to every authentication failure (ms).
