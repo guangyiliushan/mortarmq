@@ -23,6 +23,7 @@ pub(all) enum CreditError {
 } derive(Eq, @debug.Debug)
 pub fn CreditError::equal(Self, Self) -> Bool
 pub fn CreditError::not_equal(Self, Self) -> Bool
+pub fn CreditError::to_err_code(Self) -> @protocol.ErrCode
 pub fn CreditError::to_repr(Self) -> @debug.Repr
 
 pub(all) enum CreditMode {
