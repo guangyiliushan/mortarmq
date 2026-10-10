@@ -7,9 +7,17 @@ import {
 }
 
 // Values
+pub const MAX_GROUP_ASSIGNMENTS : Int = 4096
+
+pub const MAX_GROUP_MEMBERS : Int = 10
+
 pub const MAX_PULL_WAIT_MS : UInt64 = 5000
 
 pub const MAX_WAITING_PULLS : Int = 16
+
+pub const NOTICE_KIND_ASSIGN : Byte = 0x00
+
+pub const NOTICE_KIND_REVOKE : Byte = 0x01
 
 pub fn clamp_batch(Array[@protocol.MsgPayload], UInt16, UInt) -> Array[@protocol.MsgPayload]
 
@@ -93,6 +101,35 @@ pub(all) struct DeclareOutcome {
 pub fn DeclareOutcome::equal(Self, Self) -> Bool
 pub fn DeclareOutcome::not_equal(Self, Self) -> Bool
 pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
+
+pub struct GroupCoordinator {
+  // private fields
+} derive(@debug.Debug)
+pub fn GroupCoordinator::join(Self, UInt64, UInt16, UInt16) -> Result[JoinResult, @protocol.ErrCode]
+pub fn GroupCoordinator::leave(Self, UInt64) -> Result[LeaveResult, @protocol.ErrCode]
+pub fn GroupCoordinator::new(UInt16) -> Self
+pub fn GroupCoordinator::owner_of(Self, UInt16, UInt16) -> UInt64?
+pub fn GroupCoordinator::ownership_epoch_of(Self, UInt16, UInt16) -> UInt64?
+pub fn GroupCoordinator::to_repr(Self) -> @debug.Repr
+
+pub(all) struct JoinResult {
+  member_id : UInt64
+  membership_epoch : UInt
+  assignment_epoch : UInt
+  notices : Array[@protocol.NoticePayload]
+} derive(Eq, @debug.Debug)
+pub fn JoinResult::equal(Self, Self) -> Bool
+pub fn JoinResult::not_equal(Self, Self) -> Bool
+pub fn JoinResult::to_repr(Self) -> @debug.Repr
+
+pub(all) struct LeaveResult {
+  membership_epoch : UInt
+  assignment_epoch : UInt
+  notices : Array[@protocol.NoticePayload]
+} derive(Eq, @debug.Debug)
+pub fn LeaveResult::equal(Self, Self) -> Bool
+pub fn LeaveResult::not_equal(Self, Self) -> Bool
+pub fn LeaveResult::to_repr(Self) -> @debug.Repr
 
 pub struct OutboundPending {
   // private fields
