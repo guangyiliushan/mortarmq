@@ -13,6 +13,8 @@ pub const INDEX_ENTRY_BYTES : Int = 32
 
 pub const RECORD_HEADER_BYTES : Int = 56
 
+pub const SEGMENT_MAX_BYTES : Int = 67108864
+
 pub fn decode_checkpoint(BytesView) -> Result[SegmentCheckpoint, StorageFault]
 
 pub fn decode_index_entry(BytesView) -> Result[IndexEntry, StorageFault]
@@ -40,6 +42,14 @@ pub fn validate_segment_identity(BytesView) -> Result[Unit, StorageFault]
 pub async fn write_checkpoint(&@harness.Disk, Bytes, SegmentCheckpoint) -> Result[Unit, @harness.HarnessFault]
 
 // Errors
+pub(all) suberror AppendFault {
+  Record(StorageFault)
+  Disk(@harness.HarnessFault)
+} derive(Eq, @debug.Debug)
+pub fn AppendFault::equal(Self, Self) -> Bool
+pub fn AppendFault::not_equal(Self, Self) -> Bool
+pub fn AppendFault::to_repr(Self) -> @debug.Repr
+
 pub(all) suberror StorageFault {
   Malformed
   DiskFault(@harness.HarnessFault)
@@ -49,6 +59,17 @@ pub fn StorageFault::not_equal(Self, Self) -> Bool
 pub fn StorageFault::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+pub(all) struct AppendedRecord {
+  sequence : UInt64
+  segment_index : Int
+  segment_path : Bytes
+  file_offset : Int
+  record_len : Int
+} derive(Eq, @debug.Debug)
+pub fn AppendedRecord::equal(Self, Self) -> Bool
+pub fn AppendedRecord::not_equal(Self, Self) -> Bool
+pub fn AppendedRecord::to_repr(Self) -> @debug.Repr
+
 pub(all) struct IndexEntry {
   sequence : UInt64
   timestamp_unix_ms : UInt64
@@ -100,6 +121,18 @@ pub(all) struct SegmentRecovery {
 pub fn SegmentRecovery::equal(Self, Self) -> Bool
 pub fn SegmentRecovery::not_equal(Self, Self) -> Bool
 pub fn SegmentRecovery::to_repr(Self) -> @debug.Repr
+
+pub(all) struct SegmentWriter {
+  // private fields
+} derive(@debug.Debug)
+pub fn SegmentWriter::active_bytes(Self) -> Int
+pub fn SegmentWriter::active_path(Self) -> Bytes
+pub async fn SegmentWriter::append(Self, &@harness.Disk, Bytes, Bytes, producer_id? : UInt64, producer_seq? : UInt64, timestamp_unix_ms? : UInt64, leader_epoch? : UInt, replication_flags? : Byte) -> Result[AppendedRecord, AppendFault]
+pub fn SegmentWriter::new(Bytes, segment_max_bytes? : Int, start_sequence? : UInt64) -> Self
+pub fn SegmentWriter::next_sequence(Self) -> UInt64
+pub fn SegmentWriter::segment_count(Self) -> Int
+pub fn SegmentWriter::segment_path(Self, Int) -> Bytes
+pub fn SegmentWriter::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
