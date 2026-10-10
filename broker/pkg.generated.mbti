@@ -7,6 +7,10 @@ import {
 }
 
 // Values
+pub const MAX_PULL_WAIT_MS : UInt64 = 5000
+
+pub const MAX_WAITING_PULLS : Int = 16
+
 pub fn fnv1a32(Bytes) -> UInt
 
 pub fn route_partition(Bytes, UInt16) -> UInt16
@@ -128,6 +132,26 @@ pub(all) struct PubReport {
 pub fn PubReport::equal(Self, Self) -> Bool
 pub fn PubReport::not_equal(Self, Self) -> Bool
 pub fn PubReport::to_repr(Self) -> @debug.Repr
+
+pub struct PullQueue {
+  // private fields
+} derive(@debug.Debug)
+pub fn PullQueue::cancel(Self, UInt64, UInt16) -> Array[PullTicket]
+pub fn PullQueue::due(Self, UInt64) -> Array[PullTicket]
+pub fn PullQueue::enqueue(Self, UInt64, UInt16, UInt16, UInt64) -> Result[PullTicket, @protocol.ErrCode]
+pub fn PullQueue::new() -> Self
+pub fn PullQueue::pending_count(Self) -> Int
+pub fn PullQueue::to_repr(Self) -> @debug.Repr
+pub fn PullQueue::wake_next(Self, UInt16) -> PullTicket?
+
+pub(all) struct PullTicket {
+  member_id : UInt64
+  subscription_id : UInt16
+  wait_id : UInt64
+} derive(Eq, @debug.Debug)
+pub fn PullTicket::equal(Self, Self) -> Bool
+pub fn PullTicket::not_equal(Self, Self) -> Bool
+pub fn PullTicket::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ReturnedCredit {
   count : UInt16

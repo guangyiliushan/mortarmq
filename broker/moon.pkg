@@ -2,3 +2,8 @@ import {
   "guangyiliushan/mortarmq/protocol",
   "moonbitlang/core/debug",
 }
+
+import {
+  "guangyiliushan/mortarmq/harness",
+  "moonbitlang/async",
+} for "test"
