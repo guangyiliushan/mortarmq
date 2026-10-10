@@ -541,7 +541,7 @@ pub fn CreditRegistry::report(
 pub fn CreditRegistry::on_ownership_changed(
   self : CreditRegistry,
   _group_id : UInt16,
-  _topic : UInt16,
+  _topic_id : UInt16,
   partition : UInt16,
   subscription_id : UInt16,
   _old_owner : UInt64,
