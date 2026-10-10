@@ -169,20 +169,20 @@ fn event_kind(code : Byte) -> Result[LedgerEventKind, LedgerFault] {
 ///|
 fn reason_code(reason : NackReason) -> Byte {
   match reason {
-    Retry => 0
-    Terminal => 1
-    Poison => 2
-    Slow => 3
+    NackReason::Retry => 0
+    NackReason::Terminal => 1
+    NackReason::Poison => 2
+    NackReason::Slow => 3
   }
 }
 
 ///|
 fn reason_kind(code : Byte) -> Result[NackReason, LedgerFault] {
   match code {
-    0 => Ok(Retry)
-    1 => Ok(Terminal)
-    2 => Ok(Poison)
-    3 => Ok(Slow)
+    0 => Ok(NackReason::Retry)
+    1 => Ok(NackReason::Terminal)
+    2 => Ok(NackReason::Poison)
+    3 => Ok(NackReason::Slow)
     _ => Err(Malformed)
   }
 }

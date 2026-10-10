@@ -11,6 +11,12 @@ pub const LEDGER_EVENT_BYTES : Int = 52
 
 pub const LEDGER_FILE_NAME : Bytes = b"delivery.mql"
 
+pub const MAX_ATTEMPTS : UInt16 = 5
+
+pub const MAX_BACKOFF_MS : UInt = 30000
+
+pub const RETRY_BACKOFF_BASE_MS : UInt = 1000
+
 pub fn decode_ledger_event(BytesView) -> Result[LedgerEvent, LedgerFault]
 
 pub fn encode_ledger_event(LedgerEvent) -> Bytes
@@ -21,6 +27,8 @@ pub async fn[D : @harness.Disk] read_ledger_events(D, Bytes) -> Result[Array[Led
 pub(all) suberror DeliveryError {
   UnknownDelivery
   StaleOwner
+  AlreadyAcked
+  AlreadyDeadLettered
   InvalidTransition
   Capacity
   Malformed
@@ -73,16 +81,29 @@ pub(all) struct DeliveryMachine {
 }
 pub async fn[D : @harness.Disk] DeliveryMachine::ack(Self, D, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[AckResult, DeliveryError]
 pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(Self, D, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[DeliveryAttempt, DeliveryError]
+pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(Self, D, R, DeliveryKey, UInt64, DeliveryOutcome, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[RetryPlan, DeliveryError]
 pub fn DeliveryMachine::new(UInt16, UInt16, LedgerWriter) -> Self
 pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(Self, D, UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[Unit, DeliveryError]
 pub async fn[D : @harness.Disk] DeliveryMachine::recover(D, UInt16, UInt16, LedgerWriter) -> Result[Self, DeliveryError]
 pub fn DeliveryMachine::state_of(Self, DeliveryKey) -> DeliveryState?
 pub async fn[D : @harness.Disk] DeliveryMachine::sync(Self, D) -> Result[Unit, DeliveryError]
+pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(Self, D, R, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[RetryPlan, DeliveryError]
+
+pub(all) enum DeliveryOutcome {
+  Retry
+  Terminal
+  Poison
+  Slow
+} derive(Eq, @debug.Debug)
+pub fn DeliveryOutcome::equal(Self, Self) -> Bool
+pub fn DeliveryOutcome::not_equal(Self, Self) -> Bool
+pub fn DeliveryOutcome::to_repr(Self) -> @debug.Repr
 
 pub(all) enum DeliveryState {
   Delivering(UInt64, UInt64, UInt16)
   Acked
   RetryScheduled(UInt16)
+  DeadLetterQueued
 } derive(Eq, @debug.Debug)
 pub fn DeliveryState::equal(Self, Self) -> Bool
 pub fn DeliveryState::not_equal(Self, Self) -> Bool
@@ -137,6 +158,14 @@ pub(all) enum NackReason {
 pub fn NackReason::equal(Self, Self) -> Bool
 pub fn NackReason::not_equal(Self, Self) -> Bool
 pub fn NackReason::to_repr(Self) -> @debug.Repr
+
+pub(all) enum RetryPlan {
+  Scheduled(UInt16, UInt)
+  DeadLettered(UInt16)
+} derive(Eq, @debug.Debug)
+pub fn RetryPlan::equal(Self, Self) -> Bool
+pub fn RetryPlan::not_equal(Self, Self) -> Bool
+pub fn RetryPlan::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

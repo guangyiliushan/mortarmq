@@ -16,7 +16,7 @@ test "ledger event encoder matches the hand-built frozen-layout vector" {
     owner_conn=3UL,
     attempt=2,
     delay_ms=0U,
-    reason=Retry,
+    reason=NackReason::Retry,
     timestamp=200UL,
   )
   assert_eq(encode_ledger_event(event), expected)

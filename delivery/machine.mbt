@@ -79,12 +79,14 @@ pub fn DeliveryKey::new(
 ///|
 /// The observable lifecycle of one `(group, sequence)` entry. `Delivering`
 /// carries `(delivery_id, owner_conn, attempt)`; `RetryScheduled` carries the
-/// attempt count and is created by the restart policy and by retry paths
-/// (T029).
+/// attempt count and is created by the restart policy and by retry paths;
+/// `DeadLetterQueued` is terminal once the retry budget is spent (the
+/// durable DLQ record lands with WP-04.04).
 pub(all) enum DeliveryState {
   Delivering(UInt64, UInt64, UInt16)
   Acked
   RetryScheduled(UInt16)
+  DeadLetterQueued
 } derive(Eq, Debug)
 
 ///|
@@ -107,12 +109,61 @@ pub extend AckResult with Eq::{not_equal, equal}
 pub extend AckResult with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
+/// The frozen NACK outcome codes (reason 0..3 on the wire). `Slow` is a
+/// v0.1 extension kept in the format range. WP-04.02 answers every outcome
+/// with `InvalidTransition`; WP-04.04 wires `Terminal`/`Poison` to the DLQ
+/// write.
+pub(all) enum DeliveryOutcome {
+  Retry
+  Terminal
+  Poison
+  Slow
+} derive(Eq, Debug)
+
+///|
+pub extend DeliveryOutcome with Eq::{not_equal, equal}
+
+///|
+pub extend DeliveryOutcome with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+/// What the executor must schedule after a failed delivery. `Scheduled`
+/// carries `(attempt, delay_ms)` with the jittered backoff already applied
+/// (due times are monotonic ticks owned by the executor); `DeadLettered`
+/// carries the final attempt and schedules nothing (WP-04.04 writes the DLQ
+/// record on this path).
+pub(all) enum RetryPlan {
+  Scheduled(UInt16, UInt)
+  DeadLettered(UInt16)
+} derive(Eq, Debug)
+
+///|
+pub extend RetryPlan with Eq::{not_equal, equal}
+
+///|
+pub extend RetryPlan with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+/// The frozen retry budget: 1 first delivery + at most 4 redeliveries.
+pub const MAX_ATTEMPTS : UInt16 = 5
+
+///|
+/// The frozen backoff base (review R5): delay_n = min(30s, 1s * 2^(n-1)).
+pub const RETRY_BACKOFF_BASE_MS : UInt = 1000
+
+///|
+/// The frozen backoff ceiling, guarding retry storms.
+pub const MAX_BACKOFF_MS : UInt = 30000
+
+///|
 /// Report delivery-machine failures. `UnknownDelivery` and `StaleOwner` map
 /// to 0x0023 and 0x0022 upstream; `InvalidTransition` is an executor logic
 /// violation that never reaches the wire as its own code.
 pub(all) suberror DeliveryError {
   UnknownDelivery
   StaleOwner
+  AlreadyAcked
+  AlreadyDeadLettered
   InvalidTransition
   Capacity
   Malformed
@@ -231,8 +282,15 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
     Some(entry) =>
       match entry.state {
         Delivering(_, _, _) | Acked => return Err(InvalidTransition)
+        DeadLetterQueued => return Err(AlreadyDeadLettered)
         RetryScheduled(count) => count + 1
       }
+  }
+  // Defense in depth for the L1 rule "attempt 6 is never enqueued": the
+  // budget-exhausted entry already sits in `DeadLetterQueued`, and this
+  // guard keeps a stray caller from billing past `MAX_ATTEMPTS` anyway.
+  if attempt > MAX_ATTEMPTS {
+    return Err(AlreadyDeadLettered)
   }
   let fenced_delivery_id = match prior_entry {
     Some(entry) => entry.fenced_delivery_id
@@ -247,7 +305,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
     owner_conn~,
     attempt~,
     delay_ms=0U,
-    reason=Retry,
+    reason=NackReason::Retry,
     timestamp=now_unix_ms,
   )
   match self.writer.append(disk, event, adapt_gate(precheck)) {
@@ -298,6 +356,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
   match entry.state {
     Acked => return Ok(Duplicate)
     RetryScheduled(_) => return Err(UnknownDelivery)
+    DeadLetterQueued => return Err(AlreadyDeadLettered)
     Delivering(current_id, owner_conn, attempt) =>
       if current_id != delivery_id {
         return Err(UnknownDelivery)
@@ -310,7 +369,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
           owner_conn~,
           attempt~,
           delay_ms=0U,
-          reason=Retry,
+          reason=NackReason::Retry,
           timestamp=now_unix_ms,
         )
         match self.writer.append(disk, event, adapt_gate(precheck)) {
@@ -381,7 +440,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
           owner_conn~,
           attempt~,
           delay_ms=0U,
-          reason=Retry,
+          reason=NackReason::Retry,
           timestamp=now_unix_ms,
         )
         match self.writer.append(disk, event, adapt_gate(precheck)) {
@@ -398,6 +457,204 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
   }
   self.groups[group_id] = group
   Ok(())
+}
+
+///|
+/// The frozen backoff: delay_n = min(30s, 1s * 2^(n-1)), then jitter drawn
+/// from 0..=delay_n/4 (design "Backoff"; monotonic scheduling is the
+/// executor's timer).
+fn[R : @harness.Rng] backoff_delay(attempt : UInt16, rng : R) -> UInt {
+  let mut delay_n = RETRY_BACKOFF_BASE_MS
+  let steps = attempt.to_int() - 1
+  for _ in 0..<steps {
+    if delay_n >= MAX_BACKOFF_MS {
+      break
+    }
+    delay_n = delay_n * 2
+    if delay_n > MAX_BACKOFF_MS {
+      delay_n = MAX_BACKOFF_MS
+    }
+  }
+  let jitter_span = delay_n / 4
+  let jitter = (rng.next_uint64() % (jitter_span + 1).to_uint64()).to_uint()
+  delay_n + jitter
+}
+
+///|
+/// Fail one in-flight delivery with a NACK outcome and schedule the retry.
+///
+/// `Retry` writes `NACK_RETRY` and returns the jittered backoff plan
+/// (frozen 1s/2s/4s/8s, `MAX_ATTEMPTS` inclusive). A failure at the final
+/// attempt writes `NACK_TERMINAL` and moves the entry to `DeadLetterQueued`
+/// -- the durable DLQ record for this path lands with WP-04.04, and no
+/// sixth delivery is ever billed (L1). `Terminal`/`Poison`/`Slow` are
+/// refused with `InvalidTransition` until that WP wires their DLQ flow.
+/// The fenced delivery's NACK answers `StaleOwner` (fault 9); a NACK for a
+/// resolved or non-current delivery is the same idempotent no-op as its
+/// ACK twin (fault 12).
+pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
+  self : DeliveryMachine,
+  disk : D,
+  rng : R,
+  key : DeliveryKey,
+  delivery_id : UInt64,
+  outcome : DeliveryOutcome,
+  now_unix_ms : UInt64,
+  precheck : (Int) -> Result[Unit, DeliveryError],
+) -> Result[RetryPlan, DeliveryError] {
+  match self.check_key(key) {
+    Ok(_) => ()
+    Err(code) => return Err(code)
+  }
+  let group = self.group_state(key.group_id)
+  let entry = match group.entries.get(key.sequence) {
+    Some(entry) => entry
+    None => return Err(UnknownDelivery)
+  }
+  if entry.fenced_delivery_id != 0UL && entry.fenced_delivery_id == delivery_id {
+    return Err(StaleOwner)
+  }
+  match entry.state {
+    Acked => return Err(AlreadyAcked)
+    DeadLetterQueued => return Err(AlreadyDeadLettered)
+    RetryScheduled(_) => return Err(UnknownDelivery)
+    Delivering(current_id, owner_conn, attempt) => {
+      if current_id != delivery_id {
+        return Err(UnknownDelivery)
+      }
+      match outcome {
+        Terminal | Poison | Slow => return Err(InvalidTransition)
+        Retry => ()
+      }
+      self.resolve_failure(
+        disk,
+        rng,
+        key,
+        current_id,
+        owner_conn,
+        attempt,
+        NackRetry,
+        now_unix_ms,
+        precheck,
+      )
+    }
+  }
+}
+
+///|
+/// Fail one in-flight delivery by ACK timeout and schedule the retry.
+///
+/// Same backoff, cap, and idempotent no-op rules as `nack`; the durable
+/// event is `TIMEOUT` and the attempt still counts (design: "ack timeout
+/// ... attempt 不减少").
+pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(
+  self : DeliveryMachine,
+  disk : D,
+  rng : R,
+  key : DeliveryKey,
+  delivery_id : UInt64,
+  now_unix_ms : UInt64,
+  precheck : (Int) -> Result[Unit, DeliveryError],
+) -> Result[RetryPlan, DeliveryError] {
+  match self.check_key(key) {
+    Ok(_) => ()
+    Err(code) => return Err(code)
+  }
+  let group = self.group_state(key.group_id)
+  let entry = match group.entries.get(key.sequence) {
+    Some(entry) => entry
+    None => return Err(UnknownDelivery)
+  }
+  if entry.fenced_delivery_id != 0UL && entry.fenced_delivery_id == delivery_id {
+    return Err(StaleOwner)
+  }
+  match entry.state {
+    Acked => return Err(AlreadyAcked)
+    DeadLetterQueued => return Err(AlreadyDeadLettered)
+    RetryScheduled(_) => return Err(UnknownDelivery)
+    Delivering(current_id, owner_conn, attempt) =>
+      if current_id != delivery_id {
+        return Err(UnknownDelivery)
+      } else {
+        self.resolve_failure(
+          disk,
+          rng,
+          key,
+          current_id,
+          owner_conn,
+          attempt,
+          Timeout,
+          now_unix_ms,
+          precheck,
+        )
+      }
+  }
+}
+
+///|
+/// The shared failure transition: journal the failure, then either
+/// schedule the next attempt or exhaust the budget into `DeadLetterQueued`.
+async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
+  self : DeliveryMachine,
+  disk : D,
+  rng : R,
+  key : DeliveryKey,
+  delivery_id : UInt64,
+  owner_conn : UInt64,
+  attempt : UInt16,
+  kind : LedgerEventKind,
+  now_unix_ms : UInt64,
+  precheck : (Int) -> Result[Unit, DeliveryError],
+) -> Result[RetryPlan, DeliveryError] {
+  let exhausted = attempt >= MAX_ATTEMPTS
+  let (event_kind, delay_ms) = if exhausted {
+    (NackTerminal, 0U)
+  } else if kind == Timeout {
+    (Timeout, backoff_delay(attempt, rng))
+  } else {
+    (NackRetry, backoff_delay(attempt, rng))
+  }
+  let event = LedgerEvent::new(
+    group_id=key.group_id,
+    event=event_kind,
+    sequence=key.sequence,
+    delivery_id~,
+    owner_conn~,
+    attempt~,
+    delay_ms~,
+    reason=NackReason::Retry,
+    timestamp=now_unix_ms,
+  )
+  match self.writer.append(disk, event, adapt_gate(precheck)) {
+    Ok(_) => ()
+    Err(code) => return Err(ledger_to_delivery_error(code))
+  }
+  let group = self.group_state(key.group_id)
+  if exhausted {
+    group.entries[key.sequence] = {
+      state: DeadLetterQueued,
+      fenced_delivery_id: entry_fence(group, key.sequence),
+    }
+  } else {
+    group.entries[key.sequence] = {
+      state: RetryScheduled(attempt),
+      fenced_delivery_id: entry_fence(group, key.sequence),
+    }
+  }
+  self.groups[key.group_id] = group
+  if exhausted {
+    Ok(DeadLettered(attempt))
+  } else {
+    Ok(Scheduled(attempt, delay_ms))
+  }
+}
+
+///|
+fn entry_fence(group : GroupState, sequence : UInt64) -> UInt64 {
+  match group.entries.get(sequence) {
+    Some(entry) => entry.fenced_delivery_id
+    None => 0UL
+  }
 }
 
 ///|
@@ -440,6 +697,16 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
         group.entries[event.sequence] = {
           state: RetryScheduled(event.attempt),
           fenced_delivery_id: event.delivery_id,
+        }
+      NackRetry | Timeout =>
+        group.entries[event.sequence] = {
+          state: RetryScheduled(event.attempt),
+          fenced_delivery_id: prior_fenced,
+        }
+      NackTerminal =>
+        group.entries[event.sequence] = {
+          state: DeadLetterQueued,
+          fenced_delivery_id: prior_fenced,
         }
       _ => return Err(Malformed)
     }

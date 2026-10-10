@@ -17,7 +17,7 @@ fn sample_event(event : @delivery.LedgerEventKind) -> @delivery.LedgerEvent {
     owner_conn=3UL,
     attempt=2,
     delay_ms=0U,
-    reason=@delivery.Retry,
+    reason=@delivery.NackReason::Retry,
     timestamp=200UL,
   )
 }
@@ -32,7 +32,7 @@ test "ledger event round-trips all frozen fields" {
     owner_conn=0xFFFFFFFFFFFFFFF8UL,
     attempt=0xFFFF,
     delay_ms=0xFFFFFFF9U,
-    reason=@delivery.Poison,
+    reason=@delivery.NackReason::Poison,
     timestamp=0xFFFFFFFFFFFFFFFAUL,
   )
   let bytes = @delivery.encode_ledger_event(event)
