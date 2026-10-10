@@ -18,6 +18,18 @@ pub fn encode_ledger_event(LedgerEvent) -> Bytes
 pub async fn[D : @harness.Disk] read_ledger_events(D, Bytes) -> Result[Array[LedgerEvent], LedgerFault]
 
 // Errors
+pub(all) suberror DeliveryError {
+  UnknownDelivery
+  StaleOwner
+  InvalidTransition
+  Capacity
+  Malformed
+  DiskFault(@harness.HarnessFault)
+} derive(Eq, @debug.Debug)
+pub fn DeliveryError::equal(Self, Self) -> Bool
+pub fn DeliveryError::not_equal(Self, Self) -> Bool
+pub fn DeliveryError::to_repr(Self) -> @debug.Repr
+
 pub(all) suberror LedgerFault {
   Malformed
   Capacity
@@ -28,6 +40,54 @@ pub fn LedgerFault::not_equal(Self, Self) -> Bool
 pub fn LedgerFault::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+pub(all) enum AckResult {
+  Applied
+  Duplicate
+} derive(Eq, @debug.Debug)
+pub fn AckResult::equal(Self, Self) -> Bool
+pub fn AckResult::not_equal(Self, Self) -> Bool
+pub fn AckResult::to_repr(Self) -> @debug.Repr
+
+pub(all) struct DeliveryAttempt {
+  delivery_id : UInt64
+  attempt : UInt16
+  owner_conn : UInt64
+} derive(Eq, @debug.Debug)
+pub fn DeliveryAttempt::equal(Self, Self) -> Bool
+pub fn DeliveryAttempt::not_equal(Self, Self) -> Bool
+pub fn DeliveryAttempt::to_repr(Self) -> @debug.Repr
+
+pub(all) struct DeliveryKey {
+  group_id : UInt16
+  topic_id : UInt16
+  partition : UInt16
+  sequence : UInt64
+} derive(Eq, @debug.Debug)
+pub fn DeliveryKey::equal(Self, Self) -> Bool
+pub fn DeliveryKey::new(group_id~ : UInt16, topic_id~ : UInt16, partition~ : UInt16, sequence~ : UInt64) -> Self
+pub fn DeliveryKey::not_equal(Self, Self) -> Bool
+pub fn DeliveryKey::to_repr(Self) -> @debug.Repr
+
+pub(all) struct DeliveryMachine {
+  // private fields
+}
+pub async fn[D : @harness.Disk] DeliveryMachine::ack(Self, D, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[AckResult, DeliveryError]
+pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(Self, D, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[DeliveryAttempt, DeliveryError]
+pub fn DeliveryMachine::new(UInt16, UInt16, LedgerWriter) -> Self
+pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(Self, D, UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[Unit, DeliveryError]
+pub async fn[D : @harness.Disk] DeliveryMachine::recover(D, UInt16, UInt16, LedgerWriter) -> Result[Self, DeliveryError]
+pub fn DeliveryMachine::state_of(Self, DeliveryKey) -> DeliveryState?
+pub async fn[D : @harness.Disk] DeliveryMachine::sync(Self, D) -> Result[Unit, DeliveryError]
+
+pub(all) enum DeliveryState {
+  Delivering(UInt64, UInt64, UInt16)
+  Acked
+  RetryScheduled(UInt16)
+} derive(Eq, @debug.Debug)
+pub fn DeliveryState::equal(Self, Self) -> Bool
+pub fn DeliveryState::not_equal(Self, Self) -> Bool
+pub fn DeliveryState::to_repr(Self) -> @debug.Repr
+
 pub(all) struct LedgerEvent {
   group_id : UInt16
   event : LedgerEventKind

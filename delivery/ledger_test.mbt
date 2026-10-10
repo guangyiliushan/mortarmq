@@ -48,11 +48,11 @@ test "ledger event rejects CRC corruption and truncation" {
   let bytes = @delivery.encode_ledger_event(sample_event(@delivery.Ack))
   let corrupted = bytes[:10].to_owned() + b"\xff" + bytes[11:].to_owned()
   match @delivery.decode_ledger_event(corrupted[:]) {
-    Err(@delivery.Malformed) => assert_eq(true, true)
+    Err(@delivery.LedgerFault::Malformed) => assert_eq(true, true)
     _ => fail("expected CRC corruption rejection")
   }
   match @delivery.decode_ledger_event(bytes[:51]) {
-    Err(@delivery.Malformed) => assert_eq(true, true)
+    Err(@delivery.LedgerFault::Malformed) => assert_eq(true, true)
     _ => fail("expected short-view rejection")
   }
 }
@@ -62,22 +62,22 @@ test "ledger event rejects foreign magic, versions, and codes" {
   let bytes = @delivery.encode_ledger_event(sample_event(@delivery.Ack))
   let bad_magic = b"MMQS" + bytes[4:].to_owned()
   match @delivery.decode_ledger_event(bad_magic[:]) {
-    Err(@delivery.Malformed) => assert_eq(true, true)
+    Err(@delivery.LedgerFault::Malformed) => assert_eq(true, true)
     _ => fail("expected foreign-magic rejection")
   }
   let bad_format_ver = bytes[:4].to_owned() + b"\x02" + bytes[5:].to_owned()
   match @delivery.decode_ledger_event(bad_format_ver[:]) {
-    Err(@delivery.Malformed) => assert_eq(true, true)
+    Err(@delivery.LedgerFault::Malformed) => assert_eq(true, true)
     _ => fail("expected format-version rejection")
   }
   let bad_event_code = bytes[:8].to_owned() + b"\x0a" + bytes[9:].to_owned()
   match @delivery.decode_ledger_event(bad_event_code[:]) {
-    Err(@delivery.Malformed) => assert_eq(true, true)
+    Err(@delivery.LedgerFault::Malformed) => assert_eq(true, true)
     _ => fail("expected unknown-event-code rejection")
   }
   let bad_reason_code = bytes[:39].to_owned() + b"\x04" + bytes[40:].to_owned()
   match @delivery.decode_ledger_event(bad_reason_code[:]) {
-    Err(@delivery.Malformed) => assert_eq(true, true)
+    Err(@delivery.LedgerFault::Malformed) => assert_eq(true, true)
     _ => fail("expected unknown-reason-code rejection")
   }
 }
@@ -86,7 +86,7 @@ test "ledger event rejects foreign magic, versions, and codes" {
 test "ledger writer refuses non-ledger paths" {
   match
     @delivery.LedgerWriter::new(b"data/partitions/0001/0000/segment-0000.bin") {
-    Err(@delivery.Malformed) => assert_eq(true, true)
+    Err(@delivery.LedgerFault::Malformed) => assert_eq(true, true)
     _ => fail("expected non-ledger path rejection")
   }
   match @delivery.LedgerWriter::new(b"data/partitions/0001/0000/delivery.mql") {
@@ -103,9 +103,9 @@ async test "capacity gate rejection writes nothing" {
     Ok(writer) => writer
     Err(_) => fail("writer construction failed")
   }
-  let rejecting = (_bytes : Int) => Err(@delivery.Capacity)
+  let rejecting = (_bytes : Int) => Err(@delivery.LedgerFault::Capacity)
   match writer.append(disk, sample_event(@delivery.Deliver), rejecting) {
-    Err(@delivery.Capacity) => assert_eq(true, true)
+    Err(@delivery.LedgerFault::Capacity) => assert_eq(true, true)
     _ => fail("expected capacity rejection")
   }
   match disk.read(path) {
