@@ -7,6 +7,9 @@ import {
 }
 
 // Values
+pub fn fnv1a32(Bytes) -> UInt
+
+pub fn route_partition(Bytes, UInt16) -> UInt16
 
 // Errors
 
