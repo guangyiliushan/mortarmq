@@ -29,10 +29,20 @@
 ///   empty map, and durable metadata plus mutation-level deduplication
 ///   are later subsystems that will wrap, not silently replace, this
 ///   behavior.
-/// * Validation stops at two checks -- an empty name and a zero partition
-///   count, both refused with `InvalidTopic`. The wire decoder already
-///   owns length bounds; richer name syntax (wildcards, reserved
-///   prefixes) belongs to later subsystems and is not invented here.
+/// * Validation stops at three checks -- an empty name, a zero partition
+///   count (both refused with `InvalidTopic`), and the reserved `.dlq`
+///   namespace (R11). The wire decoder already owns length bounds; richer
+///   name syntax (wildcards, reserved prefixes) belongs to later
+///   subsystems and is not invented here.
+/// * The `.dlq` namespace is reserved (R11, REQ-SEC-004): a new topic's
+///   DECLARE atomically creates its `<name>.dlq` twin from the same
+///   identifier sequence and with the same partition count, in the same
+///   call -- a refused declare can never leave a half-created pair. The
+///   twin is a system resource: client DECLARE against the `.dlq` suffix
+///   is refused with `InvalidTopic`, and client PUB resolves through
+///   `validate_publish`, which refuses twin identifiers with the same
+///   code. Replays create nothing new (TOPIC_CREATE replay skips the
+///   twin).
 
 ///|
 /// Carry the DECLARE result: the assigned or existing identifier, the
@@ -58,6 +68,30 @@ pub extend DeclareOutcome with @moonbitlang/core/debug.Debug::{to_repr}
 priv struct TopicEntry {
   partition_count : UInt16
   topic_id : UInt16
+  is_dlq : Bool
+}
+
+///|
+const DLQ_SUFFIX : Bytes = b".dlq"
+
+///|
+fn has_dlq_suffix(name : Bytes) -> Bool {
+  let suffix_len = DLQ_SUFFIX.length()
+  if name.length() < suffix_len {
+    return false
+  }
+  let start = name.length() - suffix_len
+  for index in 0..<suffix_len {
+    if name[start + index] != DLQ_SUFFIX[index] {
+      return false
+    }
+  }
+  true
+}
+
+///|
+fn dlq_name(name : Bytes) -> Bytes {
+  name + DLQ_SUFFIX
 }
 
 ///|
@@ -169,6 +203,9 @@ pub fn TopicRegistry::declare_topic(
   if topic.length() == 0 {
     return Err(@protocol.InvalidTopic)
   }
+  if has_dlq_suffix(topic) {
+    return Err(@protocol.InvalidTopic)
+  }
   if partition_count.to_uint() == 0U {
     return Err(@protocol.InvalidTopic)
   }
@@ -184,12 +221,40 @@ pub fn TopicRegistry::declare_topic(
         Err(@protocol.TopicExistsMismatch)
       }
     None => {
-      if self.entries.length() >= 0xFFFF {
+      // R11: source and `.dlq` twin land in one step from one identifier
+      // sequence, so the pair is atomic and replays skip the twin.
+      if self.entries.length() + 2 > 0xFFFF {
         return Err(@protocol.Internal)
       }
       let topic_id = (self.entries.length() + 1).to_uint16()
-      self.entries[topic] = { partition_count, topic_id, }
+      let dlq_topic_id = (self.entries.length() + 2).to_uint16()
+      self.entries[topic] = { partition_count, topic_id, is_dlq: false, }
+      self.entries[dlq_name(topic)] = {
+        partition_count,
+        topic_id: dlq_topic_id,
+        is_dlq: true,
+      }
       Ok({ topic_id, partition_count, created: true, })
     }
   }
+}
+
+///|
+/// The PUB-side gate (R11): every publish resolves its target through
+/// here. A `.dlq` twin is a system resource -- present for the source, but
+/// never client-publishable -- and answers `InvalidTopic` (0x000B); an
+/// identifier no declare ever assigned answers `UnknownTopic`.
+pub fn TopicRegistry::validate_publish(
+  self : TopicRegistry,
+  topic_id : UInt16,
+) -> Result[Unit, @protocol.ErrCode] {
+  for _name, entry in self.entries {
+    if entry.topic_id == topic_id {
+      if entry.is_dlq {
+        return Err(@protocol.InvalidTopic)
+      }
+      return Ok(())
+    }
+  }
+  Err(@protocol.UnknownTopic)
 }

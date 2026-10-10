@@ -65,7 +65,7 @@ test "a re-declare with more partitions is refused and stores nothing new" {
   )
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"other", 1),
-    Ok(expected(2, 1, true)),
+    Ok(expected(3, 1, true)),
   )
 }
 
@@ -86,12 +86,14 @@ test "a re-declare with fewer partitions is refused and stores nothing new" {
   )
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"other", 1),
-    Ok(expected(2, 1, true)),
+    Ok(expected(3, 1, true)),
   )
 }
 
 ///|
-test "distinct topics receive distinct sequential identifiers" {
+test "distinct topics receive distinct identifiers one twin slot apart" {
+  // R11: each source DECLARE also claims the next identifier for its
+  // `.dlq` twin, so live source identifiers run 1, 3, 5, ...
   let registry = @broker.TopicRegistry::new()
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"orders", 1),
@@ -99,11 +101,11 @@ test "distinct topics receive distinct sequential identifiers" {
   )
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"payments", 1),
-    Ok(expected(2, 1, true)),
+    Ok(expected(3, 1, true)),
   )
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"shipments", 1),
-    Ok(expected(3, 1, true)),
+    Ok(expected(5, 1, true)),
   )
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"orders", 1),
@@ -177,11 +179,14 @@ test "the maximum partition count is accepted and replays identically" {
 
 ///|
 test "identifiers exhaust at the maximum and replays still succeed" {
+  // R11 halves the capacity: every source DECLARE claims two identifiers
+  // (source + twin), so 32767 topics fill 65534 of the 65535 slots and the
+  // last odd slot can never satisfy a pair.
   let registry = @broker.TopicRegistry::new()
-  for index in 0..<65535 {
+  for index in 0..<32767 {
     assert_eq(
       @broker.TopicRegistry::declare_topic(registry, indexed_topic(index), 1),
-      Ok(expected(index + 1, 1, true)),
+      Ok(expected(index * 2 + 1, 1, true)),
     )
   }
   assert_eq(
@@ -241,6 +246,91 @@ test "refused declares never create a topic or consume an identifier" {
   )
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"next", 1),
-    Ok(expected(2, 1, true)),
+    Ok(expected(3, 1, true)),
+  )
+}
+
+///|
+test "source DECLARE atomically creates its reserved .dlq twin (R11)" {
+  let registry = @broker.TopicRegistry::new()
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 3),
+    Ok(expected(1, 3, true)),
+  )
+  // The twin took identifier 2 and is a reserved system topic.
+  assert_eq(@broker.TopicRegistry::validate_publish(registry, 1), Ok(()))
+  assert_eq(
+    @broker.TopicRegistry::validate_publish(registry, 2),
+    Err(@protocol.InvalidTopic),
+  )
+  // The next source DECLARE continues after the twin's slot.
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"payments", 1),
+    Ok(expected(3, 1, true)),
+  )
+  assert_eq(
+    @broker.TopicRegistry::validate_publish(registry, 4),
+    Err(@protocol.InvalidTopic),
+  )
+}
+
+///|
+test "client DECLARE of the .dlq namespace is INVALID_TOPIC (L1)" {
+  let registry = @broker.TopicRegistry::new()
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 1),
+    Ok(expected(1, 1, true)),
+  )
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders.dlq", 1),
+    Err(@protocol.InvalidTopic),
+  )
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b".dlq", 1),
+    Err(@protocol.InvalidTopic),
+  )
+  // The refusal created nothing and consumed no identifier.
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"other", 1),
+    Ok(expected(3, 1, true)),
+  )
+}
+
+///|
+test "client PUB to a .dlq twin is INVALID_TOPIC (L1)" {
+  let registry = @broker.TopicRegistry::new()
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 1),
+    Ok(expected(1, 1, true)),
+  )
+  assert_eq(
+    @broker.TopicRegistry::validate_publish(registry, 2),
+    Err(@protocol.InvalidTopic),
+  )
+  assert_eq(
+    @broker.TopicRegistry::validate_publish(registry, 9),
+    Err(@protocol.UnknownTopic),
+  )
+}
+
+///|
+test "replay of the source DECLARE skips twin creation" {
+  let registry = @broker.TopicRegistry::new()
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 1),
+    Ok(expected(1, 1, true)),
+  )
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 1),
+    Ok(expected(1, 1, false)),
+  )
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"orders", 1),
+    Ok(expected(1, 1, false)),
+  )
+  // No twin was re-created: the next identifier is still the third slot.
+  assert_eq(
+    @broker.TopicRegistry::declare_topic(registry, b"payments", 1),
+    Ok(expected(3, 1, true)),
   )
 }

@@ -282,6 +282,7 @@ pub struct TopicRegistry {
 }
 pub fn TopicRegistry::declare_topic(Self, Bytes, UInt16) -> Result[DeclareOutcome, @protocol.ErrCode]
 pub fn TopicRegistry::new() -> Self
+pub fn TopicRegistry::validate_publish(Self, UInt16) -> Result[Unit, @protocol.ErrCode]
 
 // Type aliases
 pub type OwnershipChangedHandler = (UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Unit
