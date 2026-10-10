@@ -84,6 +84,25 @@ pub fn DeclareOutcome::equal(Self, Self) -> Bool
 pub fn DeclareOutcome::not_equal(Self, Self) -> Bool
 pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
 
+pub struct OutboundPending {
+  // private fields
+}
+pub fn OutboundPending::level(Self) -> PendingLevel
+pub fn OutboundPending::new(UInt, UInt) -> Self
+pub fn OutboundPending::pending_bytes(Self) -> UInt
+pub fn OutboundPending::queued(Self, UInt) -> PendingLevel
+pub fn OutboundPending::with_defaults() -> Self
+pub fn OutboundPending::written(Self, UInt) -> Unit
+
+pub(all) enum PendingLevel {
+  Normal
+  SoftSlow
+  HardSlow
+} derive(Eq, @debug.Debug)
+pub fn PendingLevel::equal(Self, Self) -> Bool
+pub fn PendingLevel::not_equal(Self, Self) -> Bool
+pub fn PendingLevel::to_repr(Self) -> @debug.Repr
+
 pub(all) struct ReturnedCredit {
   count : UInt16
   bytes : UInt
