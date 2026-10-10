@@ -173,3 +173,82 @@ async test "F07 disk-full injection rejects explicitly without OOM or silent los
   )
   assert_eq(overflow, Err(@harness.DiskFull))
 }
+
+///|
+async test "long-run append pressure hits the watermark backstop without loss" {
+  // Exit L4 (gap A-3 closure): a long-running writer meets the unbounded
+  // growth of v0 head-on -- every append is either accepted or explicitly
+  // refused, every accepted record survives recovery in order with no
+  // sequence gap, memory stays bounded by one active segment, and the
+  // delete_before relief reopens the gate for the run to continue.
+  let disk = @harness.FakeDisk::new()
+  disk.set_capacity(20000UL)
+  let gate = @storage.Watermark::new(disk)
+  let writer = @storage.SegmentWriter::new(
+    b"wm-longrun.segment",
+    segment_max_bytes=120,
+  )
+  let mut accepted = 0
+  let mut refused = false
+  while accepted < 500 {
+    let result = @storage.SegmentWriter::append(
+      writer,
+      disk,
+      b"",
+      wm_value(accepted),
+      watermark=gate,
+    )
+    match result {
+      Ok(_) => accepted = accepted + 1
+      Err(@storage.Capacity) => {
+        refused = true
+        break
+      }
+      Err(_) => fail("long-run append failed for a reason other than capacity")
+    }
+  }
+  assert_eq(refused, true)
+  assert_eq(accepted > 100, true)
+  // Memory stays bounded by the active segment, not by the run length.
+  assert_eq(writer.active_bytes() <= 120, true)
+  // Recovery sees every accepted record, in order, with no hole.
+  let recovery_result = @storage.recover_series(
+    disk,
+    b"wm-longrun.segment",
+    writer.segment_count(),
+  )
+  let recovery = match recovery_result {
+    Ok(recovery) => recovery
+    Err(_) => fail("long-run series recovery failed")
+  }
+  assert_eq(recovery.records.length(), accepted)
+  assert_eq(recovery.gaps, [])
+  assert_eq(recovery.quarantined, [])
+  assert_eq(recovery.next_sequence, accepted.to_uint64())
+  let first = recovery.records[0]
+  let last = recovery.records[recovery.records.length() - 1]
+  assert_eq(first.header.sequence, 0UL)
+  assert_eq(last.header.sequence, (accepted - 1).to_uint64())
+  // The relief valve reopens the gate and the run continues.
+  let relief_result = @storage.delete_before(
+    disk,
+    b"wm-longrun.segment",
+    writer.segment_count(),
+    100000UL,
+  )
+  let removed = match relief_result {
+    Ok(removed) => removed
+    Err(_) => fail("delete_before relief failed")
+  }
+  assert_eq(removed, writer.segment_count() - 1)
+  let resumed = @storage.SegmentWriter::append(
+    writer,
+    disk,
+    b"",
+    wm_value(accepted),
+    watermark=gate,
+  )
+  if resumed is Err(_) {
+    fail("append after relief failed")
+  }
+}

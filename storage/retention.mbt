@@ -1,5 +1,15 @@
 /// Delete whole sealed segments below a sequence watermark.
 ///
+/// # Growth boundary (gap A-3 declaration)
+///
+/// v0 does not truncate, compact, or reclaim the series on its own:
+/// append-only growth is unbounded within the volume, by honest design.
+/// The 70/85/95 watermark is the backstop that turns exhaustion into
+/// explicit refusals instead of an OOM or silent loss, and
+/// `delete_before` is the only relief -- a manual mechanism with no
+/// policy executor and no configuration. Automatic retention or
+/// truncation is v1 work.
+///
 /// Mechanism only, policy nowhere (gap B-1 arbitration, REQ-STO-009):
 /// `delete_before` removes sealed segments whose highest readable sequence
 /// lies entirely below the caller's watermark, plus any quarantine twin and

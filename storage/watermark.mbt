@@ -10,7 +10,10 @@
 /// read-only -- only recovery and retention work may still run, which the
 /// layers above enforce. The wire mapping of a refusal to 0x4004
 /// STORAGE_HIGH_WATERMARK belongs to the protocol/delivery layer; this
-/// module never produces wire codes.
+/// module never produces wire codes. The gate is the backstop for v0's
+/// unbounded append-only growth (gap A-3 declaration in
+/// `storage/retention`): explicit refusals, never an OOM, never a silent
+/// drop.
 ///
 /// The gate is stateless over its `DiskUsage` source: every call reads the
 /// usage now, so several gates over one volume always agree. A zero
