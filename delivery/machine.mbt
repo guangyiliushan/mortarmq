@@ -31,7 +31,13 @@
 ///   the durable event sequence is the whole state distinction, so a crash
 ///   at any prefix stays unambiguous and nothing is dropped silently.
 /// * owner fencing: `on_ownership_changed` is the port method the
-///   coordinator calls with eight flat parameters (no shared event record).
+///   coordinator calls with the pinned eight flat parameters (no shared
+///   event record): `(group_id, topic_id, partition, subscription_id,
+///   old_owner, new_owner, old_epoch, new_epoch)` with `group_id` typed
+///   `UInt16`, same name and type as the wire `group_id` fields. The four
+///   parameters the ledger does not consume carry underscore prefixes
+///   (the language convention for intentionally unused bindings); their
+///   names are the pinned ones.
 ///   It durably writes one `FENCED` event per in-flight entry of the old
 ///   owner (sequences ascending) before any in-memory effect; the fenced
 ///   delivery id is remembered forever and every late ACK carrying it
