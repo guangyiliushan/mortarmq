@@ -7,6 +7,10 @@ import {
 }
 
 // Values
+pub const BITMAP_WINDOW_BITS : Int = 1024
+
+pub const BITMAP_WORDS : Int = 16
+
 pub const MAX_GROUP_ASSIGNMENTS : Int = 4096
 
 pub const MAX_GROUP_MEMBERS : Int = 10
@@ -264,6 +268,14 @@ pub struct RoutingTable {
 pub fn RoutingTable::current(Self) -> RoutingSnapshot
 pub fn RoutingTable::new() -> Self
 pub fn RoutingTable::publish(Self, RoutingSnapshot) -> Unit
+
+pub struct SlidingBitmap {
+  // private fields
+}
+pub fn SlidingBitmap::is_marked(Self, UInt64) -> Bool
+pub fn SlidingBitmap::mark(Self, UInt64) -> Bool
+pub fn SlidingBitmap::new(UInt64) -> Self
+pub fn SlidingBitmap::watermark(Self) -> UInt64
 
 pub struct TopicRegistry {
   // private fields
