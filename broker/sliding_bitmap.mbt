@@ -153,3 +153,16 @@ pub fn SlidingBitmap::is_marked(self : SlidingBitmap, seq : UInt64) -> Bool {
 pub fn SlidingBitmap::watermark(self : SlidingBitmap) -> UInt64 {
   self.floor
 }
+
+///|
+/// Copy out the 1024 window bits (16 words) for a checkpoint export.
+///
+/// The rare checkpoint path allocates one array; the hot paths
+/// (`mark`, `is_marked`, `watermark`) stay allocation-free.
+pub fn SlidingBitmap::snapshot(self : SlidingBitmap) -> Array[UInt64] {
+  let copy : Array[UInt64] = []
+  for word in self.words {
+    copy.push(word)
+  }
+  copy
+}

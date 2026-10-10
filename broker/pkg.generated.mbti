@@ -2,6 +2,7 @@
 package "guangyiliushan/mortarmq/broker"
 
 import {
+  "guangyiliushan/mortarmq/delivery",
   "guangyiliushan/mortarmq/protocol",
   "moonbitlang/core/debug",
 }
@@ -44,6 +45,17 @@ pub fn route_partition(Bytes, UInt16) -> UInt16
 // Errors
 
 // Types and methods
+pub struct ConsumerCursor {
+  // private fields
+}
+pub fn ConsumerCursor::ack_floor(Self) -> UInt64
+pub fn ConsumerCursor::checkpoint(Self) -> CursorCheckpoint
+pub fn ConsumerCursor::classify_hint(Self, CursorCheckpoint) -> HintStatus
+pub fn ConsumerCursor::new(UInt16, UInt64) -> Self
+pub fn ConsumerCursor::observe(Self, @delivery.LedgerEvent) -> Unit
+pub fn ConsumerCursor::replay(UInt16, UInt64, Array[@delivery.LedgerEvent]) -> Self
+pub fn ConsumerCursor::scanned(Self) -> UInt64
+
 pub(all) enum CreditError {
   UnknownSubscription
   StaleGeneration
@@ -105,6 +117,17 @@ pub fn CreditWindow::new(UInt16, UInt, UInt64, UInt16, UInt, UInt16, UInt, UInt1
 pub fn CreditWindow::release_partition(Self, UInt16, UInt64) -> Bool
 pub fn CreditWindow::report(Self) -> CreditReport
 
+pub(all) struct CursorCheckpoint {
+  ack_floor : UInt64
+  scanned : UInt64
+  window : Array[UInt64]
+} derive(Eq, @debug.Debug)
+pub fn CursorCheckpoint::decode(BytesView) -> Self?
+pub fn CursorCheckpoint::encode(Self) -> Bytes
+pub fn CursorCheckpoint::equal(Self, Self) -> Bool
+pub fn CursorCheckpoint::not_equal(Self, Self) -> Bool
+pub fn CursorCheckpoint::to_repr(Self) -> @debug.Repr
+
 pub(all) struct DeclareOutcome {
   topic_id : UInt16
   partition_count : UInt16
@@ -130,6 +153,16 @@ pub fn GroupCoordinator::owner_of(Self, UInt16, UInt16) -> UInt64?
 pub fn GroupCoordinator::ownership_epoch_of(Self, UInt16, UInt16) -> UInt64?
 pub fn GroupCoordinator::subscription_id_of(Self, UInt64, UInt16) -> UInt16?
 pub fn GroupCoordinator::wholesale_epoch_of(Self, UInt64, UInt16) -> UInt64?
+
+pub(all) enum HintStatus {
+  Adopted
+  Lagging
+  Leading
+  Divergent
+} derive(Eq, @debug.Debug)
+pub fn HintStatus::equal(Self, Self) -> Bool
+pub fn HintStatus::not_equal(Self, Self) -> Bool
+pub fn HintStatus::to_repr(Self) -> @debug.Repr
 
 pub(all) struct JoinResult {
   member_id : UInt64
@@ -275,6 +308,7 @@ pub struct SlidingBitmap {
 pub fn SlidingBitmap::is_marked(Self, UInt64) -> Bool
 pub fn SlidingBitmap::mark(Self, UInt64) -> Bool
 pub fn SlidingBitmap::new(UInt64) -> Self
+pub fn SlidingBitmap::snapshot(Self) -> Array[UInt64]
 pub fn SlidingBitmap::watermark(Self) -> UInt64
 
 pub struct TopicRegistry {
