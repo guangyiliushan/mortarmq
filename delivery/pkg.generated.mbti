@@ -120,6 +120,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(Self, D, D
 pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(Self, D, R, DeliveryKey, UInt64, DeliveryOutcome, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[RetryPlan, DeliveryError]
 pub fn DeliveryMachine::new(UInt16, UInt16, LedgerWriter) -> Self
 pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(Self, D, UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[Unit, DeliveryError]
+pub fn[R : @harness.Rng] DeliveryMachine::rebuild_timers(Self, UInt64, UInt64, R) -> RetryTimers
 pub async fn[D : @harness.Disk] DeliveryMachine::recover(D, UInt16, UInt16, LedgerWriter) -> Result[Self, DeliveryError]
 pub fn DeliveryMachine::state_of(Self, DeliveryKey) -> DeliveryState?
 pub async fn[D : @harness.Disk] DeliveryMachine::sync(Self, D) -> Result[Unit, DeliveryError]
@@ -229,6 +230,15 @@ pub(all) enum RetryPlan {
 pub fn RetryPlan::equal(Self, Self) -> Bool
 pub fn RetryPlan::not_equal(Self, Self) -> Bool
 pub fn RetryPlan::to_repr(Self) -> @debug.Repr
+
+pub(all) struct RetryTimers {
+  // private fields
+}
+pub fn RetryTimers::due(Self, UInt64) -> Array[DeliveryKey]
+pub fn RetryTimers::new() -> Self
+pub fn RetryTimers::next_due_tick(Self) -> UInt64?
+pub fn RetryTimers::pending_count(Self) -> Int
+pub fn RetryTimers::schedule(Self, UInt64, DeliveryKey) -> Unit
 
 // Type aliases
 

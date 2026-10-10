@@ -188,6 +188,7 @@ priv struct Entry {
   state : DeliveryState
   fenced_delivery_id : UInt64
   dlq_sequence : UInt64
+  retry_due_wall : UInt64
 }
 
 ///|
@@ -319,6 +320,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
     state: Delivering(delivery_id, owner_conn, attempt),
     fenced_delivery_id,
     dlq_sequence: 0UL,
+    retry_due_wall: 0UL,
   }
   self.groups[key.group_id] = {
     entries: group.entries,
@@ -384,6 +386,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
           state: Acked,
           fenced_delivery_id: entry.fenced_delivery_id,
           dlq_sequence: 0UL,
+          retry_due_wall: 0UL,
         }
         self.groups[key.group_id] = group
         return Ok(Applied)
@@ -456,6 +459,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
           state: RetryScheduled(attempt),
           fenced_delivery_id: delivery_id,
           dlq_sequence: 0UL,
+          retry_due_wall: 0UL,
         }
       }
       _ => ()
@@ -694,6 +698,7 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
     state: RetryScheduled(attempt),
     fenced_delivery_id: entry_fence(group, key.sequence),
     dlq_sequence: 0UL,
+    retry_due_wall: now_unix_ms + delay_ms.to_uint64(),
   }
   self.groups[key.group_id] = group
   Ok(Scheduled(attempt, delay_ms))
@@ -735,6 +740,7 @@ async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
     state: DeadLetterQueued,
     fenced_delivery_id: entry_fence(group, key.sequence),
     dlq_sequence: 0UL,
+    retry_due_wall: 0UL,
   }
   self.groups[key.group_id] = group
   Ok(DeadLettered(attempt))
@@ -772,6 +778,7 @@ async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
     state: Quarantined,
     fenced_delivery_id: entry_fence(group, key.sequence),
     dlq_sequence: 0UL,
+    retry_due_wall: 0UL,
   }
   self.groups[key.group_id] = group
   Ok(())
@@ -922,6 +929,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
     state: DeadLetterQueued,
     fenced_delivery_id: entry_fence(group, key.sequence),
     dlq_sequence,
+    retry_due_wall: 0UL,
   }
   self.groups[key.group_id] = group
   Ok(Enqueued(dlq_sequence))
@@ -970,36 +978,42 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           state: Delivering(event.delivery_id, event.owner_conn, event.attempt),
           fenced_delivery_id: prior_fenced,
           dlq_sequence: prior_dlq,
+          retry_due_wall: 0UL,
         }
       Ack =>
         group.entries[event.sequence] = {
           state: Acked,
           fenced_delivery_id: prior_fenced,
           dlq_sequence: 0UL,
+          retry_due_wall: 0UL,
         }
       Fenced =>
         group.entries[event.sequence] = {
           state: RetryScheduled(event.attempt),
           fenced_delivery_id: event.delivery_id,
           dlq_sequence: prior_dlq,
+          retry_due_wall: 0UL,
         }
       NackRetry | Timeout =>
         group.entries[event.sequence] = {
           state: RetryScheduled(event.attempt),
           fenced_delivery_id: prior_fenced,
           dlq_sequence: prior_dlq,
+          retry_due_wall: event.timestamp + event.delay_ms.to_uint64(),
         }
       NackTerminal =>
         group.entries[event.sequence] = {
           state: DeadLetterQueued,
           fenced_delivery_id: prior_fenced,
           dlq_sequence: prior_dlq,
+          retry_due_wall: 0UL,
         }
       DlqWritten =>
         group.entries[event.sequence] = {
           state: DeadLetterQueued,
           fenced_delivery_id: prior_fenced,
           dlq_sequence: event.delivery_id,
+          retry_due_wall: 0UL,
         }
       SourceTerminated =>
         group.entries[event.sequence] = {
@@ -1010,6 +1024,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           },
           fenced_delivery_id: prior_fenced,
           dlq_sequence: prior_dlq,
+          retry_due_wall: 0UL,
         }
       _ => return Err(Malformed)
     }
@@ -1044,6 +1059,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
             state: RetryScheduled(attempt),
             fenced_delivery_id: entry.fenced_delivery_id,
             dlq_sequence: entry.dlq_sequence,
+            retry_due_wall: 0UL,
           }
         _ => ()
       }
@@ -1079,4 +1095,49 @@ pub fn DeliveryMachine::state_of(
         Some(entry) => Some(entry.state)
       }
   }
+}
+
+///|
+/// Rebuild the in-memory retry timer queue after a restart (the frozen
+/// "timer 只保存在内存；ledger 已持久化 DELIVER，重启后重建 timer").
+///
+/// A retry waiting out its backoff keeps the remainder of its journaled
+/// delay -- wall timestamps rebuild ticks across the restart -- while
+/// entries made redeliverable by the restart policy or by an owner fence
+/// draw the frozen 0..1s jitter. `Acked`, `DeadLetterQueued`, and
+/// `Quarantined` entries get no timer: the no-ghost rule is structural.
+/// The executor re-checks each popped key's state before redelivering.
+pub fn[R : @harness.Rng] DeliveryMachine::rebuild_timers(
+  self : DeliveryMachine,
+  now_tick_ms : UInt64,
+  now_wall_ms : UInt64,
+  rng : R,
+) -> RetryTimers {
+  let timers = RetryTimers::new()
+  for group_id, group in self.groups {
+    for sequence, entry in group.entries {
+      match entry.state {
+        RetryScheduled(_) => {
+          let due_tick_ms = if entry.retry_due_wall == 0UL {
+            now_tick_ms + rng.next_uint64() % 1001UL
+          } else if entry.retry_due_wall > now_wall_ms {
+            now_tick_ms + entry.retry_due_wall - now_wall_ms
+          } else {
+            now_tick_ms
+          }
+          timers.schedule(
+            due_tick_ms,
+            DeliveryKey::new(
+              group_id~,
+              topic_id=self.topic_id,
+              partition=self.partition,
+              sequence~,
+            ),
+          )
+        }
+        _ => ()
+      }
+    }
+  }
+  timers
 }
