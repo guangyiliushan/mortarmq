@@ -123,6 +123,7 @@ pub fn IndexEntry::to_repr(Self) -> @debug.Repr
 pub(all) struct IntactScan {
   records : Array[RecoveredRecord]
   end_offset : Int
+  truncated : Bool
 } derive(Eq, @debug.Debug)
 pub fn IntactScan::equal(Self, Self) -> Bool
 pub fn IntactScan::not_equal(Self, Self) -> Bool

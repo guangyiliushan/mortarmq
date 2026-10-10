@@ -34,6 +34,9 @@ pub(all) struct IntactScan {
   records : Array[RecoveredRecord]
   /// Byte offset just past the last complete record.
   end_offset : Int
+  /// True when the walk stopped at an incomplete trailing record. A
+  /// normal crash tail on the active segment; damage on a sealed one.
+  truncated : Bool
 } derive(Eq, Debug)
 
 ///|
@@ -137,9 +140,11 @@ pub async fn scan_segment(
   let mut position = 0
   let mut expected = 0UL
   let mut expected_set = false
+  let mut truncated = false
   while position < length {
     if length - position < 4 {
       // Trailing bytes too few to hold a length prefix: torn write tail.
+      truncated = true
       break
     }
     let record_length = match read_uint_be(view, position) {
@@ -148,6 +153,7 @@ pub async fn scan_segment(
     }
     if record_length > (length - position - 4).reinterpret_as_uint() {
       // The framed record extends past the segment end: torn write tail.
+      truncated = true
       break
     }
     let total = 4 + record_length.reinterpret_as_int()
@@ -179,7 +185,7 @@ pub async fn scan_segment(
     expected_set = true
     position = position + total
   }
-  Ok(Intact({ records, end_offset: position, }))
+  Ok(Intact({ records, end_offset: position, truncated, }))
 }
 
 ///|
@@ -286,7 +292,26 @@ pub async fn recover_series(
       Some(scan) =>
         match scan {
           Intact(intact) =>
-            if intact.records.length() > 0 {
+            if intact.truncated && index != active_index {
+              // A sealed segment is complete by construction: a torn tail
+              // is damage, quarantined like any other and localized at the
+              // first missing byte.
+              if intact.records.length() > 0 {
+                let last = intact.records[intact.records.length() - 1]
+                running_next = last.header.sequence + 1UL
+                running_set = true
+              }
+              let entry_result = quarantine_segment(
+                disk,
+                path,
+                intact.end_offset,
+                CorruptRecord,
+              )
+              match entry_result {
+                Ok(entry) => quarantined.push(entry)
+                Err(inner) => return Err(inner)
+              }
+            } else if intact.records.length() > 0 {
               let first = intact.records[0]
               if running_set && first.header.sequence != running_next {
                 gaps.push({

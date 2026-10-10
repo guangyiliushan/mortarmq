@@ -451,3 +451,134 @@ async test "every kill point leaves a recoverable series and the writer keeps wr
     arm = arm + 1
   }
 }
+
+///|
+fn sr_flip_bit(bytes : Bytes, byte_index : Int, bit : Int) -> Bytes {
+  let buf = Buffer()
+  buf.write_bytes(bytes[:byte_index])
+  buf.write_byte((bytes[byte_index].to_uint() ^ (1U << bit)).to_byte())
+  buf.write_bytes(bytes[byte_index + 1:])
+  buf.contents()
+}
+
+///|
+async test "F08 bit-flip sweep quarantines every flip at the record that holds it" {
+  // Exit L4 (F08 injection): every single-bit flip anywhere in a sealed
+  // segment is caught and quarantined, and the sidecar note points at the
+  // record that holds the flipped bit.
+  let record_size = sr_len(b"v2")
+  let sealed_size = record_size * 2
+  let mut byte_index = 0
+  while byte_index < sealed_size {
+    let mut bit = 0
+    while bit < 8 {
+      let disk = @harness.FakeDisk::new()
+      let _ = sr_build_series(disk)
+      let original = match @harness.Disk::read(disk, b"sr-part.segment.1") {
+        Ok(bytes) => bytes
+        Err(_) => fail("sealed segment unreadable")
+      }
+      let flipped = sr_flip_bit(original, byte_index, bit)
+      let op_result = @harness.Disk::write(disk, b"sr-part.segment.1", flipped)
+      if op_result is Err(_) {
+        fail("flip write failed")
+      }
+      let recovery_result = @storage.recover_series(disk, SR_BASE, 3)
+      let recovery = match recovery_result {
+        Ok(recovery) => recovery
+        Err(_) => fail("series recovery failed")
+      }
+      let expected_offset = byte_index / record_size * record_size
+      assert_eq(recovery.quarantined.length(), 1)
+      assert_eq(recovery.quarantined[0].first_bad_offset, expected_offset)
+      assert_eq(recovery.quarantined[0].reason, @storage.CorruptRecord)
+      assert_eq(recovery.records, [
+        sr_recovered(0UL, b"v0"),
+        sr_recovered(1UL, b"v1"),
+        sr_recovered(4UL, b"v4"),
+        sr_recovered(5UL, b"v5"),
+      ])
+      bit = bit + 1
+    }
+    byte_index = byte_index + 1
+  }
+}
+
+///|
+async test "a torn tail in a sealed segment is quarantined and localized" {
+  let disk = @harness.FakeDisk::new()
+  let writer = sr_build_series(disk)
+  let damaged = match @harness.Disk::read(disk, b"sr-part.segment.1") {
+    Ok(bytes) => bytes
+    Err(_) => fail("sealed segment unreadable")
+  }
+  // Keep the first record complete and tear the second one.
+  let torn = damaged[:sr_len(b"v2") + 30].to_owned()
+  let op_result = @harness.Disk::write(disk, b"sr-part.segment.1", torn)
+  if op_result is Err(_) {
+    fail("tear write failed")
+  }
+  let recovery_result = @storage.recover_series(disk, SR_BASE, 3)
+  let recovery = match recovery_result {
+    Ok(recovery) => recovery
+    Err(_) => fail("series recovery failed")
+  }
+  // A sealed segment is complete by construction: the torn tail is damage,
+  // localized at the first missing byte.
+  assert_eq(recovery.quarantined, [
+    {
+      segment_path: b"sr-part.segment.1",
+      quarantined_path: b"sr-part.segment.1.quarantined",
+      sidecar_path: b"sr-part.segment.1.quarantine",
+      first_bad_offset: sr_len(b"v2"),
+      reason: @storage.CorruptRecord,
+    },
+  ])
+  assert_eq(recovery.records, [
+    sr_recovered(0UL, b"v0"),
+    sr_recovered(1UL, b"v1"),
+    sr_recovered(4UL, b"v4"),
+    sr_recovered(5UL, b"v5"),
+  ])
+  assert_eq(recovery.gaps, [
+    {
+      segment_index: 2,
+      file_offset: 0,
+      expected_sequence: 3UL,
+      found_sequence: 4UL,
+      segment_missing: false,
+    },
+  ])
+  let _ = writer
+}
+
+///|
+async test "a torn tail on the active segment is a normal crash boundary" {
+  let disk = @harness.FakeDisk::new()
+  let writer = sr_build_series(disk)
+  let damaged = match @harness.Disk::read(disk, b"sr-part.segment.2") {
+    Ok(bytes) => bytes
+    Err(_) => fail("active segment unreadable")
+  }
+  let torn = damaged[:sr_len(b"v4") + 30].to_owned()
+  let op_result = @harness.Disk::write(disk, b"sr-part.segment.2", torn)
+  if op_result is Err(_) {
+    fail("tear write failed")
+  }
+  let recovery_result = @storage.recover_series(disk, SR_BASE, 3)
+  let recovery = match recovery_result {
+    Ok(recovery) => recovery
+    Err(_) => fail("series recovery failed")
+  }
+  assert_eq(recovery.quarantined, [])
+  assert_eq(recovery.active_truncated_at, None)
+  assert_eq(recovery.records, [
+    sr_recovered(0UL, b"v0"),
+    sr_recovered(1UL, b"v1"),
+    sr_recovered(2UL, b"v2"),
+    sr_recovered(3UL, b"v3"),
+    sr_recovered(4UL, b"v4"),
+  ])
+  assert_eq(recovery.next_sequence, 5UL)
+  let _ = writer
+}
