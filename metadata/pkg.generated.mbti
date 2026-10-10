@@ -7,6 +7,10 @@ import {
 }
 
 // Values
+pub const METADATA_QUARANTINED_CODE : UInt16 = 0x2004
+
+pub const METADATA_READ_ONLY_CODE : UInt16 = 0x2003
+
 pub const MMML_FORMAT_VERSION : Int = 1
 
 pub const MMML_HEADER_BYTES : Int = 34
@@ -75,6 +79,27 @@ pub fn DeclareOutcome::equal(Self, Self) -> Bool
 pub fn DeclareOutcome::not_equal(Self, Self) -> Bool
 pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
 
+pub(all) struct MetadataGuard {
+  mut mode : MetadataMode
+  mut entries : Array[QuarantineEntry]
+}
+pub fn MetadataGuard::entries(Self) -> Array[QuarantineEntry]
+pub fn MetadataGuard::escalate_to_quarantine(Self) -> Unit
+pub fn MetadataGuard::mode(Self) -> MetadataMode
+pub fn MetadataGuard::new() -> Self
+pub fn MetadataGuard::note_log_corruption(Self, UInt, UInt) -> Unit
+pub fn MetadataGuard::restore_healthy(Self) -> Unit
+pub fn MetadataGuard::write_refusal_code(Self) -> UInt16?
+
+pub(all) enum MetadataMode {
+  Healthy
+  ReadOnly
+  Quarantined
+} derive(Eq, @debug.Debug)
+pub fn MetadataMode::equal(Self, Self) -> Bool
+pub fn MetadataMode::not_equal(Self, Self) -> Bool
+pub fn MetadataMode::to_repr(Self) -> @debug.Repr
+
 pub(all) struct MmmlHeader {
   format_version : Byte
   header_version : Byte
@@ -116,6 +141,14 @@ pub fn MmmlRecordType::from_uint16(UInt16) -> Self?
 pub fn MmmlRecordType::not_equal(Self, Self) -> Bool
 pub fn MmmlRecordType::to_repr(Self) -> @debug.Repr
 pub fn MmmlRecordType::to_uint16(Self) -> UInt16
+
+pub(all) struct QuarantineEntry {
+  offset : UInt
+  length : UInt
+} derive(Eq, @debug.Debug)
+pub fn QuarantineEntry::equal(Self, Self) -> Bool
+pub fn QuarantineEntry::not_equal(Self, Self) -> Bool
+pub fn QuarantineEntry::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SnapshotState {
   machine : DeclareMachine

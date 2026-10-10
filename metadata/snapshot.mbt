@@ -375,9 +375,12 @@ pub async fn load_snapshot(
 /// end offset of the snapshot. The log is never modified (ruling Q9-B).
 ///
 /// Replay applies TopicCreate and TopicDelete mutations through the
-/// DECLARE machine and skips SnapshotHint and other record types; a log
-/// record that fails validation aborts recovery with its offset so the
-/// quarantine path (T058) can act on the exact record.
+/// DECLARE machine and skips SnapshotHint and other record types. A
+/// snapshot whose end offset lies past the log end is refused like a
+/// corrupt one (the pair is inconsistent), and replay enforces the
+/// non-decreasing leader_epoch chain from REQ-STO-006. A log record
+/// that fails validation aborts recovery with its offset so the
+/// quarantine path can act on the exact record; nothing is skipped.
 ///
 /// # Errors
 ///
@@ -395,12 +398,14 @@ pub async fn recover_snapshot(
   for slot in [SNAPSHOT_SLOT_A, SNAPSHOT_SLOT_B] {
     match load_snapshot(disk, dir, slot) {
       Ok(candidate) =>
-        match best {
-          None => best = Some(candidate)
-          Some(current) =>
-            if candidate.end_offset > current.end_offset {
-              best = Some(candidate)
-            }
+        if candidate.end_offset <= log.length().to_uint64() {
+          match best {
+            None => best = Some(candidate)
+            Some(current) =>
+              if candidate.end_offset > current.end_offset {
+                best = Some(candidate)
+              }
+          }
         }
       Err(Malformed) => ()
       Err(DiskFault(@harness.PathMissing)) => ()
@@ -436,6 +441,9 @@ pub async fn recover_snapshot(
     let record = match decode_mmml_record(log[position:position + record_len]) {
       Ok(value) => value
       Err(_) => return Err(Corruption(position.reinterpret_as_uint()))
+    }
+    if record.header.leader_epoch < epoch {
+      return Err(Corruption(position.reinterpret_as_uint()))
     }
     match decode_declare_body(record.header.record_type, record.payload[:]) {
       Some(body) =>
