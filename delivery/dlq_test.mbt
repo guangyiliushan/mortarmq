@@ -41,7 +41,7 @@ fn request_of(
   reason : @delivery.NackReason,
   value : Bytes,
 ) -> @delivery.DeadLetterRequest {
-  { from_dlq_topic, reason, attempt: 1, source: source_of(value), }
+  { from_dlq_topic, reason, source: source_of(value), }
 }
 
 ///|
@@ -121,7 +121,7 @@ async test "dead-letter writes the envelope then terminates the source" {
     Ok(_) => ()
     Err(_) => fail("nack failed")
   }
-  assert_eq(machine.state_of(dlq_key(1)), Some(@delivery.DeadLetterQueued))
+  assert_eq(machine.state_of(dlq_key(1)), Some(@delivery.DeadLetterQueued(1)))
   let captured = Ref::Ref(b"")
   let port = (bytes : Bytes) => {
     captured.val = bytes
@@ -186,7 +186,7 @@ async test "dead-letter writes the envelope then terminates the source" {
     Ok(recovered) =>
       assert_eq(
         recovered.state_of(dlq_key(1)),
-        Some(@delivery.DeadLetterQueued),
+        Some(@delivery.DeadLetterQueued(1)),
       )
     Err(_) => fail("recover failed")
   }
@@ -608,8 +608,8 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
     Ok(machine) => machine
     Err(_) => fail("recover failed")
   }
-  assert_eq(recovered.state_of(dlq_key(1)), Some(@delivery.DeadLetterQueued))
-  assert_eq(recovered.state_of(dlq_key(2)), Some(@delivery.DeadLetterQueued))
+  assert_eq(recovered.state_of(dlq_key(1)), Some(@delivery.DeadLetterQueued(1)))
+  assert_eq(recovered.state_of(dlq_key(2)), Some(@delivery.DeadLetterQueued(1)))
   assert_eq(recovered.state_of(dlq_key(3)), Some(@delivery.Quarantined))
   // The remembered DLQ sequence makes the enqueued completion idempotent.
   match
@@ -649,5 +649,97 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
     ) {
     Err(@delivery.InvalidTransition) => assert_eq(true, true)
     _ => fail("expected quarantined completion to be refused")
+  }
+}
+
+///|
+/// Wire hints are hints: the ledger adjudicates the attempt (the request
+/// carries none) and the source coordinates (from the machine's own key),
+/// so forged envelope claims cannot move the recorded facts.
+async test "forged wire hints are adjudicated by the ledger" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = dlq_machine(path)
+  let rng = @harness.SplitMix64::new(1UL)
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+    Ok(_) => ()
+    Err(_) => fail("begin_delivery failed")
+  }
+  match
+    machine.nack(
+      disk,
+      rng,
+      dlq_key(1),
+      1UL,
+      @delivery.DeliveryOutcome::Terminal,
+      2000,
+      dlq_gate,
+    ) {
+    Ok(_) => ()
+    Err(_) => fail("nack failed")
+  }
+  // A replayed envelope forged with foreign source coordinates and a
+  // foreign death path.
+  let forged = @delivery.MmdlEnvelope::new(
+    reason=@delivery.NackReason::Poison,
+    source_topic_id=99,
+    source_partition=9,
+    source_sequence=777UL,
+    source_producer_id=42UL,
+    source_producer_seq=43UL,
+    consumer_group_id=9,
+    attempt=15,
+    failed_unix_ms=999UL,
+    death_path=[hop(9, 9, 9)],
+    original_key=b"ik",
+    original_value=b"iv",
+  )
+  let replayed = match @delivery.encode_mmdl(forged) {
+    Ok(bytes) => bytes
+    Err(_) => fail("envelope encoding failed")
+  }
+  let captured = Ref::Ref(b"")
+  let port = (bytes : Bytes) => {
+    captured.val = bytes
+    Ok(42UL)
+  }
+  match
+    machine.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(false, @delivery.NackReason::Terminal, replayed),
+      port,
+      3000,
+      dlq_gate,
+    ) {
+    Ok(@delivery.Enqueued(_)) => ()
+    _ => fail("expected the DLQ enqueue")
+  }
+  match @delivery.decode_mmdl(captured.val[:]) {
+    Ok(decoded) => {
+      // The ledger's own attempt (1) and source coordinates win over the
+      // forged envelope claims (15 / 99 / 9 / 777).
+      assert_eq(decoded.attempt, 1)
+      assert_eq(decoded.source_topic_id, 1)
+      assert_eq(decoded.source_partition, 0)
+      assert_eq(decoded.source_sequence, 1UL)
+      assert_eq(decoded.consumer_group_id, 1)
+      // The forged hop rides along as data; the appended hop is the
+      // machine's true triple.
+      assert_eq(decoded.death_path.length(), 2)
+      assert_eq(decoded.death_path[1], hop(1, 0, 1))
+    }
+    Err(_) => fail("captured envelope decoding failed")
+  }
+  // The durable events carry the same ledger-adjudicated attempt.
+  match @delivery.read_ledger_events(disk, path) {
+    Ok(events) => {
+      assert_eq(events.length(), 4)
+      assert_eq(events[1].event, @delivery.NackTerminal)
+      assert_eq(events[1].attempt, 1)
+      assert_eq(events[2].attempt, 1)
+      assert_eq(events[3].attempt, 1)
+    }
+    Err(_) => fail("ledger scan failed")
   }
 }

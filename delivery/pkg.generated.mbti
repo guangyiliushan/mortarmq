@@ -66,7 +66,6 @@ pub fn AckResult::to_repr(Self) -> @debug.Repr
 pub(all) struct DeadLetterRequest {
   from_dlq_topic : Bool
   reason : NackReason
-  attempt : UInt16
   source : DeadLetterSource
 } derive(Eq, @debug.Debug)
 pub fn DeadLetterRequest::equal(Self, Self) -> Bool
@@ -140,7 +139,7 @@ pub(all) enum DeliveryState {
   Delivering(UInt64, UInt64, UInt16)
   Acked
   RetryScheduled(UInt16)
-  DeadLetterQueued
+  DeadLetterQueued(UInt16)
   Quarantined
 } derive(Eq, @debug.Debug)
 pub fn DeliveryState::equal(Self, Self) -> Bool

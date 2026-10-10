@@ -227,7 +227,7 @@ async test "restart rebuilds pending retries and keeps the ledger consistent (L4
   assert_eq(recovered.state_of(t_key(2)), Some(@delivery.RetryScheduled(1)))
   assert_eq(recovered.state_of(t_key(3)), Some(@delivery.RetryScheduled(1)))
   assert_eq(recovered.state_of(t_key(4)), Some(@delivery.RetryScheduled(1)))
-  assert_eq(recovered.state_of(t_key(5)), Some(@delivery.DeadLetterQueued))
+  assert_eq(recovered.state_of(t_key(5)), Some(@delivery.DeadLetterQueued(5)))
   let timers = recovered.rebuild_timers(
     5000UL,
     1500UL,
@@ -252,5 +252,5 @@ async test "restart rebuilds pending retries and keeps the ledger consistent (L4
   let again = t_recover(disk, path)
   assert_eq(again.state_of(t_key(1)), Some(@delivery.Acked))
   assert_eq(again.state_of(t_key(2)), Some(@delivery.RetryScheduled(1)))
-  assert_eq(again.state_of(t_key(5)), Some(@delivery.DeadLetterQueued))
+  assert_eq(again.state_of(t_key(5)), Some(@delivery.DeadLetterQueued(5)))
 }

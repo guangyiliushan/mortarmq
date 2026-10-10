@@ -145,7 +145,7 @@ async test "the 6th delivery is never enqueued after max attempts (L1)" {
       }
     }
   }
-  assert_eq(machine.state_of(retry_key(1)), Some(@delivery.DeadLetterQueued))
+  assert_eq(machine.state_of(retry_key(1)), Some(@delivery.DeadLetterQueued(5)))
   // The L1 rule: attempt 6 is refused and nothing is billed for it.
   match machine.begin_delivery(disk, retry_key(1), 7, 1000, retry_gate) {
     Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
