@@ -32,6 +32,7 @@ MortarMQ 术语与命名的活页词典。执行规则只有一条：**同义同
 | `assignment_epoch` | 目标分配（target assignment）的版本 |
 | `installed_assignment_epoch` | **成员实际已装载**的分配版本（⚠️ 原名 `member_epoch`；2026-10-01 改名，因为它与 `membership_epoch` 只差 4 个字符、语义却完全正交。线上字段名仍为 `assignment_epoch`） |
 | `ownership_epoch` | 单分区归属版本（**消费侧**围栏） |
+| `wholesale_ownership_epoch` | 一个**订阅**的全量归属代 —— `CREDIT.ownership_epoch` 携带的取值来源。仅当订阅的归属集合被整组替换（revoke-all / lost / rejoin）时递增，部分分区迁移永不动它；退役代的墓碑长于成员生命周期 |
 | `cursor_epoch` | 游标 checkpoint 版本 |
 | `mutation_id` | 单调递增的元数据变更序号（故障切换下限） |
 | `commit_seq` / `visible_seq` | quorum 提交点 / 消费者可见上界 |
@@ -39,6 +40,8 @@ MortarMQ 术语与命名的活页词典。执行规则只有一条：**同义同
 | `ack_floor` / `next_scan` / `first_retained_seq` | 连续 ack 水位 / 扫描位置 / 保留起始位 |
 | `delivery_id` | 一次投递实例的 id（**消费侧**围栏 —— **不是**业务幂等键） |
 | `producer_id` / `producer_seq` | 生产者幂等键（业务去重用这一对，**不要**用 `delivery_id`） |
+
+> 围栏修复序：`fence_operation` 先代（`0x0020` `StaleGeneration`）→ 再归属（`0x0021` `NotOwner`）→ 后新旧（`0x0022` `StaleOwner`）；多失配者报**最早**的码 —— 客户端要做的第一件修复。对照表事实源：`broker/epoch_model.mbt`。
 
 ## 3. ID 体系对照表
 

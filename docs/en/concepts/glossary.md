@@ -32,6 +32,7 @@ The easiest naming pairs to get wrong in this project:
 | `assignment_epoch` | Target-assignment version |
 | `installed_assignment_epoch` | The assignment version a **member has installed** (⚠️ formerly `member_epoch`; renamed 2026-10-01 because it differed from `membership_epoch` by only 4 characters while being semantically orthogonal. The wire field name remains `assignment_epoch`) |
 | `ownership_epoch` | Single-partition ownership version (consumer-side fencing) |
+| `wholesale_ownership_epoch` | Wholesale ownership generation of one **subscription** — the value `CREDIT.ownership_epoch` carries. Advances only when a subscription's ownership set is replaced whole (revoke-all / loss / rejoin), never on a partial partition migration; the retired generation's tombstone outlives member lifecycles |
 | `cursor_epoch` | Cursor-checkpoint version |
 | `mutation_id` | Monotonic metadata-mutation number (failover floor) |
 | `commit_seq` / `visible_seq` | Quorum commit point / consumer-visible ceiling |
@@ -39,6 +40,8 @@ The easiest naming pairs to get wrong in this project:
 | `ack_floor` / `next_scan` / `first_retained_seq` | Contiguous-ack watermark / scan position / retention start |
 | `delivery_id` | Id of one delivery instance (consumer-side fencing — **not** the business idempotency key) |
 | `producer_id` / `producer_seq` | Producer idempotency key (use this pair for business dedup, not `delivery_id`) |
+
+> Fence repair order: `fence_operation` checks generation first (`0x0020` `StaleGeneration`), ownership second (`0x0021` `NotOwner`), recency third (`0x0022` `StaleOwner`); a request that fails several fences reports the **earliest** — the first repair the client must make. Table of record: `broker/epoch_model.mbt`.
 
 ## 3. ID System Map
 
