@@ -57,9 +57,16 @@ pub extend DeclareOutcome with @moonbitlang/core/debug.Debug::{to_repr}
 /// and the highest leader_epoch applied. All three are carried verbatim
 /// by the metadata snapshot; nothing here may be rebuilt from anything
 /// but the MMML log and its snapshots.
+///
+/// The accepted table maps each topic-name key to the op-set every
+/// accepted mutation id was applied with (R11 packed mutations span two
+/// keys with one shared mutation_id). Storing the whole set is what
+/// makes the fence total: a resubmission of the same id with a narrower,
+/// wider, or different body-set is `MutationFenced` under every key it
+/// touches, and a single-op mutation is just the one-element set.
 pub(all) struct DeclareMachine {
   topics : Map[String, UInt]
-  accepted : Map[String, Map[UInt64, DeclareBody]]
+  accepted : Map[String, Map[UInt64, Array[DeclareBody]]]
   mut max_epoch : UInt64
 }
 
@@ -69,6 +76,33 @@ fn DeclareBody::key(self : DeclareBody) -> String {
     Create(name, _) => name
     Delete(name) => name
   }
+}
+
+///|
+/// Multiset equality of two op-sets (order-insensitive; v0 sets hold one
+/// or two ops).
+fn body_sets_equal(a : Array[DeclareBody], b : Array[DeclareBody]) -> Bool {
+  if a.length() != b.length() {
+    return false
+  }
+  for op in a {
+    let mut in_a = 0
+    let mut in_b = 0
+    for candidate in a {
+      if candidate == op {
+        in_a = in_a + 1
+      }
+    }
+    for candidate in b {
+      if candidate == op {
+        in_b = in_b + 1
+      }
+    }
+    if in_a != in_b {
+      return false
+    }
+  }
+  true
 }
 
 ///|
@@ -84,83 +118,119 @@ pub fn DeclareMachine::leader_epoch(self : DeclareMachine) -> UInt64 {
 }
 
 ///|
-/// Submit one DECLARE mutation and return its observable outcome.
-///
-/// Outcome order is the contract (ruling: 0x2006 before 0x2001): a known
-/// mutation_id with the same body replays as `IdempotentOk` unconditionally
-/// (REQ-STO-007 is epoch-independent); a known mutation_id with a
-/// different body is `MutationFenced` (0x2006, re-initiate); a new
-/// mutation_id from a stale leader_epoch is `MutationFenced` the same way
-/// (0x2006 covers "mutation_id/epoch 过期"); only then does the
-/// name/count check run, where `NameCountMismatch` (0x2001) stays the
-/// S1 registry layer verdict. Rejected mutations never enter the table
-/// and never advance `max_epoch`.
-///
-/// # Errors
-///
-/// None; refusals are outcomes (`MutationFenced`, `NameCountMismatch`),
-/// and only accepted mutations advance state.
+/// Submit one single-op DECLARE mutation; the one-element set case of
+/// `submit_set`.
 pub fn DeclareMachine::submit(
   self : DeclareMachine,
   mutation_id : UInt64,
   leader_epoch : UInt64,
   body : DeclareBody,
 ) -> DeclareOutcome {
-  let table = self.accepted.get_or_init(body.key(), () => Map([]))
-  match table.get(mutation_id) {
-    Some(accepted) =>
-      if accepted == body {
-        IdempotentOk
-      } else {
-        MutationFenced
-      }
-    None =>
-      if leader_epoch < self.max_epoch {
-        MutationFenced
-      } else {
-        match body {
-          Create(name, partition_count) =>
-            match self.topics.get(name) {
-              Some(committed) =>
-                if committed == partition_count {
-                  table.set(mutation_id, body)
-                  if leader_epoch > self.max_epoch {
-                    self.max_epoch = leader_epoch
-                  }
-                  IdempotentOk
-                } else {
-                  NameCountMismatch
-                }
-              None => {
-                self.topics.set(name, partition_count)
-                table.set(mutation_id, body)
-                if leader_epoch > self.max_epoch {
-                  self.max_epoch = leader_epoch
-                }
-                Created
-              }
-            }
-          Delete(name) =>
-            match self.topics.get(name) {
-              Some(_) => {
-                self.topics.remove(name)
-                table.set(mutation_id, body)
-                if leader_epoch > self.max_epoch {
-                  self.max_epoch = leader_epoch
-                }
-                Deleted
-              }
-              None => {
-                table.set(mutation_id, body)
-                if leader_epoch > self.max_epoch {
-                  self.max_epoch = leader_epoch
-                }
-                IdempotentOk
-              }
-            }
+  let outcomes = self.submit_set(mutation_id, leader_epoch, [body])
+  outcomes[0]
+}
+
+///|
+/// Submit one DECLARE mutation carrying one or two ops and return one
+/// outcome per op, in op order.
+///
+/// Outcome order is the contract (ruling: 0x2006 before 0x2001): a known
+/// mutation_id whose recorded op-set equals the incoming set replays as
+/// `IdempotentOk` per op unconditionally (REQ-STO-007 is
+/// epoch-independent); a known mutation_id with a different op-set is
+/// `MutationFenced` per op (0x2006, re-initiate); a new mutation_id from
+/// a stale leader_epoch is `MutationFenced` the same way (0x2006 covers
+/// "mutation_id/epoch 过期"); only then does the name/count check run,
+/// where `NameCountMismatch` (0x2001) stays the S1 registry layer
+/// verdict. Refusals are whole-set: a mismatched name/count rejects the
+/// packed mutation atomically (R11: never half a pair). Rejected
+/// mutations never enter the table and never advance `max_epoch`.
+///
+/// # Errors
+///
+/// None; refusals are outcomes (`MutationFenced`, `NameCountMismatch`
+/// repeated per op), and only accepted mutations advance state.
+pub fn DeclareMachine::submit_set(
+  self : DeclareMachine,
+  mutation_id : UInt64,
+  leader_epoch : UInt64,
+  ops : Array[DeclareBody],
+) -> Array[DeclareOutcome] {
+  let mut any_present = false
+  let mut all_present = true
+  for op in ops {
+    let table = self.accepted.get_or_init(op.key(), () => Map([]))
+    match table.get(mutation_id) {
+      Some(recorded) => {
+        any_present = true
+        if !body_sets_equal(recorded, ops) {
+          return uniform_outcomes(MutationFenced, ops.length())
         }
       }
+      None => all_present = false
+    }
   }
+  if any_present {
+    if all_present {
+      return uniform_outcomes(IdempotentOk, ops.length())
+    }
+    return uniform_outcomes(MutationFenced, ops.length())
+  }
+  if leader_epoch < self.max_epoch {
+    return uniform_outcomes(MutationFenced, ops.length())
+  }
+  for op in ops {
+    match op {
+      Create(name, partition_count) =>
+        match self.topics.get(name) {
+          Some(committed) =>
+            if committed != partition_count {
+              return uniform_outcomes(NameCountMismatch, ops.length())
+            }
+          None => ()
+        }
+      Delete(_) => ()
+    }
+  }
+  let outcomes : Array[DeclareOutcome] = []
+  for op in ops {
+    let table = self.accepted.get_or_init(op.key(), () => Map([]))
+    table.set(mutation_id, ops)
+    match op {
+      Create(name, partition_count) =>
+        match self.topics.get(name) {
+          Some(_) => outcomes.push(IdempotentOk)
+          None => {
+            self.topics.set(name, partition_count)
+            outcomes.push(Created)
+          }
+        }
+      Delete(name) =>
+        match self.topics.get(name) {
+          Some(_) => {
+            self.topics.remove(name)
+            outcomes.push(Deleted)
+          }
+          None => outcomes.push(IdempotentOk)
+        }
+    }
+  }
+  if leader_epoch > self.max_epoch {
+    self.max_epoch = leader_epoch
+  }
+  outcomes
+}
+
+///|
+fn uniform_outcomes(
+  outcome : DeclareOutcome,
+  count : Int,
+) -> Array[DeclareOutcome] {
+  let out : Array[DeclareOutcome] = []
+  for _ in 0..<count {
+    out.push(outcome)
+  }
+  out
 }
 
 ///|
@@ -234,4 +304,84 @@ pub fn decode_declare_body(
   } else {
     Some(Delete(name))
   }
+}
+
+///|
+/// Encode the payload of a one-or-two-op mutation. The single-op bytes
+/// are exactly the v0 form (self-delimiting name length, name, and for
+/// creates a u32 partition count); the two-op packed form (R11 source
+/// plus `.dlq` twin) is the two single-op payloads concatenated, so a
+/// decoder reads ops until the bytes are exhausted and refuses anything
+/// past the second.
+pub fn encode_declare_bodies(bodies : Array[DeclareBody]) -> Bytes {
+  let buf = Buffer()
+  for body in bodies {
+    buf.write_bytes(body.to_payload())
+  }
+  buf.contents()
+}
+
+///|
+/// Decode one self-delimiting op at `start`; returns the body and the
+/// offset just past it, or `None` when the bytes do not parse.
+fn decode_body_at(
+  record_type : MmmlRecordType,
+  payload : BytesView,
+  start : Int,
+) -> (DeclareBody, Int)? {
+  let is_create = match record_type {
+    TopicCreate => true
+    TopicDelete => false
+    _ => return None
+  }
+  let name_len = match read_uint16_be(payload, start) {
+    Ok(value) => value.to_int()
+    Err(_) => return None
+  }
+  let tail = if is_create { 4 } else { 0 }
+  let end = start + 2 + name_len + tail
+  if end > payload.length() {
+    return None
+  }
+  let name = @utf8.decode(payload[start + 2:start + 2 + name_len]) catch {
+    Malformed(_) => return None
+  }
+  if is_create {
+    match read_uint_be(payload, start + 2 + name_len) {
+      Ok(partition_count) => Some((Create(name, partition_count), end))
+      Err(_) => None
+    }
+  } else {
+    Some((Delete(name), end))
+  }
+}
+
+///|
+/// Decode the one-or-two-op mutation payload.
+///
+/// Returns `None` for record types that are not DECLARE mutations, for
+/// zero or more than two ops, for truncated or overlong payloads, and
+/// for names that are not valid UTF-8; the caller refuses those bytes at
+/// the trust boundary.
+pub fn decode_declare_bodies(
+  record_type : MmmlRecordType,
+  payload : BytesView,
+) -> Array[DeclareBody]? {
+  let first = match decode_body_at(record_type, payload, 0) {
+    Some(value) => value
+    None => return None
+  }
+  let (body1, next) = first
+  if next == payload.length() {
+    return Some([body1])
+  }
+  let second = match decode_body_at(record_type, payload, next) {
+    Some(value) => value
+    None => return None
+  }
+  let (body2, end) = second
+  if end != payload.length() {
+    return None
+  }
+  Some([body1, body2])
 }

@@ -23,11 +23,15 @@ pub const SNAPSHOT_SLOT_A : Bytes = b"mmml-snapshot-a.checkpoint"
 
 pub const SNAPSHOT_SLOT_B : Bytes = b"mmml-snapshot-b.checkpoint"
 
+pub fn decode_declare_bodies(MmmlRecordType, BytesView) -> Array[DeclareBody]?
+
 pub fn decode_declare_body(MmmlRecordType, BytesView) -> DeclareBody?
 
 pub fn decode_mmml_record(BytesView) -> Result[MmmlRecord, MetadataFault]
 
 pub fn decode_snapshot(BytesView) -> Result[SnapshotState, MetadataFault]
+
+pub fn encode_declare_bodies(Array[DeclareBody]) -> Bytes
 
 pub fn encode_mmml_record(MmmlHeader, BytesView) -> Result[Bytes, MetadataFault]
 
@@ -62,13 +66,14 @@ pub fn DeclareBody::to_repr(Self) -> @debug.Repr
 
 pub(all) struct DeclareMachine {
   topics : Map[String, UInt]
-  accepted : Map[String, Map[UInt64, DeclareBody]]
+  accepted : Map[String, Map[UInt64, Array[DeclareBody]]]
   mut max_epoch : UInt64
 }
 pub fn DeclareMachine::leader_epoch(Self) -> UInt64
 pub fn DeclareMachine::new() -> Self
 pub fn DeclareMachine::partition_count(Self, String) -> UInt?
 pub fn DeclareMachine::submit(Self, UInt64, UInt64, DeclareBody) -> DeclareOutcome
+pub fn DeclareMachine::submit_set(Self, UInt64, UInt64, Array[DeclareBody]) -> Array[DeclareOutcome]
 
 pub(all) enum DeclareOutcome {
   Created

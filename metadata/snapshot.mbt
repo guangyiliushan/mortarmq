@@ -94,7 +94,7 @@ fn encode_topic_entry(name : String, partition_count : UInt) -> Bytes {
 fn encode_accepted_entry(
   key : String,
   mutation_id : UInt64,
-  body : DeclareBody,
+  set : Array[DeclareBody],
 ) -> Bytes {
   let key_bytes = @utf8.encode(key)
   let buf = Buffer()
@@ -102,8 +102,11 @@ fn encode_accepted_entry(
   buf.write_uint16_be(key_bytes.length().to_uint16())
   buf.write_bytes(key_bytes)
   buf.write_uint64_be(mutation_id)
-  buf.write_uint16_be(body.to_record_type().to_uint16())
-  buf.write_bytes(body.to_payload())
+  buf.write_byte(set.length().to_byte())
+  for body in set {
+    buf.write_uint16_be(body.to_record_type().to_uint16())
+    buf.write_bytes(body.to_payload())
+  }
   buf.contents()
 }
 
@@ -125,11 +128,11 @@ pub fn encode_snapshot(state : SnapshotState) -> Result[Bytes, MetadataFault] {
     }
   }
   for (key, table) in state.machine.accepted.to_array() {
-    for (mutation_id, body) in table.to_array() {
+    for (mutation_id, set) in table.to_array() {
       match
         snapshot_record(
           state.epoch,
-          encode_accepted_entry(key, mutation_id, body),
+          encode_accepted_entry(key, mutation_id, set),
         ) {
         Ok(record) => buf.write_bytes(record)
         Err(fault) => return Err(fault)
@@ -182,20 +185,34 @@ fn decode_state_entry(payload : BytesView, machine : DeclareMachine) -> Unit? {
         Ok(value) => value
         Err(_) => return None
       }
-      let body_code = match read_uint16_be(payload, 11 + key_len) {
-        Ok(value) => value
-        Err(_) => return None
+      let set_len = payload[11 + key_len].to_int()
+      if set_len < 1 || set_len > 2 {
+        return None
       }
-      let body_type = match MmmlRecordType::from_uint16(body_code) {
-        Some(value) => value
-        None => return None
+      let mut cursor = 12 + key_len
+      let set : Array[DeclareBody] = []
+      for _ in 0..<set_len {
+        let body_code = match read_uint16_be(payload, cursor) {
+          Ok(value) => value
+          Err(_) => return None
+        }
+        let body_type = match MmmlRecordType::from_uint16(body_code) {
+          Some(value) => value
+          None => return None
+        }
+        let decoded = match decode_body_at(body_type, payload, cursor + 2) {
+          Some(value) => value
+          None => return None
+        }
+        let (body, next) = decoded
+        set.push(body)
+        cursor = next
       }
-      let body = match decode_declare_body(body_type, payload[13 + key_len:]) {
-        Some(value) => value
-        None => return None
+      if cursor != payload.length() {
+        return None
       }
       let table = machine.accepted.get_or_init(key, () => Map([]))
-      table.set(mutation_id, body)
+      table.set(mutation_id, set)
       Some(())
     }
     _ => None
@@ -386,6 +403,8 @@ pub async fn load_snapshot(
 /// length runs past the log end is an unfinished append from a crash,
 /// never an acknowledged mutation, and is discarded by stopping at its
 /// first byte (Kafka log-recovery convention; REQ-STO-005 clause 1).
+/// R11 packed mutations ride one record, so a crash mid-append can
+/// never leave half a source/twin pair.
 ///
 /// # Errors
 ///
@@ -450,18 +469,21 @@ pub async fn recover_snapshot(
     if record.header.leader_epoch < epoch {
       return Err(Corruption(position.reinterpret_as_uint()))
     }
-    match decode_declare_body(record.header.record_type, record.payload[:]) {
-      Some(body) =>
-        match
-          machine.submit(
-            record.header.mutation_id,
-            record.header.leader_epoch,
-            body,
-          ) {
-          Created | Deleted | IdempotentOk => ()
-          MutationFenced | NameCountMismatch =>
-            return Err(Corruption(position.reinterpret_as_uint()))
+    match decode_declare_bodies(record.header.record_type, record.payload[:]) {
+      Some(ops) => {
+        let outcomes = machine.submit_set(
+          record.header.mutation_id,
+          record.header.leader_epoch,
+          ops,
+        )
+        for outcome in outcomes {
+          match outcome {
+            Created | Deleted | IdempotentOk => ()
+            MutationFenced | NameCountMismatch =>
+              return Err(Corruption(position.reinterpret_as_uint()))
+          }
         }
+      }
       None => ()
     }
     epoch = record.header.leader_epoch

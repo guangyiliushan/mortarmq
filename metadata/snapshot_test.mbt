@@ -69,15 +69,17 @@ fn fingerprint(machine : @metadata.DeclareMachine) -> Array[String] {
     out.push("t:" + name + ":" + count.to_string())
   }
   for (key, table) in machine.accepted.to_array() {
-    for (mutation_id, body) in table.to_array() {
-      out.push(
-        "a:" +
-        key +
-        ":" +
-        mutation_id.to_string() +
-        ":" +
-        body.to_repr().to_string(),
-      )
+    for (mutation_id, set) in table.to_array() {
+      let parts : Array[String] = []
+      for body in set {
+        parts.push(body.to_repr().to_string())
+      }
+      parts.sort()
+      let mut rendered = ""
+      for part in parts {
+        rendered = rendered + "|" + part
+      }
+      out.push("a:" + key + ":" + mutation_id.to_string() + rendered)
     }
   }
   out.sort()
@@ -525,5 +527,142 @@ async test "concurrent serializations recover to one identical state" {
       }
       Err(_) => fail("concurrent serialization recovery failed")
     }
+  }
+}
+
+///|
+fn packed_record(
+  mutation_id : UInt64,
+  epoch : UInt64,
+  bodies : Array[@metadata.DeclareBody],
+) -> Bytes raise {
+  match
+    @metadata.encode_mmml_record(
+      @metadata.MmmlHeader::new(
+        format_version=1,
+        header_version=1,
+        flags=0,
+        record_type=@metadata.MmmlRecordType::TopicCreate,
+        leader_epoch=epoch,
+        mutation_id~,
+      ),
+      @metadata.encode_declare_bodies(bodies)[:],
+    ) {
+    Ok(bytes) => bytes
+    Err(_) => fail("packed encoding failed")
+  }
+}
+
+///|
+test "snapshot round-trips packed accepted sets" {
+  let machine = @metadata.DeclareMachine::new()
+  ignore(
+    machine.submit_set(1UL, 7UL, [
+      @metadata.DeclareBody::Create("orders", 3),
+      @metadata.DeclareBody::Create("orders.dlq", 3),
+    ]),
+  )
+  let bytes = encoded_snapshot(machine, 7UL, 64UL)
+  match @metadata.decode_snapshot(bytes[:]) {
+    Ok(decoded) => {
+      assert_eq(fingerprint(decoded.machine), fingerprint(machine))
+      assert_eq(decoded.machine.partition_count("orders"), Some(3U))
+      assert_eq(decoded.machine.partition_count("orders.dlq"), Some(3U))
+    }
+    Err(_) => fail("packed-set snapshot decoding failed")
+  }
+}
+
+///|
+async test "a torn packed record never leaves half a pair" {
+  let m0 = mutation_record(1UL, 1UL, @metadata.DeclareBody::Create("seed", 1))
+  let packed = packed_record(2UL, 1UL, [
+    @metadata.DeclareBody::Create("orders", 3),
+    @metadata.DeclareBody::Create("orders.dlq", 3),
+  ])
+  let m3 = mutation_record(3UL, 1UL, @metadata.DeclareBody::Create("after", 1))
+  let full = join([m0, packed, m3])
+  let fake = @harness.FakeDisk::new()
+  let disk : &@harness.Disk = fake
+  for cut in 1..<packed.length() {
+    let log = join([m0, packed[:cut].to_owned()])
+    match @metadata.recover_snapshot(disk, b"meta", log) {
+      Ok(state) => {
+        assert_eq(state.machine.partition_count("orders"), None)
+        assert_eq(state.machine.partition_count("orders.dlq"), None)
+        assert_eq(state.end_offset, m0.length().to_uint64())
+      }
+      Err(_) => fail("torn packed tail must recover the prefix")
+    }
+  }
+  match @metadata.recover_snapshot(disk, b"meta", full) {
+    Ok(state) => {
+      assert_eq(state.machine.partition_count("orders"), Some(3U))
+      assert_eq(state.machine.partition_count("orders.dlq"), Some(3U))
+    }
+    Err(_) => fail("full log recovery failed")
+  }
+}
+
+///|
+async test "killed snapshot saves never expose half a pair" {
+  let pair = @metadata.DeclareMachine::new()
+  ignore(
+    pair.submit_set(1UL, 1UL, [
+      @metadata.DeclareBody::Create("orders", 3),
+      @metadata.DeclareBody::Create("orders.dlq", 3),
+    ]),
+  )
+  let packed = packed_record(1UL, 1UL, [
+    @metadata.DeclareBody::Create("orders", 3),
+    @metadata.DeclareBody::Create("orders.dlq", 3),
+  ])
+  for kill_at in 1..<4 {
+    let fake = @harness.FakeDisk::new()
+    let disk : &@harness.Disk = fake
+    let empty = @metadata.DeclareMachine::new()
+    assert_eq(
+      @metadata.save_snapshot(disk, b"meta", {
+        machine: empty,
+        epoch: 0UL,
+        end_offset: 0UL,
+      }),
+      Ok(()),
+    )
+    fake.set_kill_at(kill_at)
+    assert_eq(
+      @metadata.save_snapshot(disk, b"meta", {
+        machine: pair,
+        epoch: 1UL,
+        end_offset: packed.length().to_uint64(),
+      })
+      is Err(_),
+      true,
+    )
+    match @metadata.recover_snapshot(disk, b"meta", packed) {
+      Ok(state) => {
+        let has_source = state.machine.partition_count("orders") is Some(_)
+        let has_twin = state.machine.partition_count("orders.dlq") is Some(_)
+        assert_eq(has_source, has_twin)
+      }
+      Err(_) => fail("recovery after a killed save failed")
+    }
+  }
+  let fake = @harness.FakeDisk::new()
+  let disk : &@harness.Disk = fake
+  assert_eq(
+    @metadata.save_snapshot(disk, b"meta", {
+      machine: pair,
+      epoch: 1UL,
+      end_offset: packed.length().to_uint64(),
+    }),
+    Ok(()),
+  )
+  match @metadata.recover_snapshot(disk, b"meta", packed) {
+    Ok(state) => {
+      assert_eq(state.machine.partition_count("orders"), Some(3U))
+      assert_eq(state.machine.partition_count("orders.dlq"), Some(3U))
+    }
+    Err(_) => fail("published pair snapshot did not recover")
   }
 }

@@ -279,3 +279,146 @@ test "a fenced mutation leaves no trace in the accepted table" {
     @metadata.DeclareOutcome::IdempotentOk,
   )
 }
+
+///|
+test "R11 packed pair applies as one mutation" {
+  let machine = @metadata.DeclareMachine::new()
+  let outcomes = machine.submit_set(1UL, 7UL, [
+    @metadata.DeclareBody::Create("orders", 3),
+    @metadata.DeclareBody::Create("orders.dlq", 3),
+  ])
+  assert_eq(outcomes, [
+    @metadata.DeclareOutcome::Created,
+    @metadata.DeclareOutcome::Created,
+  ])
+  assert_eq(machine.partition_count("orders"), Some(3U))
+  assert_eq(machine.partition_count("orders.dlq"), Some(3U))
+}
+
+///|
+test "packed pair replay returns double idempotent ok" {
+  let machine = @metadata.DeclareMachine::new()
+  let ops = [
+    @metadata.DeclareBody::Create("orders", 3),
+    @metadata.DeclareBody::Create("orders.dlq", 3),
+  ]
+  ignore(machine.submit_set(1UL, 7UL, ops))
+  assert_eq(machine.submit_set(1UL, 3UL, ops), [
+    @metadata.DeclareOutcome::IdempotentOk,
+    @metadata.DeclareOutcome::IdempotentOk,
+  ])
+  assert_eq(machine.partition_count("orders"), Some(3U))
+  assert_eq(machine.partition_count("orders.dlq"), Some(3U))
+  assert_eq(machine.leader_epoch(), 7UL)
+}
+
+///|
+test "op-set fence rejects narrower wider and different sets" {
+  let machine = @metadata.DeclareMachine::new()
+  ignore(
+    machine.submit_set(1UL, 7UL, [
+      @metadata.DeclareBody::Create("orders", 3),
+      @metadata.DeclareBody::Create("orders.dlq", 3),
+    ]),
+  )
+  assert_eq(
+    machine.submit_set(1UL, 9UL, [@metadata.DeclareBody::Create("orders", 3)]),
+    [@metadata.DeclareOutcome::MutationFenced],
+  )
+  assert_eq(
+    machine.submit_set(1UL, 9UL, [
+      @metadata.DeclareBody::Create("orders", 3),
+      @metadata.DeclareBody::Create("orders.dlq", 5),
+    ]),
+    [
+      @metadata.DeclareOutcome::MutationFenced,
+      @metadata.DeclareOutcome::MutationFenced,
+    ],
+  )
+  assert_eq(
+    machine.submit_set(1UL, 9UL, [
+      @metadata.DeclareBody::Create("orders", 3),
+      @metadata.DeclareBody::Create("other", 1),
+    ]),
+    [
+      @metadata.DeclareOutcome::MutationFenced,
+      @metadata.DeclareOutcome::MutationFenced,
+    ],
+  )
+  assert_eq(machine.partition_count("orders.dlq"), Some(3U))
+}
+
+///|
+test "packed pair rejects a mismatched name atomically" {
+  let machine = @metadata.DeclareMachine::new()
+  ignore(machine.submit(1UL, 7UL, @metadata.DeclareBody::Create("orders", 3)))
+  let ops = [
+    @metadata.DeclareBody::Create("fresh", 1),
+    @metadata.DeclareBody::Create("orders", 9),
+  ]
+  assert_eq(machine.submit_set(2UL, 7UL, ops), [
+    @metadata.DeclareOutcome::NameCountMismatch,
+    @metadata.DeclareOutcome::NameCountMismatch,
+  ])
+  assert_eq(machine.partition_count("fresh"), None)
+  assert_eq(machine.submit_set(2UL, 7UL, ops), [
+    @metadata.DeclareOutcome::NameCountMismatch,
+    @metadata.DeclareOutcome::NameCountMismatch,
+  ])
+}
+
+///|
+test "per-key id independence spans packed and single mutations" {
+  let machine = @metadata.DeclareMachine::new()
+  assert_eq(
+    machine.submit(5UL, 7UL, @metadata.DeclareBody::Create("a", 1)),
+    @metadata.DeclareOutcome::Created,
+  )
+  assert_eq(
+    machine.submit(5UL, 7UL, @metadata.DeclareBody::Create("b", 1)),
+    @metadata.DeclareOutcome::Created,
+  )
+  assert_eq(
+    machine.submit(5UL, 7UL, @metadata.DeclareBody::Create("a", 1)),
+    @metadata.DeclareOutcome::IdempotentOk,
+  )
+}
+
+///|
+test "declare payload keeps the single form and adds the packed form" {
+  let source = @metadata.DeclareBody::Create("orders", 3)
+  let twin = @metadata.DeclareBody::Create("orders.dlq", 3)
+  let expected_single = Buffer()
+  expected_single.write_uint16_be(6)
+  expected_single.write_bytes(b"orders")
+  expected_single.write_uint_be(3)
+  assert_eq(source.to_payload(), expected_single.contents())
+  assert_eq(
+    @metadata.encode_declare_bodies([source]),
+    expected_single.contents(),
+  )
+  let expected_pair = expected_single.contents() + twin.to_payload()
+  assert_eq(@metadata.encode_declare_bodies([source, twin]), expected_pair)
+  assert_eq(
+    @metadata.decode_declare_bodies(
+      @metadata.MmmlRecordType::TopicCreate,
+      expected_pair[:],
+    ),
+    Some([source, twin]),
+  )
+  let three = @metadata.encode_declare_bodies([source, twin, source])
+  assert_eq(
+    @metadata.decode_declare_bodies(
+      @metadata.MmmlRecordType::TopicCreate,
+      three[:],
+    ),
+    None,
+  )
+  assert_eq(
+    @metadata.decode_declare_bodies(
+      @metadata.MmmlRecordType::TopicCreate,
+      b""[:],
+    ),
+    None,
+  )
+}
