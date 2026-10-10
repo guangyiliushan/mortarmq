@@ -3,11 +3,6 @@
 /// flush boundary.
 
 ///|
-fn gate(_bytes : Int) -> Result[Unit, @delivery.DeliveryError] {
-  Ok(())
-}
-
-///|
 fn key(sequence : UInt64) -> @delivery.DeliveryKey {
   @delivery.DeliveryKey::new(group_id=1, topic_id=1, partition=0, sequence~)
 }
@@ -26,7 +21,7 @@ async test "DELIVER/ACK lands once and reports the wire bundle" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = open_machine(path)
-  match machine.begin_delivery(disk, key(1), 7, 1000, gate) {
+  match machine.begin_delivery(disk, key(1), 7, 1000, None) {
     Ok(bundle) => {
       assert_eq(bundle.delivery_id, 1UL)
       assert_eq(bundle.attempt, 1)
@@ -35,7 +30,7 @@ async test "DELIVER/ACK lands once and reports the wire bundle" {
     Err(_) => fail("begin_delivery failed")
   }
   assert_eq(machine.state_of(key(1)), Some(@delivery.Delivering(1UL, 7UL, 1)))
-  match machine.ack(disk, key(1), 1UL, 2000, gate) {
+  match machine.ack(disk, key(1), 1UL, 2000, None) {
     Ok(result) => assert_eq(result, @delivery.Applied)
     Err(_) => fail("ack failed")
   }
@@ -58,7 +53,7 @@ async test "DELIVER/ACK lands once and reports the wire bundle" {
     partition=1,
     sequence=1,
   )
-  match machine.begin_delivery(disk, foreign, 7, 3000, gate) {
+  match machine.begin_delivery(disk, foreign, 7, 3000, None) {
     Err(@delivery.InvalidTransition) => assert_eq(true, true)
     _ => fail("expected foreign-partition key rejection")
   }
@@ -69,21 +64,21 @@ async test "duplicate ACK is idempotent and acked entries never redeliver" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = open_machine(path)
-  match machine.begin_delivery(disk, key(1), 7, 1000, gate) {
+  match machine.begin_delivery(disk, key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
-  match machine.ack(disk, key(1), 1UL, 2000, gate) {
+  match machine.ack(disk, key(1), 1UL, 2000, None) {
     Ok(_) => ()
     Err(_) => fail("ack failed")
   }
   // The no-ghost rule: an acked message must never deliver again.
-  match machine.begin_delivery(disk, key(1), 9, 3000, gate) {
+  match machine.begin_delivery(disk, key(1), 9, 3000, None) {
     Err(@delivery.InvalidTransition) => assert_eq(true, true)
     _ => fail("expected ghost-delivery refusal")
   }
   // Fault 7: a client retry of a durable ACK answers Duplicate.
-  match machine.ack(disk, key(1), 1UL, 4000, gate) {
+  match machine.ack(disk, key(1), 1UL, 4000, None) {
     Ok(@delivery.Duplicate) => assert_eq(true, true)
     _ => fail("expected duplicate ACK")
   }
@@ -98,11 +93,11 @@ async test "ACK with a stale delivery_id is UNKNOWN_DELIVERY and writes nothing"
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = open_machine(path)
-  match machine.begin_delivery(disk, key(1), 7, 1000, gate) {
+  match machine.begin_delivery(disk, key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
-  match machine.ack(disk, key(1), 99UL, 2000, gate) {
+  match machine.ack(disk, key(1), 99UL, 2000, None) {
     Err(@delivery.UnknownDelivery) => assert_eq(true, true)
     _ => fail("expected UNKNOWN_DELIVERY")
   }
@@ -118,21 +113,21 @@ async test "ownership change fences in-flight deliveries and remembers the id" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = open_machine(path)
-  match machine.begin_delivery(disk, key(1), 7, 1000, gate) {
+  match machine.begin_delivery(disk, key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
-  match machine.begin_delivery(disk, key(2), 9, 1500, gate) {
+  match machine.begin_delivery(disk, key(2), 9, 1500, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
-  match machine.ack(disk, key(2), 2UL, 1800, gate) {
+  match machine.ack(disk, key(2), 2UL, 1800, None) {
     Ok(_) => ()
     Err(_) => fail("ack failed")
   }
   // Fence owner 7 away: sequence 1 in flight, sequence 2 already acked.
   match
-    machine.on_ownership_changed(disk, 1, 1, 0, 55, 7, 9, 3, 4, 2000, gate) {
+    machine.on_ownership_changed(disk, 1, 1, 0, 55, 7, 9, 3, 4, 2000, None) {
     Ok(_) => ()
     Err(_) => fail("on_ownership_changed failed")
   }
@@ -140,11 +135,11 @@ async test "ownership change fences in-flight deliveries and remembers the id" {
   assert_eq(machine.state_of(key(2)), Some(@delivery.Acked))
   // The fenced delivery's late ACK is STALE_OWNER, and the id is
   // remembered even across redelivery.
-  match machine.ack(disk, key(1), 1UL, 3000, gate) {
+  match machine.ack(disk, key(1), 1UL, 3000, None) {
     Err(@delivery.StaleOwner) => assert_eq(true, true)
     _ => fail("expected STALE_OWNER")
   }
-  match machine.begin_delivery(disk, key(1), 9, 4000, gate) {
+  match machine.begin_delivery(disk, key(1), 9, 4000, None) {
     Ok(bundle) => {
       assert_eq(bundle.delivery_id, 3UL)
       assert_eq(bundle.attempt, 2)
@@ -152,11 +147,11 @@ async test "ownership change fences in-flight deliveries and remembers the id" {
     }
     Err(_) => fail("redelivery to the new owner failed")
   }
-  match machine.ack(disk, key(1), 1UL, 5000, gate) {
+  match machine.ack(disk, key(1), 1UL, 5000, None) {
     Err(@delivery.StaleOwner) => assert_eq(true, true)
     _ => fail("expected the fenced id to stay STALE_OWNER after redelivery")
   }
-  match machine.ack(disk, key(1), 3UL, 6000, gate) {
+  match machine.ack(disk, key(1), 3UL, 6000, None) {
     Ok(@delivery.Applied) => assert_eq(true, true)
     _ => fail("expected the new owner's ACK to apply")
   }
@@ -188,7 +183,7 @@ async fn run_l4_case(kill_at : Int) -> Array[@delivery.LedgerEvent] {
   let mut machine = open_machine(path)
   // op 1: begin_delivery.
   let mut delivered = match
-    machine.begin_delivery(disk, key(1), 7, 1000, gate) {
+    machine.begin_delivery(disk, key(1), 7, 1000, None) {
     Ok(bundle) => bundle
     Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) => {
       disk.set_kill_at(0)
@@ -205,7 +200,7 @@ async fn run_l4_case(kill_at : Int) -> Array[@delivery.LedgerEvent] {
         Ok(machine) => machine
         Err(_) => fail("recover failed")
       }
-      match machine.begin_delivery(disk, key(1), 7, 1000, gate) {
+      match machine.begin_delivery(disk, key(1), 7, 1000, None) {
         Ok(bundle) => bundle
         Err(_) => fail("begin_delivery retry failed")
       }
@@ -214,7 +209,7 @@ async fn run_l4_case(kill_at : Int) -> Array[@delivery.LedgerEvent] {
   }
   // op 2: ack -- on kill the retry may be a no-op and the client redelivers.
   let acked = match
-    machine.ack(disk, key(1), delivered.delivery_id, 2000, gate) {
+    machine.ack(disk, key(1), delivered.delivery_id, 2000, None) {
     Ok(_) => true
     Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) => {
       disk.set_kill_at(0)
@@ -231,15 +226,15 @@ async fn run_l4_case(kill_at : Int) -> Array[@delivery.LedgerEvent] {
         Ok(machine) => machine
         Err(_) => fail("recover failed")
       }
-      match machine.ack(disk, key(1), delivered.delivery_id, 2000, gate) {
+      match machine.ack(disk, key(1), delivered.delivery_id, 2000, None) {
         Ok(_) => true
         Err(@delivery.UnknownDelivery) => {
           delivered = match
-            machine.begin_delivery(disk, key(1), 9, 3000, gate) {
+            machine.begin_delivery(disk, key(1), 9, 3000, None) {
             Ok(bundle) => bundle
             Err(_) => fail("redelivery failed")
           }
-          match machine.ack(disk, key(1), delivered.delivery_id, 4000, gate) {
+          match machine.ack(disk, key(1), delivered.delivery_id, 4000, None) {
             Ok(_) => true
             Err(_) => fail("redelivery ACK failed")
           }
@@ -278,7 +273,7 @@ async fn run_l4_case(kill_at : Int) -> Array[@delivery.LedgerEvent] {
     Err(_) => fail("sync failed")
   }
   // Every case must show the no-ghost rule.
-  match machine.begin_delivery(disk, key(1), 11, 5000, gate) {
+  match machine.begin_delivery(disk, key(1), 11, 5000, None) {
     Err(@delivery.InvalidTransition) => ()
     _ => fail("expected ghost-delivery refusal after recovery")
   }
@@ -327,7 +322,7 @@ async test "recover folds the log and applies the restart policy" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = open_machine(path)
-  match machine.begin_delivery(disk, key(1), 7, 1000, gate) {
+  match machine.begin_delivery(disk, key(1), 7, 1000, None) {
     Ok(bundle) => assert_eq(bundle.delivery_id, 1UL)
     Err(_) => fail("begin_delivery failed")
   }
@@ -342,11 +337,11 @@ async test "recover folds the log and applies the restart policy" {
   // Frozen restart policy: Delivering becomes redeliverable; its late ACK
   // is a no-op and the redelivery bills exactly one more attempt.
   assert_eq(recovered.state_of(key(1)), Some(@delivery.RetryScheduled(1)))
-  match recovered.ack(disk, key(1), 1UL, 2000, gate) {
+  match recovered.ack(disk, key(1), 1UL, 2000, None) {
     Err(@delivery.UnknownDelivery) => assert_eq(true, true)
     _ => fail("expected UNKNOWN_DELIVERY after restart")
   }
-  match recovered.begin_delivery(disk, key(1), 9, 3000, gate) {
+  match recovered.begin_delivery(disk, key(1), 9, 3000, None) {
     Ok(bundle) => {
       assert_eq(bundle.delivery_id, 2UL)
       assert_eq(bundle.attempt, 2)

@@ -3,11 +3,6 @@
 /// streams never mix.
 
 ///|
-fn no_gate(_bytes : Int) -> Result[Unit, @delivery.LedgerFault] {
-  Ok(())
-}
-
-///|
 fn sample_event(event : @delivery.LedgerEventKind) -> @delivery.LedgerEvent {
   @delivery.LedgerEvent::new(
     group_id=1,
@@ -96,21 +91,60 @@ test "ledger writer refuses non-ledger paths" {
 }
 
 ///|
-async test "capacity gate rejection writes nothing" {
+async test "the watermark gate refuses the append that projects past the high line" {
   let disk = @harness.FakeDisk::new()
+  disk.set_capacity(1000)
+  let gate = @storage.Watermark::new(disk)
   let path = b"data/partitions/0001/0000/delivery.mql"
   let writer = match @delivery.LedgerWriter::new(path) {
     Ok(writer) => writer
     Err(_) => fail("writer construction failed")
   }
-  let rejecting = (_bytes : Int) => Err(@delivery.LedgerFault::Capacity)
-  match writer.append(disk, sample_event(@delivery.Deliver), rejecting) {
-    Err(@delivery.LedgerFault::Capacity) => assert_eq(true, true)
-    _ => fail("expected capacity rejection")
+  let event = sample_event(@delivery.Deliver)
+  // Each event is 52 bytes: 16 land (832 bytes, warning band) and the
+  // 17th projects 884 of 1000 -- past the 85% line -- and is refused.
+  for _ in 0..<16 {
+    match writer.append(disk, event, Some(gate)) {
+      Ok(_) => ()
+      Err(_) => fail("append under the line failed")
+    }
   }
-  match disk.read(path) {
-    Err(@harness.PathMissing) => assert_eq(true, true)
-    _ => fail("expected no bytes on disk after gate rejection")
+  assert_eq(gate.used_percent(), 83UL)
+  match writer.append(disk, event, Some(gate)) {
+    Err(@delivery.LedgerFault::Capacity) => assert_eq(true, true)
+    _ => fail("expected the projected-usage refusal")
+  }
+  // The refusal ran no disk operation: exactly 16 events are durable.
+  match @delivery.read_ledger_events(disk, path) {
+    Ok(events) => assert_eq(events.length(), 16)
+    Err(_) => fail("ledger scan failed")
+  }
+  // The projection is the contract: current usage is still 83%, so the
+  // same append ungated lands -- the refusal was the projection, not now.
+  match writer.append(disk, event, None) {
+    Ok(_) => ()
+    Err(_) => fail("ungated append failed")
+  }
+  match @delivery.read_ledger_events(disk, path) {
+    Ok(events) => assert_eq(events.length(), 17)
+    Err(_) => fail("ledger scan failed")
+  }
+}
+
+///|
+async test "a hard disk failure is not a capacity refusal" {
+  let disk = @harness.FakeDisk::new()
+  disk.set_disk_full(true)
+  let gate = @storage.Watermark::new(disk)
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let writer = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  match writer.append(disk, sample_event(@delivery.Deliver), Some(gate)) {
+    Err(@delivery.LedgerFault::DiskFault(@harness.DiskFull)) =>
+      assert_eq(true, true)
+    _ => fail("expected a disk fault distinct from Capacity")
   }
 }
 
@@ -123,13 +157,13 @@ async test "ledger writer group-syncs every 128 events" {
     Err(_) => fail("writer construction failed")
   }
   for index in 0..<127 {
-    match writer.append(disk, sample_event(@delivery.Deliver), no_gate) {
+    match writer.append(disk, sample_event(@delivery.Deliver), None) {
       Ok(_) => ()
       Err(_) => fail("append failed")
     }
     assert_eq(writer.unflushed_events(), index + 1)
   }
-  match writer.append(disk, sample_event(@delivery.Deliver), no_gate) {
+  match writer.append(disk, sample_event(@delivery.Deliver), None) {
     Ok(_) => ()
     Err(_) => fail("append failed")
   }
@@ -147,11 +181,11 @@ async test "ledger and record streams never mix (L1)" {
   }
   let first = sample_event(@delivery.Deliver)
   let second = sample_event(@delivery.Ack)
-  match writer.append(disk, first, no_gate) {
+  match writer.append(disk, first, None) {
     Ok(_) => ()
     Err(_) => fail("append failed")
   }
-  match writer.append(disk, second, no_gate) {
+  match writer.append(disk, second, None) {
     Ok(_) => ()
     Err(_) => fail("append failed")
   }
@@ -218,7 +252,7 @@ async test "ledger scan stops at a torn tail" {
     Err(_) => fail("writer construction failed")
   }
   let first = sample_event(@delivery.Deliver)
-  match writer.append(disk, first, no_gate) {
+  match writer.append(disk, first, None) {
     Ok(_) => ()
     Err(_) => fail("append failed")
   }

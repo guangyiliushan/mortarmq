@@ -3,11 +3,6 @@
 /// flattening, and the documented replay blind spot (L1).
 
 ///|
-fn dlq_gate(_bytes : Int) -> Result[Unit, @delivery.DeliveryError] {
-  Ok(())
-}
-
-///|
 fn dlq_key(sequence : UInt64) -> @delivery.DeliveryKey {
   @delivery.DeliveryKey::new(group_id=1, topic_id=1, partition=0, sequence~)
 }
@@ -104,7 +99,7 @@ async test "dead-letter writes the envelope then terminates the source" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
   let rng = @harness.SplitMix64::new(1UL)
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -116,7 +111,7 @@ async test "dead-letter writes the envelope then terminates the source" {
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -134,7 +129,7 @@ async test "dead-letter writes the envelope then terminates the source" {
       request_of(false, @delivery.NackReason::Terminal, b"v"),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
     _ => fail("expected the DLQ enqueue")
@@ -169,7 +164,7 @@ async test "dead-letter writes the envelope then terminates the source" {
       request_of(false, @delivery.NackReason::Terminal, b"v"),
       port,
       4000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
     _ => fail("expected idempotent completion")
@@ -200,7 +195,7 @@ async test "a .dlq topic never produces a second DLQ (L1 layer 1)" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
   let rng = @harness.SplitMix64::new(1UL)
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -212,7 +207,7 @@ async test "a .dlq topic never produces a second DLQ (L1 layer 1)" {
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -229,7 +224,7 @@ async test "a .dlq topic never produces a second DLQ (L1 layer 1)" {
       request_of(true, @delivery.NackReason::Terminal, b"v"),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Quarantined) => assert_eq(true, true)
     _ => fail("expected quarantine")
@@ -250,7 +245,7 @@ async test "a .dlq topic never produces a second DLQ (L1 layer 1)" {
       request_of(true, @delivery.NackReason::Terminal, b"v"),
       port,
       4000,
-      dlq_gate,
+      None,
     ) {
     Err(@delivery.InvalidTransition) => assert_eq(true, true)
     _ => fail("expected completion on a quarantined entry to be refused")
@@ -265,7 +260,7 @@ async test "a death path that already lists the hop refuses re-entry (L1 layer 2
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
   let rng = @harness.SplitMix64::new(1UL)
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -277,7 +272,7 @@ async test "a death path that already lists the hop refuses re-entry (L1 layer 2
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -312,7 +307,7 @@ async test "a death path that already lists the hop refuses re-entry (L1 layer 2
       request_of(false, @delivery.NackReason::Terminal, replayed),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Quarantined) => assert_eq(true, true)
     _ => fail("expected quarantine")
@@ -329,7 +324,7 @@ async test "an eight-hop death path reports DLQ_PATH_OVERFLOW (L1 layer 3)" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
   let rng = @harness.SplitMix64::new(1UL)
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -341,7 +336,7 @@ async test "an eight-hop death path reports DLQ_PATH_OVERFLOW (L1 layer 3)" {
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -386,7 +381,7 @@ async test "an eight-hop death path reports DLQ_PATH_OVERFLOW (L1 layer 3)" {
       request_of(false, @delivery.NackReason::Terminal, replayed),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Err(@delivery.DeliveryError::DlqPathOverflow) => assert_eq(true, true)
     _ => fail("expected DLQ_PATH_OVERFLOW")
@@ -405,7 +400,7 @@ async test "replayed envelopes flatten and raw replays restart the path" {
   let machine = dlq_machine(path)
   let rng = @harness.SplitMix64::new(1UL)
   // Flattened case: one foreign hop inside the replayed envelope.
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -417,7 +412,7 @@ async test "replayed envelopes flatten and raw replays restart the path" {
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -452,7 +447,7 @@ async test "replayed envelopes flatten and raw replays restart the path" {
       request_of(false, @delivery.NackReason::Terminal, replayed),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Enqueued(_)) => ()
     _ => fail("expected the DLQ enqueue")
@@ -469,7 +464,7 @@ async test "replayed envelopes flatten and raw replays restart the path" {
   }
   // Blind spot (honest boundary): a raw payload replay is a
   // fresh message to the broker and restarts the death path.
-  match machine.begin_delivery(disk, dlq_key(2), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(2), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -481,7 +476,7 @@ async test "replayed envelopes flatten and raw replays restart the path" {
       2UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -493,7 +488,7 @@ async test "replayed envelopes flatten and raw replays restart the path" {
       request_of(false, @delivery.NackReason::Terminal, b"v"),
       port,
       4000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Enqueued(_)) => ()
     _ => fail("expected the DLQ enqueue")
@@ -523,7 +518,7 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
     Ok(42UL)
   }
   // Sequence 1: pending (NACK_TERMINAL only).
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -535,13 +530,13 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
   }
   // Sequence 2: fully enqueued.
-  match machine.begin_delivery(disk, dlq_key(2), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(2), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -553,7 +548,7 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
       2UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -565,13 +560,13 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
       request_of(false, @delivery.NackReason::Terminal, b"v"),
       port,
       2500,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("completion failed")
   }
   // Sequence 3: quarantined by layer 1.
-  match machine.begin_delivery(disk, dlq_key(3), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(3), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -583,7 +578,7 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
       3UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -595,7 +590,7 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
       request_of(true, @delivery.NackReason::Terminal, b"v"),
       port,
       2500,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("completion failed")
@@ -619,7 +614,7 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
       request_of(false, @delivery.NackReason::Terminal, b"v"),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
     _ => fail("expected the remembered DLQ sequence")
@@ -632,7 +627,7 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
       request_of(false, @delivery.NackReason::Terminal, b"v"),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
     _ => fail("expected the pending completion to re-run")
@@ -645,7 +640,7 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
       request_of(true, @delivery.NackReason::Terminal, b"v"),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Err(@delivery.InvalidTransition) => assert_eq(true, true)
     _ => fail("expected quarantined completion to be refused")
@@ -676,7 +671,7 @@ async test "forged wire hints are adjudicated by the ledger" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
   let rng = @harness.SplitMix64::new(1UL)
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -688,7 +683,7 @@ async test "forged wire hints are adjudicated by the ledger" {
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -725,7 +720,7 @@ async test "forged wire hints are adjudicated by the ledger" {
       request_of(false, @delivery.NackReason::Terminal, replayed),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Enqueued(_)) => ()
     _ => fail("expected the DLQ enqueue")
@@ -768,7 +763,7 @@ async test "a failed DLQ write re-runs its completion after restart" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
   let rng = @harness.SplitMix64::new(1UL)
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -780,7 +775,7 @@ async test "a failed DLQ write re-runs its completion after restart" {
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -796,7 +791,7 @@ async test "a failed DLQ write re-runs its completion after restart" {
       request_of(false, @delivery.NackReason::Terminal, b"v"),
       broken,
       3000,
-      dlq_gate,
+      None,
     ) {
     Err(@delivery.DeliveryError::DiskFault(@harness.DiskFull)) =>
       assert_eq(true, true)
@@ -824,7 +819,7 @@ async test "a failed DLQ write re-runs its completion after restart" {
       request_of(false, @delivery.NackReason::Terminal, b"v"),
       port,
       4000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
     _ => fail("expected the completion to re-run")
@@ -849,7 +844,7 @@ async test "the quarantine terminal state survives restart" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
   let rng = @harness.SplitMix64::new(1UL)
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -861,7 +856,7 @@ async test "the quarantine terminal state survives restart" {
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -878,7 +873,7 @@ async test "the quarantine terminal state survives restart" {
       request_of(true, @delivery.NackReason::Terminal, b"v"),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Quarantined) => ()
     _ => fail("expected quarantine")
@@ -893,12 +888,12 @@ async test "the quarantine terminal state survives restart" {
       request_of(true, @delivery.NackReason::Terminal, b"v"),
       port,
       4000,
-      dlq_gate,
+      None,
     ) {
     Err(@delivery.InvalidTransition) => assert_eq(true, true)
     _ => fail("expected the terminal state to refuse completion")
   }
-  match recovered.begin_delivery(disk, dlq_key(1), 7, 4000, dlq_gate) {
+  match recovered.begin_delivery(disk, dlq_key(1), 7, 4000, None) {
     Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
     _ => fail("expected redelivery to stay refused")
   }
@@ -922,7 +917,7 @@ async test "loop protection still holds after a restart" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
   let rng = @harness.SplitMix64::new(1UL)
-  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, dlq_gate) {
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -934,7 +929,7 @@ async test "loop protection still holds after a restart" {
       1UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      dlq_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -972,7 +967,7 @@ async test "loop protection still holds after a restart" {
       request_of(false, @delivery.NackReason::Terminal, replayed),
       port,
       3000,
-      dlq_gate,
+      None,
     ) {
     Ok(@delivery.Quarantined) => assert_eq(true, true)
     _ => fail("expected the restored loop guard to quarantine")

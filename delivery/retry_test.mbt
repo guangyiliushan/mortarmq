@@ -3,11 +3,6 @@
 /// delivery impossible.
 
 ///|
-fn retry_gate(_bytes : Int) -> Result[Unit, @delivery.DeliveryError] {
-  Ok(())
-}
-
-///|
 fn retry_key(sequence : UInt64) -> @delivery.DeliveryKey {
   @delivery.DeliveryKey::new(group_id=1, topic_id=1, partition=0, sequence~)
 }
@@ -39,7 +34,7 @@ async fn fail_once(
       delivery_id,
       outcome,
       now_unix_ms,
-      retry_gate,
+      None,
     ) {
     Ok(plan) => plan
     Err(_) => fail("nack failed")
@@ -55,7 +50,7 @@ async test "retry backoff is 1s/2s/4s/8s with the frozen jitter bound" {
   let base : Array[UInt] = [1000, 2000, 4000, 8000]
   for round in 0..<4 {
     let bundle = match
-      machine.begin_delivery(disk, retry_key(1), 7, 1000, retry_gate) {
+      machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
       Ok(bundle) => bundle
       Err(_) => fail("begin_delivery failed")
     }
@@ -90,7 +85,7 @@ async test "the same seed reproduces the same backoff draw" {
     let machine = retry_machine(path)
     let rng = @harness.SplitMix64::new(7UL)
     let bundle = match
-      machine.begin_delivery(disk, retry_key(1), 7, 1000, retry_gate) {
+      machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
       Ok(bundle) => bundle
       Err(_) => fail("begin_delivery failed")
     }
@@ -119,7 +114,7 @@ async test "the 6th delivery is never enqueued after max attempts (L1)" {
   let mut round = 0
   while round < 5 {
     let bundle = match
-      machine.begin_delivery(disk, retry_key(1), 7, 1000, retry_gate) {
+      machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
       Ok(bundle) => bundle
       Err(_) => fail("begin_delivery failed")
     }
@@ -147,11 +142,11 @@ async test "the 6th delivery is never enqueued after max attempts (L1)" {
   }
   assert_eq(machine.state_of(retry_key(1)), Some(@delivery.DeadLetterQueued(5)))
   // The L1 rule: attempt 6 is refused and nothing is billed for it.
-  match machine.begin_delivery(disk, retry_key(1), 7, 1000, retry_gate) {
+  match machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
     Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
     _ => fail("expected attempt 6 to be refused")
   }
-  match machine.ack(disk, retry_key(1), 99UL, 1000, retry_gate) {
+  match machine.ack(disk, retry_key(1), 99UL, 1000, None) {
     Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
     _ => fail("expected ACK on a dead-lettered entry to be refused")
   }
@@ -188,19 +183,12 @@ async test "timeout reschedules with the same backoff and cap" {
   let mut round = 0
   while round < 5 {
     let bundle = match
-      machine.begin_delivery(disk, retry_key(1), 7, 1000, retry_gate) {
+      machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
       Ok(bundle) => bundle
       Err(_) => fail("begin_delivery failed")
     }
     let plan = match
-      machine.timeout(
-        disk,
-        rng,
-        retry_key(1),
-        bundle.delivery_id,
-        2000,
-        retry_gate,
-      ) {
+      machine.timeout(disk, rng, retry_key(1), bundle.delivery_id, 2000, None) {
       Ok(plan) => plan
       Err(_) => fail("timeout failed")
     }
@@ -221,7 +209,7 @@ async test "timeout reschedules with the same backoff and cap" {
       }
     }
   }
-  match machine.timeout(disk, rng, retry_key(1), 5UL, 3000, retry_gate) {
+  match machine.timeout(disk, rng, retry_key(1), 5UL, 3000, None) {
     Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
     _ => fail("expected timeout on a dead-lettered entry to be refused")
   }
@@ -233,11 +221,11 @@ async test "failure paths on resolved entries are idempotent no-ops" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = retry_machine(path)
   let rng = @harness.SplitMix64::new(5UL)
-  match machine.begin_delivery(disk, retry_key(1), 7, 1000, retry_gate) {
+  match machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
-  match machine.ack(disk, retry_key(1), 1UL, 1500, retry_gate) {
+  match machine.ack(disk, retry_key(1), 1UL, 1500, None) {
     Ok(_) => ()
     Err(_) => fail("ack failed")
   }
@@ -250,17 +238,17 @@ async test "failure paths on resolved entries are idempotent no-ops" {
       1UL,
       @delivery.DeliveryOutcome::Retry,
       2000,
-      retry_gate,
+      None,
     ) {
     Err(@delivery.AlreadyAcked) => assert_eq(true, true)
     _ => fail("expected AlreadyAcked")
   }
-  match machine.timeout(disk, rng, retry_key(1), 1UL, 2000, retry_gate) {
+  match machine.timeout(disk, rng, retry_key(1), 1UL, 2000, None) {
     Err(@delivery.AlreadyAcked) => assert_eq(true, true)
     _ => fail("expected AlreadyAcked from a late timeout")
   }
   // Terminal/Poison enter the DLQ flow immediately.
-  match machine.begin_delivery(disk, retry_key(2), 7, 1000, retry_gate) {
+  match machine.begin_delivery(disk, retry_key(2), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -272,20 +260,18 @@ async test "failure paths on resolved entries are idempotent no-ops" {
       2UL,
       @delivery.DeliveryOutcome::Terminal,
       2000,
-      retry_gate,
+      None,
     ) {
     Ok(@delivery.DeadLettered(attempt)) => assert_eq(attempt, 1)
     _ => fail("expected Terminal to dead-letter")
   }
   // The fenced delivery's NACK is STALE_OWNER, its sibling rule to ACK.
-  match machine.begin_delivery(disk, retry_key(3), 7, 1000, retry_gate) {
+  match machine.begin_delivery(disk, retry_key(3), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
   match
-    machine.on_ownership_changed(
-      disk, 1, 1, 0, 55, 7, 9, 3, 4, 2500, retry_gate,
-    ) {
+    machine.on_ownership_changed(disk, 1, 1, 0, 55, 7, 9, 3, 4, 2500, None) {
     Ok(_) => ()
     Err(_) => fail("on_ownership_changed failed")
   }
@@ -297,7 +283,7 @@ async test "failure paths on resolved entries are idempotent no-ops" {
       3UL,
       @delivery.DeliveryOutcome::Retry,
       3000,
-      retry_gate,
+      None,
     ) {
     Err(@delivery.StaleOwner) => assert_eq(true, true)
     _ => fail("expected StaleOwner for the fenced delivery's NACK")
@@ -310,8 +296,7 @@ async test "recover restores a pending retry from the durable event" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = retry_machine(path)
   let rng = @harness.SplitMix64::new(9UL)
-  let bundle = match
-    machine.begin_delivery(disk, retry_key(1), 7, 1000, retry_gate) {
+  let bundle = match machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
     Ok(bundle) => bundle
     Err(_) => fail("begin_delivery failed")
   }
@@ -323,7 +308,7 @@ async test "recover restores a pending retry from the durable event" {
       bundle.delivery_id,
       @delivery.DeliveryOutcome::Retry,
       2000,
-      retry_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
@@ -337,7 +322,7 @@ async test "recover restores a pending retry from the durable event" {
     Err(_) => fail("recover failed")
   }
   assert_eq(recovered.state_of(retry_key(1)), Some(@delivery.RetryScheduled(1)))
-  match recovered.begin_delivery(disk, retry_key(1), 9, 3000, retry_gate) {
+  match recovered.begin_delivery(disk, retry_key(1), 9, 3000, None) {
     Ok(next) => {
       assert_eq(next.delivery_id, 2UL)
       assert_eq(next.attempt, 2)

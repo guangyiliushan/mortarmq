@@ -3,11 +3,6 @@
 /// half-state survives a restart.
 
 ///|
-fn t_gate(_bytes : Int) -> Result[Unit, @delivery.DeliveryError] {
-  Ok(())
-}
-
-///|
 fn t_key(sequence : UInt64) -> @delivery.DeliveryKey {
   @delivery.DeliveryKey::new(group_id=1, topic_id=1, partition=0, sequence~)
 }
@@ -113,7 +108,7 @@ async test "a pending backoff keeps its remainder across a restart" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = t_machine(path)
   let rng = @harness.SplitMix64::new(7UL)
-  let bundle = match machine.begin_delivery(disk, t_key(1), 7, 1000, t_gate) {
+  let bundle = match machine.begin_delivery(disk, t_key(1), 7, 1000, None) {
     Ok(bundle) => bundle
     Err(_) => fail("begin_delivery failed")
   }
@@ -125,7 +120,7 @@ async test "a pending backoff keeps its remainder across a restart" {
       bundle.delivery_id,
       @delivery.DeliveryOutcome::Retry,
       1000,
-      t_gate,
+      None,
     ) {
     Ok(@delivery.Scheduled(_, delay_ms)) =>
       assert_eq(delay_ms >= 1000 && delay_ms <= 1250, true)
@@ -158,21 +153,21 @@ async test "restart rebuilds pending retries and keeps the ledger consistent (L4
   let machine = t_machine(path)
   let rng = @harness.SplitMix64::new(3UL)
   // Sequence 1: acked (must never ghost).
-  match machine.begin_delivery(disk, t_key(1), 7, 1000, t_gate) {
+  match machine.begin_delivery(disk, t_key(1), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
-  match machine.ack(disk, t_key(1), 1UL, 1500, t_gate) {
+  match machine.ack(disk, t_key(1), 1UL, 1500, None) {
     Ok(_) => ()
     Err(_) => fail("ack failed")
   }
   // Sequence 2: in flight at the crash (restart policy applies).
-  match machine.begin_delivery(disk, t_key(2), 7, 1000, t_gate) {
+  match machine.begin_delivery(disk, t_key(2), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
   // Sequence 3: waiting out its backoff.
-  match machine.begin_delivery(disk, t_key(3), 7, 1000, t_gate) {
+  match machine.begin_delivery(disk, t_key(3), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
@@ -184,25 +179,25 @@ async test "restart rebuilds pending retries and keeps the ledger consistent (L4
       3UL,
       @delivery.DeliveryOutcome::Retry,
       1000,
-      t_gate,
+      None,
     ) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
   }
   // Sequence 4: fenced away from its owner.
-  match machine.begin_delivery(disk, t_key(4), 7, 1000, t_gate) {
+  match machine.begin_delivery(disk, t_key(4), 7, 1000, None) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
   match
-    machine.on_ownership_changed(disk, 1, 1, 0, 55, 7, 9, 3, 4, 1500, t_gate) {
+    machine.on_ownership_changed(disk, 1, 1, 0, 55, 7, 9, 3, 4, 1500, None) {
     Ok(_) => ()
     Err(_) => fail("on_ownership_changed failed")
   }
   // Sequence 5: budget spent.
   let mut round = 0
   while round < 5 {
-    let bundle = match machine.begin_delivery(disk, t_key(5), 7, 1000, t_gate) {
+    let bundle = match machine.begin_delivery(disk, t_key(5), 7, 1000, None) {
       Ok(bundle) => bundle
       Err(_) => fail("begin_delivery failed")
     }
@@ -214,7 +209,7 @@ async test "restart rebuilds pending retries and keeps the ledger consistent (L4
         bundle.delivery_id,
         @delivery.DeliveryOutcome::Retry,
         1000,
-        t_gate,
+        None,
       ) {
       Ok(_) => ()
       Err(_) => fail("nack failed")

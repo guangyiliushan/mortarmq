@@ -364,9 +364,9 @@ fn is_ledger_path(path : Bytes) -> Bool {
 ///
 /// The frozen v0 write path is read-modify-write over `Disk::write`; a host
 /// adapter may later switch to true append IO behind the same seam. Each
-/// `append` runs the caller-supplied capacity-gate check first
-/// (`Watermark::check_append` at wiring), then writes, then group-syncs every
-/// 128 events; `sync` forces the fsync early.
+/// `append` runs the storage watermark gate first (`check_append` projects
+/// this event against the volume), then writes, then group-syncs every 128
+/// events; `sync` forces the fsync early.
 pub(all) struct LedgerWriter {
   priv path : Bytes
   priv mut unflushed_events : Int
@@ -391,17 +391,24 @@ pub fn LedgerWriter::unflushed_events(self : LedgerWriter) -> Int {
 }
 
 ///|
-/// Append one event: capacity gate, then read-modify-write, then a group
-/// commit once the frozen 128-event threshold is reached.
+/// Append one event: the watermark gate, then read-modify-write, then a
+/// group commit once the frozen 128-event threshold is reached. The gate
+/// is the storage watermark (`None` skips it, matching the segment
+/// writer's call shape); a refusal is `Capacity` and runs no disk
+/// operation.
 pub async fn[D : @harness.Disk] LedgerWriter::append(
   self : LedgerWriter,
   disk : D,
   event : LedgerEvent,
-  precheck : (Int) -> Result[Unit, LedgerFault],
+  watermark : @storage.Watermark?,
 ) -> Result[Unit, LedgerFault] {
-  match precheck(LEDGER_EVENT_BYTES) {
-    Ok(_) => ()
-    Err(code) => return Err(code)
+  match watermark {
+    Some(gate) =>
+      match gate.check_append(LEDGER_EVENT_BYTES) {
+        Ok(_) => ()
+        Err(_) => return Err(Capacity)
+      }
+    None => ()
   }
   let existing = match disk.read(self.path) {
     Ok(data) => data

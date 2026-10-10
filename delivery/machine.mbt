@@ -257,20 +257,6 @@ fn ledger_to_delivery_error(code : LedgerFault) -> DeliveryError {
 }
 
 ///|
-/// Adapt the machine-level gate to the writer's gate: a capacity check
-/// is the only rejection either side can produce.
-fn adapt_gate(
-  precheck : (Int) -> Result[Unit, DeliveryError],
-) -> (Int) -> Result[Unit, LedgerFault] {
-  bytes => {
-    match precheck(bytes) {
-      Ok(_) => Ok(())
-      Err(_) => Err(Capacity)
-    }
-  }
-}
-
-///|
 /// Start one delivery of `key` to `owner_conn` and return the wire bundle.
 ///
 /// A first call bills `attempt = 1`; a redelivery (after the restart policy
@@ -283,7 +269,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
   key : DeliveryKey,
   owner_conn : UInt64,
   now_unix_ms : UInt64,
-  precheck : (Int) -> Result[Unit, DeliveryError],
+  watermark : @storage.Watermark?,
 ) -> Result[DeliveryAttempt, DeliveryError] {
   match self.check_key(key) {
     Ok(_) => ()
@@ -322,7 +308,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
     reason=NackReason::Retry,
     timestamp=now_unix_ms,
   )
-  match self.writer.append(disk, event, adapt_gate(precheck)) {
+  match self.writer.append(disk, event, watermark) {
     Ok(_) => ()
     Err(code) => return Err(ledger_to_delivery_error(code))
   }
@@ -356,7 +342,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
   key : DeliveryKey,
   delivery_id : UInt64,
   now_unix_ms : UInt64,
-  precheck : (Int) -> Result[Unit, DeliveryError],
+  watermark : @storage.Watermark?,
 ) -> Result[AckResult, DeliveryError] {
   match self.check_key(key) {
     Ok(_) => ()
@@ -389,7 +375,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
           reason=NackReason::Retry,
           timestamp=now_unix_ms,
         )
-        match self.writer.append(disk, event, adapt_gate(precheck)) {
+        match self.writer.append(disk, event, watermark) {
           Ok(_) => ()
           Err(code) => return Err(ledger_to_delivery_error(code))
         }
@@ -427,7 +413,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
   _old_epoch : UInt64,
   _new_epoch : UInt64,
   now_unix_ms : UInt64,
-  precheck : (Int) -> Result[Unit, DeliveryError],
+  watermark : @storage.Watermark?,
 ) -> Result[Unit, DeliveryError] {
   if topic_id != self.topic_id || partition != self.partition {
     return Err(InvalidTransition)
@@ -462,7 +448,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
           reason=NackReason::Retry,
           timestamp=now_unix_ms,
         )
-        match self.writer.append(disk, event, adapt_gate(precheck)) {
+        match self.writer.append(disk, event, watermark) {
           Ok(_) => ()
           Err(code) => return Err(ledger_to_delivery_error(code))
         }
@@ -521,7 +507,7 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
   delivery_id : UInt64,
   outcome : DeliveryOutcome,
   now_unix_ms : UInt64,
-  precheck : (Int) -> Result[Unit, DeliveryError],
+  watermark : @storage.Watermark?,
 ) -> Result[RetryPlan, DeliveryError] {
   match self.check_key(key) {
     Ok(_) => ()
@@ -558,7 +544,7 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
               NackReason::Poison
             },
             now_unix_ms,
-            precheck,
+            watermark,
           )
         Retry => ()
       }
@@ -571,7 +557,7 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
         attempt,
         NackRetry,
         now_unix_ms,
-        precheck,
+        watermark,
       )
     }
   }
@@ -590,7 +576,7 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(
   key : DeliveryKey,
   delivery_id : UInt64,
   now_unix_ms : UInt64,
-  precheck : (Int) -> Result[Unit, DeliveryError],
+  watermark : @storage.Watermark?,
 ) -> Result[RetryPlan, DeliveryError] {
   match self.check_key(key) {
     Ok(_) => ()
@@ -621,7 +607,7 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(
           attempt,
           Timeout,
           now_unix_ms,
-          precheck,
+          watermark,
         )
       }
   }
@@ -675,7 +661,7 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
   attempt : UInt16,
   kind : LedgerEventKind,
   now_unix_ms : UInt64,
-  precheck : (Int) -> Result[Unit, DeliveryError],
+  watermark : @storage.Watermark?,
 ) -> Result[RetryPlan, DeliveryError] {
   if attempt >= MAX_ATTEMPTS {
     return self.mark_dead_letter_pending(
@@ -686,7 +672,7 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
       attempt,
       NackReason::Retry,
       now_unix_ms,
-      precheck,
+      watermark,
     )
   }
   let event_kind = if kind == Timeout { Timeout } else { NackRetry }
@@ -702,7 +688,7 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
     reason=NackReason::Retry,
     timestamp=now_unix_ms,
   )
-  match self.writer.append(disk, event, adapt_gate(precheck)) {
+  match self.writer.append(disk, event, watermark) {
     Ok(_) => ()
     Err(code) => return Err(ledger_to_delivery_error(code))
   }
@@ -731,7 +717,7 @@ async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
   attempt : UInt16,
   reason : NackReason,
   now_unix_ms : UInt64,
-  precheck : (Int) -> Result[Unit, DeliveryError],
+  watermark : @storage.Watermark?,
 ) -> Result[RetryPlan, DeliveryError] {
   let event = LedgerEvent::new(
     group_id=key.group_id,
@@ -744,7 +730,7 @@ async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
     reason~,
     timestamp=now_unix_ms,
   )
-  match self.writer.append(disk, event, adapt_gate(precheck)) {
+  match self.writer.append(disk, event, watermark) {
     Ok(_) => ()
     Err(code) => return Err(ledger_to_delivery_error(code))
   }
@@ -770,7 +756,7 @@ async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
   attempt : UInt16,
   reason : NackReason,
   now_unix_ms : UInt64,
-  precheck : (Int) -> Result[Unit, DeliveryError],
+  watermark : @storage.Watermark?,
 ) -> Result[Unit, DeliveryError] {
   let event = LedgerEvent::new(
     group_id=key.group_id,
@@ -783,7 +769,7 @@ async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
     reason~,
     timestamp=now_unix_ms,
   )
-  match self.writer.append(disk, event, adapt_gate(precheck)) {
+  match self.writer.append(disk, event, watermark) {
     Ok(_) => ()
     Err(code) => return Err(ledger_to_delivery_error(code))
   }
@@ -828,7 +814,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
   request : DeadLetterRequest,
   dlq_write : (Bytes) -> Result[UInt64, DeliveryError],
   now_unix_ms : UInt64,
-  precheck : (Int) -> Result[Unit, DeliveryError],
+  watermark : @storage.Watermark?,
 ) -> Result[DeadLetterResult, DeliveryError] {
   match self.check_key(key) {
     Ok(_) => ()
@@ -872,7 +858,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
         final_attempt,
         request.reason,
         now_unix_ms,
-        precheck,
+        watermark,
       ) {
       Ok(_) => ()
       Err(code) => return Err(code)
@@ -888,7 +874,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
           final_attempt,
           request.reason,
           now_unix_ms,
-          precheck,
+          watermark,
         ) {
         Ok(_) => ()
         Err(code) => return Err(code)
@@ -904,7 +890,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
         final_attempt,
         request.reason,
         now_unix_ms,
-        precheck,
+        watermark,
       ) {
       Ok(_) => ()
       Err(code) => return Err(code)
@@ -945,7 +931,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
     reason=request.reason,
     timestamp=now_unix_ms,
   )
-  match self.writer.append(disk, written, adapt_gate(precheck)) {
+  match self.writer.append(disk, written, watermark) {
     Ok(_) => ()
     Err(code) => return Err(ledger_to_delivery_error(code))
   }
@@ -960,7 +946,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
     reason=request.reason,
     timestamp=now_unix_ms,
   )
-  match self.writer.append(disk, terminated, adapt_gate(precheck)) {
+  match self.writer.append(disk, terminated, watermark) {
     Ok(_) => ()
     Err(code) => return Err(ledger_to_delivery_error(code))
   }

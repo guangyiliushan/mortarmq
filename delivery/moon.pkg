@@ -1,9 +1,9 @@
 import {
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/storage",
   "moonbitlang/core/debug",
 }
 
 import {
-  "guangyiliushan/mortarmq/storage",
   "moonbitlang/async",
 } for "test"

@@ -3,6 +3,7 @@ package "guangyiliushan/mortarmq/delivery"
 
 import {
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/storage",
   "moonbitlang/core/debug",
 }
 
@@ -113,17 +114,17 @@ pub fn DeliveryKey::to_repr(Self) -> @debug.Repr
 pub(all) struct DeliveryMachine {
   // private fields
 }
-pub async fn[D : @harness.Disk] DeliveryMachine::ack(Self, D, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[AckResult, DeliveryError]
-pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(Self, D, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[DeliveryAttempt, DeliveryError]
-pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(Self, D, DeliveryKey, DeadLetterRequest, (Bytes) -> Result[UInt64, DeliveryError], UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[DeadLetterResult, DeliveryError]
-pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(Self, D, R, DeliveryKey, UInt64, DeliveryOutcome, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[RetryPlan, DeliveryError]
+pub async fn[D : @harness.Disk] DeliveryMachine::ack(Self, D, DeliveryKey, UInt64, UInt64, @storage.Watermark?) -> Result[AckResult, DeliveryError]
+pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(Self, D, DeliveryKey, UInt64, UInt64, @storage.Watermark?) -> Result[DeliveryAttempt, DeliveryError]
+pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(Self, D, DeliveryKey, DeadLetterRequest, (Bytes) -> Result[UInt64, DeliveryError], UInt64, @storage.Watermark?) -> Result[DeadLetterResult, DeliveryError]
+pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(Self, D, R, DeliveryKey, UInt64, DeliveryOutcome, UInt64, @storage.Watermark?) -> Result[RetryPlan, DeliveryError]
 pub fn DeliveryMachine::new(UInt16, UInt16, LedgerWriter) -> Self
-pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(Self, D, UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[Unit, DeliveryError]
+pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(Self, D, UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64, UInt64, @storage.Watermark?) -> Result[Unit, DeliveryError]
 pub fn[R : @harness.Rng] DeliveryMachine::rebuild_timers(Self, UInt64, UInt64, R) -> RetryTimers
 pub async fn[D : @harness.Disk] DeliveryMachine::recover(D, UInt16, UInt16, LedgerWriter) -> Result[Self, DeliveryError]
 pub fn DeliveryMachine::state_of(Self, DeliveryKey) -> DeliveryState?
 pub async fn[D : @harness.Disk] DeliveryMachine::sync(Self, D) -> Result[Unit, DeliveryError]
-pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(Self, D, R, DeliveryKey, UInt64, UInt64, (Int) -> Result[Unit, DeliveryError]) -> Result[RetryPlan, DeliveryError]
+pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(Self, D, R, DeliveryKey, UInt64, UInt64, @storage.Watermark?) -> Result[RetryPlan, DeliveryError]
 
 pub(all) enum DeliveryOutcome {
   Retry
@@ -190,7 +191,7 @@ pub fn LedgerEventKind::to_repr(Self) -> @debug.Repr
 pub(all) struct LedgerWriter {
   // private fields
 }
-pub async fn[D : @harness.Disk] LedgerWriter::append(Self, D, LedgerEvent, (Int) -> Result[Unit, LedgerFault]) -> Result[Unit, LedgerFault]
+pub async fn[D : @harness.Disk] LedgerWriter::append(Self, D, LedgerEvent, @storage.Watermark?) -> Result[Unit, LedgerFault]
 pub fn LedgerWriter::new(Bytes) -> Result[Self, LedgerFault]
 pub fn LedgerWriter::path(Self) -> Bytes
 pub async fn[D : @harness.Disk] LedgerWriter::sync(Self, D) -> Result[Unit, LedgerFault]
