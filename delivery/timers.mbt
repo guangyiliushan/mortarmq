@@ -1,9 +1,9 @@
-/// The frozen v0 retry timer queue (algorithm review A-5, 2026-10-01).
+/// The frozen v0 retry timer queue.
 ///
 /// One min-heap keyed by the composite
 /// `(due_tick_ms, topic, partition, group, sequence)`: the due tick orders
 /// the schedule and the remaining fields break ties deterministically, so
-/// same-tick pops replay identically (M1-friendly). Timers live in memory
+/// same-tick pops replay identically (deterministic for replay). Timers live in memory
 /// only; the ledger is the truth source and `DeliveryMachine::rebuild_timers`
 /// reconstructs the queue after a restart. Per-key heaps are a benchmark
 /// comparison point, not the default.

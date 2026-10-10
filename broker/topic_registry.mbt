@@ -31,18 +31,17 @@
 ///   behavior.
 /// * Validation stops at three checks -- an empty name, a zero partition
 ///   count (both refused with `InvalidTopic`), and the reserved `.dlq`
-///   namespace (R11). The wire decoder already owns length bounds; richer
+///   namespace). The wire decoder already owns length bounds; richer
 ///   name syntax (wildcards, reserved prefixes) belongs to later
 ///   subsystems and is not invented here.
-/// * The `.dlq` namespace is reserved (R11, REQ-SEC-004): a new topic's
+/// * The `.dlq` namespace is reserved: a new topic's
 ///   DECLARE atomically creates its `<name>.dlq` twin from the same
 ///   identifier sequence and with the same partition count, in the same
 ///   call -- a refused declare can never leave a half-created pair. The
 ///   twin is a system resource: client DECLARE against the `.dlq` suffix
 ///   is refused with `InvalidTopic`, and client PUB resolves through
 ///   `validate_publish`, which refuses twin identifiers with the same
-///   code. Replays create nothing new (TOPIC_CREATE replay skips the
-///   twin).
+///   code. Replays create nothing new.
 
 ///|
 /// Carry the DECLARE result: the assigned or existing identifier, the
@@ -221,7 +220,7 @@ pub fn TopicRegistry::declare_topic(
         Err(@protocol.TopicExistsMismatch)
       }
     None => {
-      // R11: source and `.dlq` twin land in one step from one identifier
+      // Source and `.dlq` twin land in one step from one identifier
       // sequence, so the pair is atomic and replays skip the twin.
       if self.entries.length() + 2 > 0xFFFF {
         return Err(@protocol.Internal)
@@ -240,7 +239,7 @@ pub fn TopicRegistry::declare_topic(
 }
 
 ///|
-/// The PUB-side gate (R11): every publish resolves its target through
+/// The PUB-side gate: every publish resolves its target through
 /// here. A `.dlq` twin is a system resource -- present for the source, but
 /// never client-publishable -- and answers `InvalidTopic` (0x000B); an
 /// identifier no declare ever assigned answers `UnknownTopic`.

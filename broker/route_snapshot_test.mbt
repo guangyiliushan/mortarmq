@@ -34,11 +34,8 @@ test "an empty snapshot sits at position zero and knows no topics" {
 test "from_registry freezes the registry as it stood" {
   let registry = @broker.TopicRegistry::new()
   let _ = @broker.TopicRegistry::declare_topic(registry, b"orders", 3)
-  let payments = match @broker.TopicRegistry::declare_topic(
-    registry,
-    b"payments",
-    1,
-  ) {
+  let payments = match
+    @broker.TopicRegistry::declare_topic(registry, b"payments", 1) {
     Ok(outcome) => outcome
     Err(_) => fail("declare failed")
   }
@@ -71,7 +68,8 @@ test "publishing swaps the current view and leaves the previous view alone" {
   let seen = @broker.RoutingTable::current(table)
   let keys : Array[Bytes] = [b"a", b"user-42", b""]
   let seen_indexes = routed_via(seen, b"orders", keys)
-  let users = match @broker.TopicRegistry::declare_topic(registry, b"users", 7) {
+  let users = match
+    @broker.TopicRegistry::declare_topic(registry, b"users", 7) {
     Ok(outcome) => outcome
     Err(_) => fail("declare failed")
   }

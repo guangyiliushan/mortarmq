@@ -1,4 +1,4 @@
-/// Exercise the frozen retry policy (WP-04.03, REQ-DEL-002): 1s/2s/4s/8s
+/// Exercise the frozen retry policy: 1s/2s/4s/8s
 /// backoff with bounded jitter, and the attempt budget that makes the 6th
 /// delivery impossible.
 
@@ -259,7 +259,7 @@ async test "failure paths on resolved entries are idempotent no-ops" {
     Err(@delivery.AlreadyAcked) => assert_eq(true, true)
     _ => fail("expected AlreadyAcked from a late timeout")
   }
-  // WP-04.04: Terminal/Poison enter the DLQ flow immediately.
+  // Terminal/Poison enter the DLQ flow immediately.
   match machine.begin_delivery(disk, retry_key(2), 7, 1000, retry_gate) {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")

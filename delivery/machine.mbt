@@ -3,7 +3,7 @@
 /// One `DeliveryMachine` owns exactly one `(topic_id, partition)` ledger and
 /// serves every consumer group on it; entries are keyed by `(group_id,
 /// sequence)` and every transition appends one durable event before it is
-/// visible (WP-04.02, REQ-DEL-001 / REQ-DEL-004). `delivery_id` and `attempt`
+/// visible. `delivery_id` and `attempt`
 /// are assigned here, not by the caller: the checkpoint owns
 /// `next_delivery_id`, so the returned `DeliveryAttempt` bundle is exactly
 /// what the executor puts on the wire.
@@ -30,13 +30,13 @@
 ///   write did not land, and recovery re-runs the completion. The form of
 ///   the durable event sequence is the whole state distinction, so a crash
 ///   at any prefix stays unambiguous and nothing is dropped silently.
-/// * owner fencing (Q27/Q29): `on_ownership_changed` is the port method the
+/// * owner fencing: `on_ownership_changed` is the port method the
 ///   coordinator calls with eight flat parameters (no shared event record).
 ///   It durably writes one `FENCED` event per in-flight entry of the old
 ///   owner (sequences ascending) before any in-memory effect; the fenced
 ///   delivery id is remembered forever and every late ACK carrying it
 ///   answers `StaleOwner`, while other stale ids answer `UnknownDelivery`
-///   (0x0023). The two-layer fence story: the S7 epoch layer rejects old
+///   (0x0023). The two-layer fence story: the epoch layer rejects old
 ///   ownership epochs with 0x0022 before this layer sees the frame; this
 ///   layer attributes by `delivery_id` alone because the ACK frame carries
 ///   no owner. The port runs before credit release and waiter wake-up by the
@@ -89,8 +89,9 @@ pub fn DeliveryKey::new(
 /// The observable lifecycle of one `(group, sequence)` entry. `Delivering`
 /// carries `(delivery_id, owner_conn, attempt)`; `RetryScheduled` carries the
 /// attempt count and is created by the restart policy and by retry paths;
-/// `DeadLetterQueued` is terminal once the retry budget is spent (the
-/// durable DLQ record lands with WP-04.04).
+/// `DeadLetterQueued(UInt16)` carries the ledger-adjudicated final attempt
+/// and is terminal once the retry budget is spent (its durable DLQ record
+/// lands in the completion step).
 pub(all) enum DeliveryState {
   Delivering(UInt64, UInt64, UInt16)
   Acked
@@ -120,9 +121,9 @@ pub extend AckResult with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 /// The frozen NACK outcome codes (reason 0..3 on the wire). `Slow` is a
-/// v0.1 extension kept in the format range. WP-04.02 answers every outcome
-/// with `InvalidTransition`; WP-04.04 wires `Terminal`/`Poison` to the DLQ
-/// write.
+/// v0.1 extension kept in the format range and stays refused with
+/// `InvalidTransition`; `Terminal`/`Poison` enter the DLQ flow
+/// immediately.
 pub(all) enum DeliveryOutcome {
   Retry
   Terminal
@@ -140,8 +141,8 @@ pub extend DeliveryOutcome with @moonbitlang/core/debug.Debug::{to_repr}
 /// What the executor must schedule after a failed delivery. `Scheduled`
 /// carries `(attempt, delay_ms)` with the jittered backoff already applied
 /// (due times are monotonic ticks owned by the executor); `DeadLettered`
-/// carries the final attempt and schedules nothing (WP-04.04 writes the DLQ
-/// record on this path).
+/// carries the final attempt and schedules nothing (the completion step
+/// writes the DLQ record on this path).
 pub(all) enum RetryPlan {
   Scheduled(UInt16, UInt)
   DeadLettered(UInt16)
@@ -158,7 +159,7 @@ pub extend RetryPlan with @moonbitlang/core/debug.Debug::{to_repr}
 pub const MAX_ATTEMPTS : UInt16 = 5
 
 ///|
-/// The frozen backoff base (review R5): delay_n = min(30s, 1s * 2^(n-1)).
+/// The frozen backoff base: delay_n = min(30s, 1s * 2^(n-1)).
 pub const RETRY_BACKOFF_BASE_MS : UInt = 1000
 
 ///|
@@ -256,7 +257,7 @@ fn ledger_to_delivery_error(code : LedgerFault) -> DeliveryError {
 }
 
 ///|
-/// Adapt the machine-level gate to the writer's gate: a Q18 capacity check
+/// Adapt the machine-level gate to the writer's gate: a capacity check
 /// is the only rejection either side can produce.
 fn adapt_gate(
   precheck : (Int) -> Result[Unit, DeliveryError],
@@ -342,12 +343,13 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
 /// Acknowledge one delivery.
 ///
 /// The decision order is the two-layer fence story reduced to one layer's
-/// share: the fenced delivery instance answers `StaleOwner` forever (fault
-/// 9, "old owner ACK/NACK is fenced"); the matching in-flight ACK appends
-/// its event and becomes `Acked`; every ACK against an `Acked` entry answers
-/// `Duplicate` (fault 7); anything else answers `UnknownDelivery` (0x0023,
-/// the client no-ops), which also covers a late ACK after timeout or after
-/// the restart policy (fault 2/13: the message redelivers instead).
+/// share: the fenced delivery instance answers `StaleOwner` forever ("old
+/// owner ACK/NACK is fenced"); the matching in-flight ACK appends its event
+/// and becomes `Acked`; every ACK against an `Acked` entry answers
+/// `Duplicate` (a client retry of a durable ACK); anything else answers
+/// `UnknownDelivery` (0x0023, the client no-ops), which also covers a late
+/// ACK after timeout or after the restart policy (the message redelivers
+/// instead).
 pub async fn[D : @harness.Disk] DeliveryMachine::ack(
   self : DeliveryMachine,
   disk : D,
@@ -404,7 +406,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
 }
 
 ///|
-/// The Q29 port: one ownership change, eight flat parameters, no shared
+/// The ownership-change port: one ownership change, eight flat parameters, no shared
 /// event record. Called by the coordinator at the Revoking->Released point,
 /// before credit release and waiter wake-up (frozen consumption order).
 ///
@@ -504,13 +506,13 @@ fn[R : @harness.Rng] backoff_delay(attempt : UInt16, rng : R) -> UInt {
 ///
 /// `Retry` writes `NACK_RETRY` and returns the jittered backoff plan
 /// (frozen 1s/2s/4s/8s, `MAX_ATTEMPTS` inclusive). A failure at the final
-/// attempt writes `NACK_TERMINAL` and moves the entry to `DeadLetterQueued`
-/// -- the durable DLQ record for this path lands with WP-04.04, and no
-/// sixth delivery is ever billed (L1). `Terminal`/`Poison`/`Slow` are
-/// refused with `InvalidTransition` until that WP wires their DLQ flow.
-/// The fenced delivery's NACK answers `StaleOwner` (fault 9); a NACK for a
-/// resolved or non-current delivery is the same idempotent no-op as its
-/// ACK twin (fault 12).
+/// attempt writes `NACK_TERMINAL` and moves the entry to
+/// `DeadLetterQueued(attempt)` -- the durable DLQ record for this path
+/// lands in the completion step, and no sixth delivery is ever billed.
+/// `Terminal`/`Poison` enter the DLQ flow through the same pending park;
+/// `Slow` is refused. The fenced delivery's NACK answers `StaleOwner`; a
+/// NACK for a resolved or non-current delivery is the same idempotent
+/// no-op as its ACK twin.
 pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
   self : DeliveryMachine,
   disk : D,
@@ -719,7 +721,7 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
 /// Journal the terminal failure (`NACK_TERMINAL`) and park the entry in
 /// `DeadLetterQueued` awaiting its DLQ record. The caller completes the flow
 /// with `complete_dead_letter`; a crash between the two steps recovers as a
-/// pending dead-letter and the completion is re-run (design fault 11).
+/// pending dead-letter and the completion is re-run.
 async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
   self : DeliveryMachine,
   disk : D,
@@ -801,7 +803,8 @@ async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
 /// three loop guards, write the MMDL record into the source's `.dlq`
 /// partition stream through `dlq_write`, then journal `DLQ_WRITTEN` and
 /// `SOURCE_TERMINATED` (the frozen order: the DLQ record is durable before
-/// the source is terminated, design faults 10/11).
+/// the source is terminated, so a crash between the two re-runs the write
+/// rather than losing or double-terminating).
 ///
 /// Loop guards, in order: a `.dlq` topic is terminal (no `.dlq.dlq`); a
 /// death path that already lists this `(topic, partition, group)` refuses
@@ -811,7 +814,7 @@ async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
 /// manually replayed DLQ message) is flattened into the new envelope's
 /// original payload and death path, so envelopes never nest.
 ///
-/// The honest blind spot (REQ-DEL-002 boundary): a client that replays a
+/// The honest blind spot at the requirement boundary: a client that replays a
 /// message through ordinary PUB with the raw original payload loses the
 /// death path, and the broker -- which never parses user payloads -- starts
 /// the path over. Only envelope-carrying replays are loop-proofed.
@@ -984,8 +987,8 @@ fn entry_fence(group : GroupState, sequence : UInt64) -> UInt64 {
 /// restart policy: entries still in flight become redeliverable
 /// (`RetryScheduled`) so a crashed owner can never hold a delivery open;
 /// their ACKs after restart are plain `UnknownDelivery` no-ops and the
-/// message redelivers (at-least-once, design fault 2). The fenced delivery
-/// id survives redeliveries. Timer rebuild for due retries lands with T032.
+/// message redelivers (at-least-once). The fenced delivery id survives
+/// redeliveries. `rebuild_timers` reconstructs the due retries.
 pub async fn[D : @harness.Disk] DeliveryMachine::recover(
   disk : D,
   topic_id : UInt16,
@@ -1105,7 +1108,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
 }
 
 ///|
-/// Force the pending group commit (the Q18 flush step).
+/// Force the pending group commit.
 pub async fn[D : @harness.Disk] DeliveryMachine::sync(
   self : DeliveryMachine,
   disk : D,

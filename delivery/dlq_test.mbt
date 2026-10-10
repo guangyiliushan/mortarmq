@@ -1,5 +1,5 @@
-/// Exercise the frozen MMDL envelope and the DLQ flow (WP-04.04,
-/// REQ-DEL-002): the three loop guards, the durable write order, envelope
+/// Exercise the frozen MMDL envelope and the DLQ flow: the three loop
+/// guards, the durable write order, envelope
 /// flattening, and the documented replay blind spot (L1).
 
 ///|
@@ -467,7 +467,7 @@ async test "replayed envelopes flatten and raw replays restart the path" {
     }
     Err(_) => fail("captured envelope decoding failed")
   }
-  // Blind spot (honest boundary, REQ-DEL-002): a raw payload replay is a
+  // Blind spot (honest boundary): a raw payload replay is a
   // fresh message to the broker and restarts the death path.
   match machine.begin_delivery(disk, dlq_key(2), 7, 1000, dlq_gate) {
     Ok(_) => ()
@@ -624,7 +624,7 @@ async test "recover folds pending, enqueued, and quarantined dead-letters" {
     Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
     _ => fail("expected the remembered DLQ sequence")
   }
-  // The pending one re-runs its completion after recovery (fault 11).
+  // The pending one re-runs its completion after recovery.
   match
     recovered.complete_dead_letter(
       disk,

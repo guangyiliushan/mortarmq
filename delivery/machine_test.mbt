@@ -1,6 +1,6 @@
 /// Exercise the per-partition delivery state machine: DELIVER/ACK semantics,
-/// owner fencing, and the L4 kill-injection idempotency around the ACK
-/// flush boundary (WP-04.02).
+/// owner fencing, and the kill-injection idempotency around the ACK
+/// flush boundary.
 
 ///|
 fn gate(_bytes : Int) -> Result[Unit, @delivery.DeliveryError] {
@@ -77,7 +77,7 @@ async test "duplicate ACK is idempotent and acked entries never redeliver" {
     Ok(_) => ()
     Err(_) => fail("ack failed")
   }
-  // REQ-DEL-001: an acked message must never deliver again.
+  // The no-ghost rule: an acked message must never deliver again.
   match machine.begin_delivery(disk, key(1), 9, 3000, gate) {
     Err(@delivery.InvalidTransition) => assert_eq(true, true)
     _ => fail("expected ghost-delivery refusal")
@@ -138,7 +138,7 @@ async test "ownership change fences in-flight deliveries and remembers the id" {
   }
   assert_eq(machine.state_of(key(1)), Some(@delivery.RetryScheduled(1)))
   assert_eq(machine.state_of(key(2)), Some(@delivery.Acked))
-  // The fenced delivery's late ACK is STALE_OWNER (fault 9), and the id is
+  // The fenced delivery's late ACK is STALE_OWNER, and the id is
   // remembered even across redelivery.
   match machine.ack(disk, key(1), 1UL, 3000, gate) {
     Err(@delivery.StaleOwner) => assert_eq(true, true)
@@ -277,7 +277,7 @@ async fn run_l4_case(kill_at : Int) -> Array[@delivery.LedgerEvent] {
     }
     Err(_) => fail("sync failed")
   }
-  // Every case must show the no-ghost rule (REQ-DEL-001).
+  // Every case must show the no-ghost rule.
   match machine.begin_delivery(disk, key(1), 11, 5000, gate) {
     Err(@delivery.InvalidTransition) => ()
     _ => fail("expected ghost-delivery refusal after recovery")

@@ -1,5 +1,4 @@
-/// The frozen v0 MMDL dead-letter envelope and the DLQ flow's pure pieces
-/// (WP-04.04, REQ-DEL-002).
+/// The frozen v0 MMDL dead-letter envelope and the DLQ flow's pure pieces.
 ///
 /// A DLQ record's value is always an envelope, never the bare original:
 /// `magic "MMDL" || format_ver:u8 || header_ver:u8 || reason:u8 ||

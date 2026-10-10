@@ -1,5 +1,5 @@
-/// Exercise the frozen retry timer queue and the L4 restart consistency
-/// rule (WP-04.06): timers are rebuilt from the ledger, nothing ghost or
+/// Exercise the frozen retry timer queue and the restart consistency
+/// rule: timers are rebuilt from the ledger, nothing ghost or
 /// half-state survives a restart.
 
 ///|

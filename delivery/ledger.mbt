@@ -33,13 +33,13 @@ const LEDGER_CRC_OFFSET : Int = 48
 
 ///|
 /// Count of events that triggers a group commit; the 5ms timer half of the
-/// frozen "5ms or 128 events" rule is wired with the executor (T028).
+/// frozen "5ms or 128 events" rule is wired with the executor.
 const GROUP_COMMIT_EVENTS : Int = 128
 
 ///|
 /// Report delivery-ledger failures without leaking an OS error.
 ///
-/// `Capacity` is a Q18 watermark-gate rejection (maps to 0x4004 upstream);
+/// `Capacity` is a watermark-gate rejection (maps to 0x4004 upstream);
 /// a hard IO failure arrives as `DiskFault` and follows a different path.
 pub(all) suberror LedgerFault {
   Malformed
@@ -364,7 +364,7 @@ fn is_ledger_path(path : Bytes) -> Bool {
 ///
 /// The frozen v0 write path is read-modify-write over `Disk::write`; a host
 /// adapter may later switch to true append IO behind the same seam. Each
-/// `append` runs the caller-supplied Q18 capacity-gate check first
+/// `append` runs the caller-supplied capacity-gate check first
 /// (`Watermark::check_append` at wiring), then writes, then group-syncs every
 /// 128 events; `sync` forces the fsync early.
 pub(all) struct LedgerWriter {
@@ -445,8 +445,8 @@ pub async fn[D : @harness.Disk] LedgerWriter::sync(
 
 ///|
 /// Scan a ledger stream and return every event up to the first torn or
-/// invalid tail chunk. Recovery-time tail truncation is T032; here a bad
-/// tail simply ends the valid prefix.
+/// invalid tail chunk. Recovery-time tail truncation is a later recovery
+/// step; here a bad tail simply ends the valid prefix.
 pub async fn[D : @harness.Disk] read_ledger_events(
   disk : D,
   path : Bytes,
