@@ -21,6 +21,14 @@ pub const NOTICE_KIND_REVOKE : Byte = 0x01
 
 pub fn clamp_batch(Array[@protocol.MsgPayload], UInt16, UInt) -> Array[@protocol.MsgPayload]
 
+pub fn fence_installed(UInt, UInt) -> Result[Unit, @protocol.ErrCode]
+
+pub fn fence_operation(UInt, UInt, UInt64, UInt64, UInt64, UInt64) -> Result[Unit, @protocol.ErrCode]
+
+pub fn fence_owner(UInt64, UInt64) -> Result[Unit, @protocol.ErrCode]
+
+pub fn fence_ownership_epoch(UInt64, UInt64) -> Result[Unit, @protocol.ErrCode]
+
 pub fn fnv1a32(Bytes) -> UInt
 
 pub fn pull_ok(Array[@protocol.MsgPayload]) -> Array[@protocol.WirePayload]
@@ -104,16 +112,24 @@ pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
 
 pub struct GroupCoordinator {
   // private fields
-} derive(@debug.Debug)
+}
+pub fn GroupCoordinator::bump_wholesale(Self, UInt64, UInt16) -> Unit
+pub fn GroupCoordinator::installed_assignment_epoch_of(Self, UInt64) -> UInt?
 pub fn GroupCoordinator::join(Self, UInt64, UInt16, UInt16) -> Result[JoinResult, @protocol.ErrCode]
 pub fn GroupCoordinator::leave(Self, UInt64) -> Result[LeaveResult, @protocol.ErrCode]
+pub fn GroupCoordinator::mark_installed(Self, UInt64, UInt) -> Result[Unit, @protocol.ErrCode]
 pub fn GroupCoordinator::new(UInt16) -> Self
+pub fn GroupCoordinator::on_fence_port(Self, (UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Unit) -> Unit
+pub fn GroupCoordinator::on_release_port(Self, (UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Unit) -> Unit
+pub fn GroupCoordinator::on_waiter_sink(Self, (UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Unit) -> Unit
 pub fn GroupCoordinator::owner_of(Self, UInt16, UInt16) -> UInt64?
 pub fn GroupCoordinator::ownership_epoch_of(Self, UInt16, UInt16) -> UInt64?
-pub fn GroupCoordinator::to_repr(Self) -> @debug.Repr
+pub fn GroupCoordinator::subscription_id_of(Self, UInt64, UInt16) -> UInt16?
+pub fn GroupCoordinator::wholesale_epoch_of(Self, UInt64, UInt16) -> UInt64?
 
 pub(all) struct JoinResult {
   member_id : UInt64
+  subscription_id : UInt16
   membership_epoch : UInt
   assignment_epoch : UInt
   notices : Array[@protocol.NoticePayload]
@@ -256,5 +272,6 @@ pub fn TopicRegistry::declare_topic(Self, Bytes, UInt16) -> Result[DeclareOutcom
 pub fn TopicRegistry::new() -> Self
 
 // Type aliases
+pub type OwnershipChangedHandler = (UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Unit
 
 // Traits

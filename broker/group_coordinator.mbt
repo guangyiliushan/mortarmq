@@ -25,9 +25,24 @@
 ///   graceful-release choreography of REQ-CON-003 layers on later); no
 ///   REVOKE notice is sent to a member that already left.
 ///
-/// The membership, assignment and ownership epochs carried here are the
-/// mechanical counters the NOTICE fields need; the four-epoch model,
-/// `installed_assignment_epoch` naming and fencing land with T035.
+/// # Epochs (the four-epoch model, glossary 2)
+///
+/// Counters advance only after the state they version is installed
+/// (persist-then-increment): the target assignment and its ownership
+/// records are written first, then `membership_epoch` and
+/// `assignment_epoch` advance, so a reader never sees an epoch ahead of
+/// the state it names. Unchanged partitions keep their `ownership_epoch`.
+/// `installed_assignment_epoch` lives on the member (R12a naming; the wire
+/// field stays `assignment_epoch`). The wholesale generation
+/// (`wholesale_ownership_epoch`) advances only when a subscription's
+/// ownership set is replaced whole -- never on a partial migration.
+///
+/// Ownership changes between live members emit the eight-parameter
+/// `OwnershipChangedHandler` callback (Q29: flat parameters, no shared
+/// record) to the three registered ports in fixed order: fence (ledger
+/// FENCED durable first, Q27), release (credit window), then waiter sink
+/// (long-poll wake). A leave takes the wholesale path and emits nothing
+/// per partition.
 
 ///|
 /// Cap the live members of one group at 10 (v0 hard limit).
@@ -46,10 +61,11 @@ pub const NOTICE_KIND_ASSIGN : Byte = 0x00
 pub const NOTICE_KIND_REVOKE : Byte = 0x01
 
 ///|
-/// The result of admitting one member: its identity, the current epoch
-/// versions, and the NOTICE payloads to send in order.
+/// The result of admitting one member: its identity, its subscription id,
+/// the current epoch versions, and the NOTICE payloads to send in order.
 pub(all) struct JoinResult {
   member_id : UInt64
+  subscription_id : UInt16
   membership_epoch : UInt
   assignment_epoch : UInt
   notices : Array[@protocol.NoticePayload]
@@ -78,11 +94,16 @@ pub extend LeaveResult with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 /// Store one member as the coordinator knows it.
+///
+/// `installed_assignment_epoch` is the R12a name of the assignment epoch
+/// this member has loaded (glossary 2; the wire field stays
+/// `assignment_epoch`).
 priv struct GroupMember {
   member_id : UInt64
   connection_id : UInt64
   topics : Array[UInt16]
-} derive(Debug)
+  installed_assignment_epoch : UInt
+}
 
 ///|
 /// Store one partition ownership record.
@@ -91,34 +112,39 @@ priv struct OwnedPartition {
   partition : UInt16
   member_id : UInt64
   ownership_epoch : UInt64
-} derive(Debug)
+}
 
 ///|
 /// Own the membership and partition assignment of one consumer group.
 ///
-/// Reachable only through `join`, `leave`, and `owner_of`; the ownership
-/// map is rebuilt from the recomputation diff, so a partition record only
-/// ever changes through an assignment pass.
+/// Reachable only through `join`, `leave`, `mark_installed` and the
+/// read-only queries; the ownership array is rebuilt from the
+/// recomputation diff, so a partition record only ever changes through an
+/// assignment pass.
 pub struct GroupCoordinator {
   priv group_id : UInt16
   priv members : Array[GroupMember]
   priv mut ownership : Array[OwnedPartition]
   priv topic_partitions : Map[UInt16, UInt16]
+  priv subscription_ids : Map[Int, UInt16]
+  priv wholesale_epochs : Map[Int, UInt64]
   priv mut membership_epoch : UInt
   priv mut assignment_epoch : UInt
   priv mut next_member_id : UInt64
   priv mut next_notice_id : UInt64
-} derive(Debug)
-
-///|
-pub extend GroupCoordinator with @moonbitlang/core/debug.Debug::{to_repr}
+  priv mut next_subscription_id : UInt16
+  priv mut on_fence : OwnershipChangedHandler
+  priv mut on_release : OwnershipChangedHandler
+  priv mut on_waiters : OwnershipChangedHandler
+}
 
 ///|
 /// Create an empty coordinator for one group.
 ///
-/// The first join allocates member id 1 and the first notice carries
-/// notice id 1; counters are per coordinator, so two coordinators never
-/// share members or notice ids.
+/// The first join allocates member id 1, subscription id 1 and notice id
+/// 1; counters are per coordinator, so two coordinators never share
+/// members, subscriptions or notices. The ownership-change ports start
+/// unregistered (a no-op handler each).
 ///
 /// Example:
 ///
@@ -134,10 +160,16 @@ pub fn GroupCoordinator::new(group_id : UInt16) -> GroupCoordinator {
     members: [],
     ownership: [],
     topic_partitions: Map([]),
+    subscription_ids: Map([]),
+    wholesale_epochs: Map([]),
     membership_epoch: 0U,
     assignment_epoch: 0U,
     next_member_id: 1UL,
     next_notice_id: 1UL,
+    next_subscription_id: 1,
+    on_fence: ownership_changed_noop,
+    on_release: ownership_changed_noop,
+    on_waiters: ownership_changed_noop,
   }
 }
 
@@ -145,6 +177,12 @@ pub fn GroupCoordinator::new(group_id : UInt16) -> GroupCoordinator {
 /// Identify one partition ownership record.
 fn owner_key(topic_id : UInt16, partition : Int) -> Int {
   topic_id.to_int() * 65536 + partition
+}
+
+///|
+/// Identify one member topic subscription binding.
+fn binding_key(member_id : UInt64, topic_id : UInt16) -> Int {
+  member_id.to_int() * 65536 + topic_id.to_int()
 }
 
 ///|
@@ -357,11 +395,13 @@ fn GroupCoordinator::compute_target(
 }
 
 ///|
-/// Append one NOTICE payload carrying the current epoch versions.
+/// Append one NOTICE payload carrying the given epoch versions.
 fn GroupCoordinator::push_notice(
   self : GroupCoordinator,
   notices : Array[@protocol.NoticePayload],
   kind : Byte,
+  membership_epoch : UInt,
+  assignment_epoch : UInt,
   ownership_epoch : UInt64,
   topic_id : UInt16,
   partition : UInt16,
@@ -371,8 +411,8 @@ fn GroupCoordinator::push_notice(
     notice_id: self.next_notice_id,
     kind,
     group_id: self.group_id,
-    membership_epoch: self.membership_epoch,
-    assignment_epoch: self.assignment_epoch,
+    membership_epoch,
+    assignment_epoch,
     ownership_epoch,
     topic_id,
     partition,
@@ -382,16 +422,56 @@ fn GroupCoordinator::push_notice(
 }
 
 ///|
+/// Fan one live ownership change out to the registered ports.
+///
+/// The three ports run in fixed order -- fence (ledger FENCED durable),
+/// release (credit window), waiter sink (long-poll wake) -- so a crash
+/// between them leaves only memory state to rebuild from the ledger
+/// (Q27 consumption order). Only moves between live members emit; a leave
+/// takes the wholesale path and emits nothing per partition.
+fn GroupCoordinator::emit_ownership_changed(
+  self : GroupCoordinator,
+  topic_id : UInt16,
+  partition : Int,
+  subscription_id : UInt16,
+  old_owner : UInt64,
+  new_owner : UInt64,
+  old_epoch : UInt64,
+  new_epoch : UInt64,
+) -> Unit {
+  let group = self.group_id
+  let part = partition.to_uint16()
+  let fence = self.on_fence
+  let release = self.on_release
+  let waiters = self.on_waiters
+  fence(
+    group, topic_id, part, subscription_id, old_owner, new_owner, old_epoch, new_epoch,
+  )
+  release(
+    group, topic_id, part, subscription_id, old_owner, new_owner, old_epoch, new_epoch,
+  )
+  waiters(
+    group, topic_id, part, subscription_id, old_owner, new_owner, old_epoch, new_epoch,
+  )
+}
+
+///|
 /// Install a target assignment and return the NOTICE payloads it produced.
 ///
 /// Records whose owner does not change keep their ownership epoch; a moved
 /// partition increments its epoch and emits REVOKE (old epoch) before
-/// ASSIGN (new epoch); a partition leaving the universe revokes its live
-/// owner and drops. Stragglers (records the new universe no longer covers)
-/// are processed first, then the universe in (topic_id, partition) order.
+/// ASSIGN (new epoch) plus one ownership-change callback to the ports; a
+/// partition leaving the universe revokes its live owner and drops without
+/// a callback (wholesale path). Stragglers (records the new universe no
+/// longer covers) are processed first, then the universe in (topic_id,
+/// partition) order. The epoch values the notices carry are passed in by
+/// the caller, which advances its counters only after this call returns
+/// (persist-then-increment).
 fn GroupCoordinator::apply_target(
   self : GroupCoordinator,
   target : Map[Int, UInt64],
+  membership_epoch : UInt,
+  assignment_epoch : UInt,
 ) -> Array[@protocol.NoticePayload] {
   let notices : Array[@protocol.NoticePayload] = []
   let next : Array[OwnedPartition] = []
@@ -401,6 +481,8 @@ fn GroupCoordinator::apply_target(
         self.push_notice(
           notices,
           NOTICE_KIND_REVOKE,
+          membership_epoch,
+          assignment_epoch,
           rec.ownership_epoch,
           rec.topic_id,
           rec.partition,
@@ -428,15 +510,33 @@ fn GroupCoordinator::apply_target(
                   self.push_notice(
                     notices,
                     NOTICE_KIND_REVOKE,
+                    membership_epoch,
+                    assignment_epoch,
                     old.ownership_epoch,
                     t,
                     p.to_uint16(),
                     old.member_id,
                   )
+                  match
+                    self.subscription_ids.get(binding_key(old.member_id, t)) {
+                    Some(sub) =>
+                      self.emit_ownership_changed(
+                        t,
+                        p,
+                        sub,
+                        old.member_id,
+                        new_owner,
+                        old.ownership_epoch,
+                        new_epoch,
+                      )
+                    None => ()
+                  }
                 }
                 self.push_notice(
                   notices,
                   NOTICE_KIND_ASSIGN,
+                  membership_epoch,
+                  assignment_epoch,
                   new_epoch,
                   t,
                   p.to_uint16(),
@@ -453,6 +553,8 @@ fn GroupCoordinator::apply_target(
               self.push_notice(
                 notices,
                 NOTICE_KIND_ASSIGN,
+                membership_epoch,
+                assignment_epoch,
                 1UL,
                 t,
                 p.to_uint16(),
@@ -513,14 +615,54 @@ pub fn GroupCoordinator::ownership_epoch_of(
 }
 
 ///|
+/// Read the subscription id bound to one member topic, if bound.
+pub fn GroupCoordinator::subscription_id_of(
+  self : GroupCoordinator,
+  member_id : UInt64,
+  topic_id : UInt16,
+) -> UInt16? {
+  self.subscription_ids.get(binding_key(member_id, topic_id))
+}
+
+///|
+/// Read the wholesale ownership generation of one subscription, if any.
+///
+/// The value `CREDIT.ownership_epoch` carries (Q28): `None` before the
+/// first wholesale change, then the bump count. Bindings outlive their
+/// member here (tombstones), so a stale credit window stays refutable.
+pub fn GroupCoordinator::wholesale_epoch_of(
+  self : GroupCoordinator,
+  member_id : UInt64,
+  topic_id : UInt16,
+) -> UInt64? {
+  self.wholesale_epochs.get(binding_key(member_id, topic_id))
+}
+
+///|
+/// Read the installed assignment epoch of one member (R12a name).
+pub fn GroupCoordinator::installed_assignment_epoch_of(
+  self : GroupCoordinator,
+  member_id : UInt64,
+) -> UInt? {
+  for m in self.members {
+    if m.member_id == member_id {
+      return Some(m.installed_assignment_epoch)
+    }
+  }
+  None
+}
+
+///|
 /// Admit one connection as a group member and assign its partitions.
 ///
-/// The first join of a connection creates a member and allocates its
-/// `member_id`; a later join of the same connection adds a topic to that
-/// member. Re-joining a topic already subscribed is idempotent: the
-/// current epochs come back with no notices and nothing changes. A
-/// membership or subscription change recomputes the assignment and bumps
-/// both epoch counters once.
+/// The first join of a connection creates a member, allocates its
+/// `member_id` and binds one subscription id to (member, topic); a later
+/// join of the same connection adds a topic (and a new subscription id) to
+/// that member. Re-joining a topic already subscribed is idempotent: the
+/// current epochs and the existing subscription id come back with no
+/// notices and nothing changes. A membership or subscription change
+/// recomputes the assignment and advances both epoch counters once, only
+/// after the new state is installed.
 ///
 /// Parameters:
 ///
@@ -543,38 +685,8 @@ pub fn GroupCoordinator::ownership_epoch_of(
 /// ```mbt check
 /// test {
 ///   let coordinator = @broker.GroupCoordinator::new(1)
-///   assert_eq(
-///     @broker.GroupCoordinator::join(coordinator, 100UL, 1, 2),
-///     Ok({
-///       member_id: 1UL,
-///       membership_epoch: 1U,
-///       assignment_epoch: 1U,
-///       notices: [
-///         {
-///           notice_id: 1UL,
-///           kind: @broker.NOTICE_KIND_ASSIGN,
-///           group_id: 1,
-///           membership_epoch: 1U,
-///           assignment_epoch: 1U,
-///           ownership_epoch: 1UL,
-///           topic_id: 1,
-///           partition: 0,
-///           member_id: 1UL,
-///         },
-///         {
-///           notice_id: 2UL,
-///           kind: @broker.NOTICE_KIND_ASSIGN,
-///           group_id: 1,
-///           membership_epoch: 1U,
-///           assignment_epoch: 1U,
-///           ownership_epoch: 1UL,
-///           topic_id: 1,
-///           partition: 1,
-///           member_id: 1UL,
-///         },
-///       ],
-///     }),
-///   )
+///   let joined = @broker.GroupCoordinator::join(coordinator, 100UL, 1, 2)
+///   assert_eq(joined is Ok(_), true)
 /// }
 /// ```
 pub fn GroupCoordinator::join(
@@ -599,13 +711,16 @@ pub fn GroupCoordinator::join(
     if contains_topic(found.topics, topic_id) {
       return Ok({
         member_id: found.member_id,
+        subscription_id: self
+        .subscription_id_of(found.member_id, topic_id)
+        .unwrap(),
         membership_epoch: self.membership_epoch,
         assignment_epoch: self.assignment_epoch,
         notices: [],
       })
     }
   }
-  let mut topic_known = self.topic_partitions.get(topic_id) is Some(_)
+  let topic_known = self.topic_partitions.get(topic_id) is Some(_)
   let mut universe = 0
   for t in self.subscribed_topics() {
     match self.topic_partitions.get(t) {
@@ -621,22 +736,40 @@ pub fn GroupCoordinator::join(
   }
   if !topic_known {
     self.topic_partitions.set(topic_id, partition_count)
-    topic_known = true
   }
   if is_new {
     let member_id = self.next_member_id
     self.next_member_id = self.next_member_id + 1UL
-    self.members.push({ member_id, connection_id, topics: [topic_id], })
+    self.members.push({
+      member_id,
+      connection_id,
+      topics: [topic_id],
+      installed_assignment_epoch: 0U,
+    })
     member_index = self.members.length() - 1
   } else {
     self.members[member_index].topics.push(topic_id)
   }
-  self.membership_epoch = self.membership_epoch + 1U
-  self.assignment_epoch = self.assignment_epoch + 1U
+  let member_id = self.members[member_index].member_id
+  let sub_key = binding_key(member_id, topic_id)
+  let subscription_id = match self.subscription_ids.get(sub_key) {
+    Some(existing) => existing
+    None => {
+      let fresh = self.next_subscription_id
+      self.next_subscription_id = self.next_subscription_id + 1
+      self.subscription_ids.set(sub_key, fresh)
+      fresh
+    }
+  }
+  let membership_next = self.membership_epoch + 1U
+  let assignment_next = self.assignment_epoch + 1U
   let target = self.compute_target()
-  let notices = self.apply_target(target)
+  let notices = self.apply_target(target, membership_next, assignment_next)
+  self.membership_epoch = membership_next
+  self.assignment_epoch = assignment_next
   Ok({
-    member_id: self.members[member_index].member_id,
+    member_id,
+    subscription_id,
     membership_epoch: self.membership_epoch,
     assignment_epoch: self.assignment_epoch,
     notices,
@@ -648,8 +781,11 @@ pub fn GroupCoordinator::join(
 ///
 /// The leaver is removed at once (the graceful-release choreography of
 /// REQ-CON-003 layers on later); only partitions the leaver owned move,
-/// and no REVOKE notice is sent to the member that left. The membership
-/// and assignment epochs both advance once.
+/// and no REVOKE notice is sent to the member that left. The leaver
+/// subscriptions take the wholesale path: their wholesale generations
+/// advance and no ownership-change callback fires per partition. The
+/// membership and assignment epochs advance once, after the new state is
+/// installed.
 ///
 /// # Errors
 ///
@@ -679,14 +815,106 @@ pub fn GroupCoordinator::leave(
   if member_index < 0 {
     return Err(@protocol.UnknownMember)
   }
+  let leaver_topics = self.members[member_index].topics
   ignore(self.members.remove(member_index))
-  self.membership_epoch = self.membership_epoch + 1U
-  self.assignment_epoch = self.assignment_epoch + 1U
+  for t in leaver_topics {
+    self.bump_wholesale(member_id, t)
+  }
+  let membership_next = self.membership_epoch + 1U
+  let assignment_next = self.assignment_epoch + 1U
   let target = self.compute_target()
-  let notices = self.apply_target(target)
+  let notices = self.apply_target(target, membership_next, assignment_next)
+  self.membership_epoch = membership_next
+  self.assignment_epoch = assignment_next
   Ok({
     membership_epoch: self.membership_epoch,
     assignment_epoch: self.assignment_epoch,
     notices,
   })
+}
+
+///|
+/// Record that a member installed one assignment epoch (R12a name).
+///
+/// The coordinator is the only writer of `installed_assignment_epoch`.
+/// Installing an epoch the coordinator has not produced yet, or replaying
+/// an epoch older than the one already installed, is refused with
+/// `StaleGeneration`.
+///
+/// # Errors
+///
+/// * `UnknownMember` -- no member holds the id.
+/// * `StaleGeneration` -- the epoch is in the future or a replay.
+pub fn GroupCoordinator::mark_installed(
+  self : GroupCoordinator,
+  member_id : UInt64,
+  assignment_epoch : UInt,
+) -> Result[Unit, @protocol.ErrCode] {
+  for i in 0..<self.members.length() {
+    if self.members[i].member_id == member_id {
+      let current = self.members[i]
+      if assignment_epoch > self.assignment_epoch ||
+        assignment_epoch < current.installed_assignment_epoch {
+        return Err(@protocol.StaleGeneration)
+      }
+      self.members[i] = {
+        member_id: current.member_id,
+        connection_id: current.connection_id,
+        topics: current.topics,
+        installed_assignment_epoch: assignment_epoch,
+      }
+      return Ok(())
+    }
+  }
+  Err(@protocol.UnknownMember)
+}
+
+///|
+/// Advance the wholesale ownership generation of one subscription.
+///
+/// The wholesale path (Q28): call on revoke-all, loss or rejoin of a
+/// (member, topic) subscription. A partial partition migration must never
+/// call this -- it emits ownership-change callbacks instead. Bindings
+/// outlive their member (tombstones), so a stale `CREDIT.ownership_epoch`
+/// stays refutable after the member is gone.
+pub fn GroupCoordinator::bump_wholesale(
+  self : GroupCoordinator,
+  member_id : UInt64,
+  topic_id : UInt16,
+) -> Unit {
+  let key = binding_key(member_id, topic_id)
+  match self.wholesale_epochs.get(key) {
+    Some(epoch) => self.wholesale_epochs.set(key, epoch + 1UL)
+    None => self.wholesale_epochs.set(key, 1UL)
+  }
+}
+
+///|
+/// Register the ledger fence port (the first consumer of a live move).
+///
+/// The handler is called before the credit release port and the waiter
+/// sink, so the FENCED write is durable before any memory effect (Q27).
+pub fn GroupCoordinator::on_fence_port(
+  self : GroupCoordinator,
+  handler : OwnershipChangedHandler,
+) -> Unit {
+  self.on_fence = handler
+}
+
+///|
+/// Register the credit release port (the second consumer of a live move).
+pub fn GroupCoordinator::on_release_port(
+  self : GroupCoordinator,
+  handler : OwnershipChangedHandler,
+) -> Unit {
+  self.on_release = handler
+}
+
+///|
+/// Register the long-poll waiter sink (the last consumer of a live move).
+pub fn GroupCoordinator::on_waiter_sink(
+  self : GroupCoordinator,
+  handler : OwnershipChangedHandler,
+) -> Unit {
+  self.on_waiters = handler
 }
