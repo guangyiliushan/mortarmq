@@ -80,6 +80,7 @@ test "P1 a retried sequence is never accepted twice (quickcheck seed=20261018 is
       ok
     },
     count=200,
+    max_shrinks=20,
     seed=20261018,
   )
 }
@@ -119,6 +120,7 @@ test "P2 the boundary rules answer their registered codes (quickcheck seed=20261
       ok
     },
     count=200,
+    max_shrinks=20,
     seed=20261019,
   )
 }

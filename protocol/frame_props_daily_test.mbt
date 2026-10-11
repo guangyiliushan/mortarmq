@@ -99,6 +99,7 @@ test "daily sweep: hostile frames do not pollute later decodes (pin seed=2026101
     },
     count~,
     max_size~,
+    max_shrinks=20,
     seed~,
   )
 }

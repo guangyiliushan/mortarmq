@@ -129,6 +129,7 @@ test "CB2 finite member events reach a quiescent assignment (quickcheck daily ti
       true
     },
     count~,
+    max_shrinks=20,
     seed~,
     max_size~,
   )

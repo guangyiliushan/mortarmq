@@ -128,6 +128,7 @@ test "CL1 a timer never fires before its deadline (quickcheck seed=20261014 is r
       ok
     },
     count=200,
+    max_shrinks=20,
     seed=20261014,
   )
 }
@@ -147,6 +148,7 @@ test "CL2 a timer fires once its deadline passes (quickcheck seed=20261015 is re
       timers.pending_count() == ticks.length() - expected.length()
     },
     count=200,
+    max_shrinks=20,
     seed=20261015,
   )
 }
@@ -174,6 +176,7 @@ test "CL3 a rolled-back query tick changes neither what fires nor its order (qui
       ok
     },
     count=200,
+    max_shrinks=20,
     seed=20261016,
   )
 }
@@ -250,6 +253,7 @@ test "CL4 a cancelled timer never fires (quickcheck seed=20261017 is reproducibl
       ok
     },
     count=200,
+    max_shrinks=20,
     seed=20261017,
   )
 }

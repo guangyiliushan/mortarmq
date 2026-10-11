@@ -160,6 +160,7 @@ test "CF1 legal frame round-trips through decode then encode (quickcheck seed=20
       }
     },
     count=200,
+    max_shrinks=20,
     seed=20261010,
   )
 }
@@ -186,6 +187,7 @@ test "CF2 arbitrary bytes decode without panicking (quickcheck seed=20261011 is 
       }
     },
     count=200,
+    max_shrinks=20,
     seed=20261011,
   )
 }
@@ -244,6 +246,7 @@ test "CF3 length boundaries reject at the exact position (quickcheck seed=202610
       }
     },
     count=200,
+    max_shrinks=20,
     seed=20261012,
   )
 }
@@ -284,6 +287,7 @@ test "CF4 hostile frames do not pollute later decodes (quickcheck seed=20261013 
       }
     },
     count=200,
+    max_shrinks=20,
     seed=20261013,
   )
 }

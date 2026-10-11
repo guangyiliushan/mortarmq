@@ -41,6 +41,7 @@ test "property: any shuffled concurrent identical declare set is exactly-once (q
       machine.partition_count("dp1") == Some(3U)
     },
     count=200,
+    max_shrinks=20,
     seed=20261021,
   )
 }
@@ -71,6 +72,7 @@ test "property: replaying any accepted mutation is zero-side-effect (quickcheck 
       machine.leader_epoch() == 9UL
     },
     count=200,
+    max_shrinks=20,
     seed=20261022,
   )
 }
@@ -119,6 +121,7 @@ test "property: any altered body-set of an accepted mutation is fenced (quickche
       fingerprint(machine) == before
     },
     count=200,
+    max_shrinks=20,
     seed=20261023,
   )
 }

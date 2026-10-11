@@ -122,6 +122,7 @@ test "CM1 quiet-window conservation: published = delivered + retained + dlq (qui
       ok
     },
     count=200,
+    max_shrinks=20,
     seed=20261011,
   )
 }
@@ -145,6 +146,7 @@ test "CM2 the cumulative totals never regress (quickcheck seed=20261012 is repro
       ok
     },
     count=200,
+    max_shrinks=20,
     seed=20261012,
   )
 }
@@ -196,6 +198,7 @@ test "CM3 the floor and lag match an independent buckets oracle (quickcheck seed
       ok
     },
     count=200,
+    max_shrinks=20,
     seed=20261013,
   )
 }

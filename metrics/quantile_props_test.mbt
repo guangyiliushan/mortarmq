@@ -130,6 +130,7 @@ test "property: the three quantile answers are ordered in any window (pin seed=2
       }
     },
     count~,
+    max_shrinks=20,
     seed~,
   )
 }
@@ -158,6 +159,7 @@ test "property: a constant stream converges at every quantile (pin seed=20261036
       )
     },
     count~,
+    max_shrinks=20,
     seed~,
   )
 }
@@ -207,6 +209,7 @@ test "property: a merged window stays between its two streams and keeps every sa
       true
     },
     count~,
+    max_shrinks=20,
     seed~,
   )
 }
@@ -244,4 +247,32 @@ test "a merged quantile outside the two streams is rejected by the boundedness c
 test "a merge that drops samples is rejected by the conservation check" {
   assert_eq(merge_conserved(4, 2, 2), true)
   assert_eq(merge_conserved(3, 2, 2), false)
+}
+
+///|
+/// The shrink budget is a hard cap, not a hope: a failure must shrink
+/// within the pinned limit the properties carry. The driver's report is
+/// abstract, so the budget is pinned as the debug snapshot of one
+/// expected failure -- a driver that ignored the limit would move this
+/// snapshot and the gate would red.
+test "a failing property shrinks within the pinned budget" {
+  let report = @quickcheck.report(
+    (draw : UInt) => draw == 0U,
+    count=20,
+    max_size=20,
+    max_shrinks=20,
+    seed=20261040,
+  )
+  debug_inspect(
+    report,
+    content=(
+      #|Falsified(
+      #|  counterexample=65,
+      #|  tests=1,
+      #|  size=0,
+      #|  shrinks=20,
+      #|  shrink_attempts=20,
+      #|)
+    ),
+  )
 }

@@ -152,6 +152,7 @@ test "no sink state: any state and any arrival keep an out-edge (quickcheck seed
       cs1_escapes(@client.ClientState::on(state, event))
     },
     count=200,
+    max_shrinks=20,
     seed=20261021,
   )
 }
@@ -180,6 +181,7 @@ test "error arrivals never strand the machine (quickcheck seed=20261022 is repro
       true
     },
     count=100,
+    max_shrinks=20,
     seed=20261022,
   )
 }

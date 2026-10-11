@@ -102,6 +102,7 @@ test "decoding is injective over the whole set (quickcheck seed=20261001 is repr
       }
     },
     count=200,
+    max_shrinks=20,
     seed=20261001,
   )
 }

@@ -215,6 +215,7 @@ test "the committed ceiling never moves backwards and is the number the rule say
       true
     },
     count~,
+    max_shrinks=20,
     seed~,
   )
 }
@@ -498,6 +499,7 @@ test "a promise quorum and a commit quorum cannot be disjoint (pin seed=20261014
       shared
     },
     count~,
+    max_shrinks=20,
     seed~,
   )
 }

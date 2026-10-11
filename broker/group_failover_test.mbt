@@ -241,6 +241,7 @@ test "reload after a kill restores exactly (quickcheck seed=20261024 is reproduc
       }
     },
     count=200,
+    max_shrinks=20,
     seed=20261024,
   )
 }

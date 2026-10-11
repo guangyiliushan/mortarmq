@@ -126,6 +126,7 @@ test "CB1 every subscribed partition converges to exactly one owner (quickcheck 
       })
     },
     count=200,
+    max_shrinks=20,
     seed=20261020,
   )
 }
@@ -199,6 +200,7 @@ test "CB3 one event migrates only the affected partitions and never their epochs
       })
     },
     count=200,
+    max_shrinks=20,
     seed=20261021,
   )
 }
@@ -225,6 +227,7 @@ test "CB4 assignment_epoch advances exactly once per membership change (quickche
       })
     },
     count=200,
+    max_shrinks=20,
     seed=20261022,
   )
 }

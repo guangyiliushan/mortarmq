@@ -206,6 +206,7 @@ test "property: the quiet-window identity holds over any history (pin seed=20261
       counts.conserved() && counts.floor_lag_consistent()
     },
     count~,
+    max_shrinks=20,
     seed~,
   )
 }
@@ -240,6 +241,7 @@ test "property: cumulative totals never regress across recovery prefixes (pin se
       later.conserved()
     },
     count~,
+    max_shrinks=20,
     seed~,
   )
 }
@@ -269,6 +271,7 @@ test "property: the floor and lag stay consistent over any history (pin seed=202
       counts.floor_lag_consistent()
     },
     count~,
+    max_shrinks=20,
     seed~,
   )
 }
@@ -306,6 +309,7 @@ test "property: the quorum faces stay aligned over any classification (pin seed=
       quorum_faces_align(code, name, may_write, refusal, warning)
     },
     count~,
+    max_shrinks=20,
     seed~,
   )
 }

@@ -404,6 +404,7 @@ test "encode then decode returns the payload (quickcheck seed=20261006 is reprod
       }
     },
     count=200,
+    max_shrinks=20,
     seed=20261006,
   )
 }
@@ -431,6 +432,7 @@ test "every close code encodes and surfaces unchanged (quickcheck seed=20261007 
       }
     },
     count=200,
+    max_shrinks=20,
     seed=20261007,
   )
 }

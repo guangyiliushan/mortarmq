@@ -184,6 +184,9 @@ jobs:
       - name: gate 7 — moon test (js)
         run: moon test --target js
 
+      - name: gate 8 — property budget (commit tier <=60s)
+        run: node .github/scripts/check-prop-budget.mjs
+
       - name: gate 8 — moon tree (dependency graph acyclic)
         shell: bash
         run: |

@@ -112,6 +112,7 @@ test "daily sweep: a cancelled timer never fires (pin seed=20261017; daily mode 
       ok
     },
     count=daily_count(),
+    max_shrinks=20,
     seed=daily_seed(),
     max_size=daily_max_size(),
   )

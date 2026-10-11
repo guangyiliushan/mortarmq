@@ -126,6 +126,7 @@ test "the quickcheck property matches every decision row (quickcheck seed=202610
       changed == dt_state_change(row)
     },
     count=350,
+    max_shrinks=20,
     seed=20261024,
   )
 }
