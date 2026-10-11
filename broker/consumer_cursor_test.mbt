@@ -1,5 +1,5 @@
 /// Exercise the derived consumer cursor and its truth
-/// hierarchy (L4): the delivery log decides, the checkpoint may only
+/// hierarchy: the delivery log decides, the checkpoint may only
 /// agree or lose. The floor advances over durable completions only,
 /// never regresses, and recovery replays the log whatever the
 /// checkpoint claims.

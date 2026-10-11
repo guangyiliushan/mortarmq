@@ -3,8 +3,8 @@
 /// The cursor is a materialized view of the ACK ledger: it
 /// is never a truth source of its own. The delivery log (MMLQ) is truth;
 /// the cursor checkpoint (MMCU) is a derived cache that may lag the log
-/// and must never lead it; on any disagreement the log wins ("truth
-/// hierarchy, conflicts resolve to the log", L4).
+/// and must never lead it; on any disagreement the log wins: truth
+/// hierarchy, conflicts resolve to the log.
 ///
 /// # What counts as consumed
 ///
@@ -261,7 +261,7 @@ pub fn ConsumerCursor::checkpoint(self : ConsumerCursor) -> CursorCheckpoint {
 ///
 /// The hint never changes the cursor; this only names the relationship:
 /// `Adopted` (floor and window agree), `Lagging` (the hint is behind the
-/// log), `Leading` (the hint claims past the durable prefix -- the L4
+/// log), `Leading` (the hint claims past the durable prefix -- the
 /// conflict), `Divergent` (floors agree, windows do not). `scanned` is a
 /// resume hint and takes no part in the identity.
 pub fn ConsumerCursor::classify_hint(
