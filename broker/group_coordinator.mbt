@@ -429,10 +429,12 @@ fn GroupCoordinator::push_notice(
 /// between them leaves only memory state to rebuild from the ledger
 /// (Q27 consumption order). Only moves between live members emit; a leave
 /// takes the wholesale path and emits nothing per partition. The fence
-/// slot returns only once the FENCED write is durable (its adapter awaits
-/// the ledger sync, ruling v1.1 #1): only then do the release and waiter
-/// slots run, so a crash between them leaves nothing but memory state to
-/// rebuild from the log.
+/// slot returns only once the FENCED write has landed in the log (its
+/// adapter awaits the S4 port return, ruling v1.1 #1 as narrowed by D1):
+/// only then do the release and waiter slots run. The fsync batch window
+/// is the frozen group-commit design (5ms/128) and a crash inside it is
+/// covered by at-least-once redelivery; a crash between the stages loses
+/// only memory state, rebuildable from the log.
 fn GroupCoordinator::emit_ownership_changed(
   self : GroupCoordinator,
   topic_id : UInt16,
