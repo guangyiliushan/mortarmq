@@ -6,7 +6,7 @@ How to use this page: find the code, read the **Client action** column, do that.
 
 Codes only grow and are never reused; the semantics of a published code never change — see [Protocol §4 Versioning Rules](./protocol.md#_4-versioning-rules).
 
-Segments follow a fixed four-way split: `0x0xxx` protocol/session, `0x2xxx` metadata, `0x4xxx` backpressure/quota, `0x6xxx` replication. Two rules follow from it: BACKPRESSURE / QUOTA_EXCEEDED sit in `0x4xxx` rather than `0x000a`/`0x000b`, so every backpressure and quota code shares one segment (wire_version=1 is unreleased, so there is no compatibility burden); and replication occupies `0x6001–0x600b`. Unregistered segments are all reserved.
+Segments follow a fixed four-way split: `0x0xxx` protocol/session, `0x2xxx` metadata, `0x4xxx` backpressure/quota, `0x6xxx` replication. Two rules follow from it: BACKPRESSURE / QUOTA_EXCEEDED sit in `0x4xxx` rather than `0x000a`/`0x000b`, so every backpressure and quota code shares one segment (wire_version=1 is unreleased, so there is no compatibility burden); and replication occupies `0x6001–0x600c`. Unregistered segments are all reserved.
 
 ## `0x0xxx` — protocol / session
 
@@ -61,7 +61,7 @@ Segments follow a fixed four-way split: `0x0xxx` protocol/session, `0x2xxx` meta
 | 0x4006 | NO_CREDIT | no | Send CREDIT |
 | 0x4007 | SLOW_CONSUMER | yes | Reduce consumer lag / reconnect |
 
-## `0x6xxx` — replication (`0x6001–0x600b`)
+## `0x6xxx` — replication (`0x6001–0x600c`)
 
 | Code | Name | Closes connection | Client action |
 |---:|---|---|---|
@@ -76,6 +76,7 @@ Segments follow a fixed four-way split: `0x0xxx` protocol/session, `0x2xxx` meta
 | 0x6009 | DIVERGENT_COMMITTED | no | Manual reconcile from the audit logs ([RB-1](../guides/runbook.md) level −2) |
 | 0x600a | QUORUM_RECOVERED | no | Informational; writes resume |
 | 0x600b | UNCLEAN_ELECTION_REJECTED | no | Refused by design; no retry unblocks it |
+| 0x600c | ELECTION_TIMEOUT | no | No quorum this round; retry in the next round |
 
 ## Registration rules
 

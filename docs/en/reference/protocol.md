@@ -68,7 +68,7 @@ The registry is a look-up table, not prose — 49 codes across four registered s
 
 → **[Error Code Registry](./errors.md)** — `0x0xxx` protocol/session · `0x2xxx` metadata · `0x4xxx` backpressure/quota · `0x6xxx` replication.
 
-Segments follow a fixed four-way split; **unregistered segments are all reserved**. Two rules hold for the codes above: BACKPRESSURE / QUOTA_EXCEEDED live in `0x4xxx` rather than `0x000a`/`0x000b`, so every backpressure and quota code sits in one segment (`wire_version=1` is unreleased, so there is no compatibility burden); and replication occupies `0x6001–0x600b`.
+Segments follow a fixed four-way split; **unregistered segments are all reserved**. Two rules hold for the codes above: BACKPRESSURE / QUOTA_EXCEEDED live in `0x4xxx` rather than `0x000a`/`0x000b`, so every backpressure and quota code sits in one segment (`wire_version=1` is unreleased, so there is no compatibility burden); and replication occupies `0x6001–0x600c`.
 
 ## 4. Versioning Rules
 
@@ -88,4 +88,5 @@ Segments follow a fixed four-way split; **unregistered segments are all reserved
 | 2026-09-30 | 9 ops → 15 ops consolidation; PUB gains `producer_id`/`producer_seq`; ACK/NACK gain `subscription_id`/`delivery_id`/`ownership_epoch`; new MSG/PULL/HEARTBEAT/NOTICE/CONTROL_ACK/CREDIT |
 | 2026-09-30 | Added `MAX_VALUE_LEN = 16 MiB − 1 KiB`, resolving the frame/value cap clash |
 | 2026-09-30 | Full error-code registry adopted; BACKPRESSURE/QUOTA moved to 0x4xxx; 0x600b added; AUTH_FAILED naming unified |
+| 2026-10-11 | 0x600c ELECTION_TIMEOUT added to the replication segment |
 | 2026-09-30 | ACK flags=PROGRESS; NOTICE `notice_id`; SUB no implicit DECLARE + `credit_bytes`; SLOW=3 reserved |

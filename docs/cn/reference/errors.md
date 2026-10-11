@@ -6,7 +6,7 @@
 
 码只增不复用；已发布码的语义永不变化 —— 见[线协议 §4 版本规则](./protocol.md)。
 
-段落按固定的四段划分：`0x0xxx` 协议/会话、`0x2xxx` 元数据、`0x4xxx` 背压/配额、`0x6xxx` 复制。由此有两条规矩：BACKPRESSURE / QUOTA_EXCEEDED 落在 `0x4xxx` 而不是 `0x000a`/`0x000b`，让背压与配额码集中在同一段（wire_version=1 尚未发布，无兼容负担）；复制占用 `0x6001–0x600b`。未注册的段一律保留。
+段落按固定的四段划分：`0x0xxx` 协议/会话、`0x2xxx` 元数据、`0x4xxx` 背压/配额、`0x6xxx` 复制。由此有两条规矩：BACKPRESSURE / QUOTA_EXCEEDED 落在 `0x4xxx` 而不是 `0x000a`/`0x000b`，让背压与配额码集中在同一段（wire_version=1 尚未发布，无兼容负担）；复制占用 `0x6001–0x600c`。未注册的段一律保留。
 
 ## `0x0xxx` —— 协议 / 会话
 
@@ -61,7 +61,7 @@
 | 0x4006 | NO_CREDIT | no | Send CREDIT |
 | 0x4007 | SLOW_CONSUMER | yes | Reduce consumer lag / reconnect |
 
-## `0x6xxx` —— 复制（`0x6001–0x600b`）
+## `0x6xxx` —— 复制（`0x6001–0x600c`）
 
 | 码 | 名称 | 断连 | 客户端动作 |
 |---:|---|---|---|
@@ -76,6 +76,7 @@
 | 0x6009 | DIVERGENT_COMMITTED | no | 从审计日志人工对账（[RB-1](../guides/runbook.md) level −2） |
 | 0x600a | QUORUM_RECOVERED | no | 提示性；写入恢复 |
 | 0x600b | UNCLEAN_ELECTION_REJECTED | no | 设计上拒绝；重试无解 |
+| 0x600c | ELECTION_TIMEOUT | no | 本轮无 quorum，下轮重试 |
 
 ## 注册规则
 

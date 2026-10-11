@@ -68,7 +68,7 @@ valid range: 1..=MAX_FRAME_LEN
 
 → **[错误码注册表](./errors.md)** —— `0x0xxx` 协议/会话 · `0x2xxx` 元数据 · `0x4xxx` 背压/配额 · `0x6xxx` 复制。
 
-段落按固定的四段划分；**未注册的段一律保留**。上面的码有两条规矩：BACKPRESSURE / QUOTA_EXCEEDED 落在 `0x4xxx` 而不是 `0x000a`/`0x000b`，让背压与配额码集中在同一段（wire_version=1 尚未发布，无兼容负担）；复制占用 `0x6001–0x600b`。
+段落按固定的四段划分；**未注册的段一律保留**。上面的码有两条规矩：BACKPRESSURE / QUOTA_EXCEEDED 落在 `0x4xxx` 而不是 `0x000a`/`0x000b`，让背压与配额码集中在同一段（wire_version=1 尚未发布，无兼容负担）；复制占用 `0x6001–0x600c`。
 
 ## 4. 版本规则
 
@@ -88,4 +88,5 @@ valid range: 1..=MAX_FRAME_LEN
 | 2026-09-30 | 9 ops → 15 ops consolidation; PUB gains `producer_id`/`producer_seq`; ACK/NACK gain `subscription_id`/`delivery_id`/`ownership_epoch`; new MSG/PULL/HEARTBEAT/NOTICE/CONTROL_ACK/CREDIT |
 | 2026-09-30 | Added `MAX_VALUE_LEN = 16 MiB − 1 KiB`, resolving the frame/value cap clash |
 | 2026-09-30 | Full error-code registry adopted; BACKPRESSURE/QUOTA moved to 0x4xxx; 0x600b added; AUTH_FAILED naming unified |
+| 2026-10-11 | 0x600c ELECTION_TIMEOUT added to the replication segment |
 | 2026-09-30 | ACK flags=PROGRESS; NOTICE `notice_id`; SUB no implicit DECLARE + `credit_bytes`; SLOW=3 reserved |
