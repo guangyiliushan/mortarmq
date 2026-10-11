@@ -88,7 +88,24 @@ module fencing {
     adopt(3),
     apply(1),
     apply(2),
-    apply(3)
+    apply(3),
+    stutter
+  }
+
+  // A step in which nothing happens.
+  //
+  // Without it the model has terminal states -- every slot written and
+  // every term taken up -- where no other action is enabled, and the
+  // model checker reports that as a deadlock rather than as a finished
+  // search. It changes no state, so it adds no reachable state and
+  // weakens no invariant; it only says that time can pass without
+  // anything occurring, which is true of the system it stands for.
+  action stutter = all {
+    promise' = promise,
+    s1' = s1,
+    s2' = s2,
+    s3' = s3,
+    s4' = s4
   }
 
   // The fencing property: nothing in the log was written by a term this
