@@ -377,6 +377,7 @@ pub fn GroupCoordinator::restore(payload : BytesView) -> GroupCoordinator? {
     assignment_epoch,
     next_member_id,
     next_notice_id,
+    notices: Map([]),
     next_subscription_id,
     on_fence: ownership_changed_noop,
     on_release: ownership_changed_noop,

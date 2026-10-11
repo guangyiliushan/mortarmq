@@ -115,6 +115,20 @@ priv struct OwnedPartition {
 }
 
 ///|
+/// One issued notice remembered for its confirmation: the fields it was
+/// issued under and whether it is already confirmed.
+priv struct NoticeRecord {
+  notice_id : UInt64
+  target_member : UInt64
+  kind : Byte
+  group_id : UInt16
+  membership_epoch : UInt
+  assignment_epoch : UInt
+  ownership_epoch : UInt64
+  acked : Bool
+}
+
+///|
 /// Own the membership and partition assignment of one consumer group.
 ///
 /// Reachable only through `join`, `leave`, `mark_installed` and the
@@ -132,6 +146,7 @@ pub struct GroupCoordinator {
   priv mut assignment_epoch : UInt
   priv mut next_member_id : UInt64
   priv mut next_notice_id : UInt64
+  priv notices : Map[UInt64, NoticeRecord]
   priv mut next_subscription_id : UInt16
   priv mut on_fence : OwnershipChangedHandler
   priv mut on_release : OwnershipChangedHandler
@@ -166,6 +181,7 @@ pub fn GroupCoordinator::new(group_id : UInt16) -> GroupCoordinator {
     assignment_epoch: 0U,
     next_member_id: 1UL,
     next_notice_id: 1UL,
+    notices: Map([]),
     next_subscription_id: 1,
     on_fence: ownership_changed_noop,
     on_release: ownership_changed_noop,
@@ -417,6 +433,16 @@ fn GroupCoordinator::push_notice(
     topic_id,
     partition,
     member_id,
+  })
+  self.notices.set(self.next_notice_id, {
+    notice_id: self.next_notice_id,
+    target_member: member_id,
+    kind,
+    group_id: self.group_id,
+    membership_epoch,
+    assignment_epoch,
+    ownership_epoch,
+    acked: false,
   })
   self.next_notice_id = self.next_notice_id + 1UL
 }
