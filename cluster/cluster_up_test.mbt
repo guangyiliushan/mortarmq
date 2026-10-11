@@ -168,3 +168,177 @@ async test "three nodes come up on three listen_peer ports with every peer link 
   assert_eq(inbound_two.length(), 1)
   assert_eq(outbound_two.length(), 1)
 }
+
+///|
+/// The table holds one link per member, and a member that goes takes
+/// its link with it.
+///
+/// Both halves are the same rule seen from either end. A cluster is
+/// three nodes and three connections, so a table that grows with every
+/// reconnect is one a member can grow without limit once it has proved
+/// itself once -- and the shared secret is exactly what it needs to keep
+/// proving itself. A link left behind after its connection went is the
+/// other half: it would leave the node reporting a member as reachable
+/// through a connection that is not there, which is the same kind of
+/// untested health a quorum tier that never re-reads itself reports.
+async test "one link per member, and none once the member has gone" {
+  let secret = fixture_secret()
+  let server = bind_loopback()
+  let port = server.addr.port()
+  let follower_config = handshake_config(
+    1U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let leader_config = handshake_config(
+    2U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let follower = @cluster.ClusterNode::new(follower_config)
+  let leader = @cluster.ClusterNode::new(leader_config)
+  assert_eq(leader.link_count(), 0)
+  assert_eq(leader.peers_connected(), false)
+
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server.close()
+      for _round in 0..<2 {
+        match
+          @async.with_timeout_opt(handshake_budget_ms(), () => server.accept()) {
+          None => ()
+          Some(accepted) => {
+            let concrete : LoopConn = { tcp: accepted.0, }
+            let conn : &@net.Conn = concrete
+            match @cluster.ClusterNode::serve_peer(follower, conn) {
+              Err(_) => ()
+              Ok(_) => ()
+            }
+            // Held open long enough for the second handshake to arrive
+            // while the first link is still live.
+            @async.sleep(400)
+            @net.Conn::close(conn)
+          }
+        }
+      }
+    }
+    for _round in 0..<2 {
+      match dial_loopback(port) {
+        Err(_) => fail("the listener is bound, so the dial must connect")
+        Ok(conn) => {
+          let expected = match leader_config.peer_entry(1U.to_uint16()) {
+            None => fail("node 1 must be in the static table")
+            Some(entry) => entry
+          }
+          match @cluster.ClusterNode::dial_peer(leader, conn, expected) {
+            Err(_) =>
+              fail(
+                "both sides hold the same secret, so the handshake must pass",
+              )
+            Ok(_) =>
+              // The same member arriving twice is one link, not two:
+              // the newer connection replaces the older rather than
+              // adding to the table.
+              assert_eq(leader.link_count(), 1)
+          }
+          @net.Conn::close(conn)
+        }
+      }
+    }
+  }
+
+  // Dropping it empties the table, so a member that has gone is not
+  // reported as connected any more -- and dropping it twice reports that
+  // there was nothing left.
+  assert_eq(leader.close_link(1U.to_uint16()), true)
+  assert_eq(leader.link_count(), 0)
+  assert_eq(leader.peers_connected(), false)
+  assert_eq(leader.close_link(1U.to_uint16()), false)
+}
+
+///|
+/// A round whose own connection is gone takes its link with it.
+///
+/// The other failure mode of the same rule: the far end can be the one
+/// that goes, or this side can close first. Both end the same way -- the
+/// batch is refused and the link is not left behind holding a member
+/// the node still claims it can reach -- and both have to be reached,
+/// because a round fails at the write on one and at the read on the
+/// other.
+async test "a round whose own connection is closed leaves no link behind" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let leader_log = traced_log("leader", trace)
+  let secret = fixture_secret()
+  let server = bind_loopback()
+  let port = server.addr.port()
+  let follower_config = handshake_config(
+    1U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let leader_config = handshake_config(
+    2U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let follower = @cluster.ClusterNode::new(follower_config)
+  let leader = @cluster.ClusterNode::new(leader_config)
+
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server.close()
+      match
+        @async.with_timeout_opt(handshake_budget_ms(), () => server.accept()) {
+        None => ()
+        Some(accepted) => {
+          let concrete : LoopConn = { tcp: accepted.0, }
+          let conn : &@net.Conn = concrete
+          match @cluster.ClusterNode::serve_peer(follower, conn) {
+            Err(_) => ()
+            Ok(_) => ()
+          }
+          @async.sleep(400)
+          @net.Conn::close(conn)
+        }
+      }
+    }
+    match dial_loopback(port) {
+      Err(_) => fail("the listener is bound, so the dial must connect")
+      Ok(conn) => {
+        let expected = match leader_config.peer_entry(1U.to_uint16()) {
+          None => fail("node 1 must be in the static table")
+          Some(entry) => entry
+        }
+        match @cluster.ClusterNode::dial_peer(leader, conn, expected) {
+          Err(_) =>
+            fail("both sides hold the same secret, so the handshake must pass")
+          Ok(link) => {
+            assert_eq(leader.link_count(), 1)
+            // The transport goes before the batch does, so the write is
+            // what fails rather than the answer that never arrives.
+            @net.Conn::close(conn)
+            let outcome = @cluster.ClusterNode::send_append(
+              leader,
+              link,
+              leader_log,
+              1UL,
+              [b"one"],
+              true,
+              handshake_budget_ms(),
+            )
+            match outcome {
+              Err(_) => ()
+              Ok(_) => fail("there is no connection left to write a batch on")
+            }
+            assert_eq(leader.link_count(), 0)
+          }
+        }
+        @net.Conn::close(conn)
+      }
+    }
+  }
+}

@@ -100,7 +100,7 @@ pub extend FollowerProgress with @moonbitlang/core/debug.Debug::{to_repr}
 /// held behind a `Ref` so a node can be shared between the accept task
 /// and the dial tasks that bring it up without aliasing the node itself.
 priv struct NodeCore {
-  links : Array[PeerLink]
+  mut links : Array[PeerLink]
   followers : Array[FollowerProgress]
   mut quorum : QuorumState
   // Members that have promised, and members that have installed, the
@@ -225,7 +225,7 @@ pub async fn ClusterNode::serve_peer(
     Err(code) => Err(code)
     Ok(peer_id) => {
       let link : PeerLink = { peer_id, outbound: false, conn, }
-      self.core.val.links.push(link)
+      self.record_link(link)
       Ok(link)
     }
   }
@@ -252,7 +252,7 @@ pub async fn ClusterNode::dial_peer(
     Err(code) => Err(code)
     Ok(peer_id) => {
       let link : PeerLink = { peer_id, outbound: true, conn, }
-      self.core.val.links.push(link)
+      self.record_link(link)
       Ok(link)
     }
   }
@@ -268,10 +268,53 @@ pub fn ClusterNode::links(self : ClusterNode) -> Array[PeerLink] {
 /// Number of authenticated links.
 ///
 /// For a three-node cluster every node should end up with exactly two,
-/// one per other member: a third would mean a duplicate link was
-/// recorded, and one short means a peer never completed a handshake.
+/// one per other member. One short means a peer never completed a
+/// handshake, and more than two cannot happen: the table holds one link
+/// per member, so a reconnect replaces rather than adds.
 pub fn ClusterNode::link_count(self : ClusterNode) -> Int {
   self.core.val.links.length()
+}
+
+///|
+/// Record an authenticated link, keeping at most one per member.
+///
+/// A cluster is three nodes and three connections. A table that grows
+/// with every reconnect is one a member can grow without limit once it
+/// has proved itself once, and the shared secret is exactly what it
+/// needs to keep proving itself -- so the bound has to be here rather
+/// than somewhere later. A second handshake closes the older link and
+/// keeps the newer: it is the same member, the newer connection is the
+/// one it means to use, and a reconnect after a network blip is common
+/// enough that refusing it would cost an outage to defend against
+/// something the secret has already admitted.
+fn ClusterNode::record_link(self : ClusterNode, link : PeerLink) -> Unit {
+  let _ = self.close_link(link.peer_id())
+  self.core.val.links.push(link)
+}
+
+///|
+/// Drop the link to a member, if there is one, and release its
+/// transport. Reports whether there was one.
+///
+/// This is what keeps the table honest. A link that stayed in it after
+/// the connection behind it went away would leave `peers_connected`
+/// answering about a member nobody can reach -- the same kind of
+/// reporting-a-health-nobody-tested that a quorum tier held onto after
+/// a round failed, and for the same reason it has to be the moment the
+/// connection goes rather than whenever somebody next looks.
+pub fn ClusterNode::close_link(self : ClusterNode, peer_id : UInt16) -> Bool {
+  let kept : Array[PeerLink] = []
+  let mut dropped = false
+  for link in self.core.val.links {
+    if link.peer_id == peer_id {
+      link.close()
+      dropped = true
+    } else {
+      kept.push(link)
+    }
+  }
+  self.core.val.links = kept
+  dropped
 }
 
 ///|

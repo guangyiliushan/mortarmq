@@ -109,6 +109,7 @@ pub struct ClusterNode {
 }
 pub fn ClusterNode::begin_election(Self) -> Unit
 pub async fn ClusterNode::catch_up(Self, PeerLink, &ReplicaLog, LeaderEpoch, Int, Int) -> Result[UInt64, @protocol.ErrCode]
+pub fn ClusterNode::close_link(Self, UInt16) -> Bool
 pub fn ClusterNode::commit_horizon(Self, UInt64) -> UInt64
 pub fn ClusterNode::commit_seq(Self) -> UInt64
 pub fn ClusterNode::config(Self) -> ClusterConfig

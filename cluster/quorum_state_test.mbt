@@ -448,6 +448,10 @@ async test "a round to a peer that has gone leaves the tier, not the health it s
             assert_eq(leader.quorum_state().may_write(), false)
             assert_eq(leader.take_quorum_event(), Some(@protocol.QuorumLost))
             assert_eq(leader.take_quorum_event(), None)
+            // The connection behind the link is gone, so the link goes
+            // with it rather than staying in the table as a member the
+            // node still claims it can reach.
+            assert_eq(leader.link_count(), 0)
             // Nothing was answered, so nothing about durability
             // changed: the leader's own fsync is still one copy.
             assert_eq(leader_log.last_flushed_seq(), 1UL)

@@ -676,6 +676,9 @@ async test "an acknowledgement that echoes another term is refused" {
             // Refused means nothing was counted: the positions it
             // carried belong to some other round.
             assert_eq(leader.follower_positions().length(), 0)
+            // A wrong answer is not a dead connection: the round is over
+            // and the link is not, so the table still has it.
+            assert_eq(leader.link_count(), 1)
           }
         }
         @net.Conn::close(conn)

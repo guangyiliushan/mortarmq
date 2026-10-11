@@ -200,7 +200,13 @@ async fn ClusterNode::ship_batch_round(
     return Err(@protocol.BadLength)
   }
   match @net.Conn::write_all(link.channel(), frame) {
-    Err(code) => return Err(code)
+    Err(code) => {
+      // The transport is gone, not this batch. The link goes with it, so
+      // the table stops claiming a member is reachable through a
+      // connection that is not there.
+      let _ = self.close_link(link.peer_id())
+      return Err(code)
+    }
     Ok(_) => ()
   }
   let reply = match
@@ -218,7 +224,13 @@ async fn ClusterNode::ship_batch_round(
       ran_out.val = true
       return Err(@protocol.ReadOnlyDegraded)
     }
-    Some(Err(code)) => return Err(code)
+    Some(Err(code)) => {
+      // The stream did not produce a frame this round can read, which is
+      // the connection and not the answer. A refusal that did arrive is
+      // a different thing and keeps the link: see below.
+      let _ = self.close_link(link.peer_id())
+      return Err(code)
+    }
     Some(Ok(msg)) => msg
   }
   match refusal(reply) {
