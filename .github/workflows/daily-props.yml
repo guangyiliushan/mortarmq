@@ -55,15 +55,13 @@ jobs:
 
       # MORTARMQ_PROP_DAILY flips the daily-tier property files into
       # registry daily mode: run-unique seed (logged for reproduction),
-      # count=1000, max_size=256. Four sweeps run here: the protocol
+      # count=1000, max_size=256. Five sweeps run here: the protocol
       # pollution sweep (frame_props_daily_test.mbt), the cluster quorum
       # sweep (quorum_props_test.mbt), the broker rebalance sweep
-      # (rebalance_props_daily_test.mbt), and the metrics quantile sweep
-      # (quantile_props_test.mbt). The admin conservation sweep
-      # (conservation_props_test.mbt) is named but not yet wired: its
-      # properties pin fixed seeds and join this step once they carry
-      # the daily-mode switch. The registry budget is <=30min; the
-      # sweeps run in seconds and the timeout is the guard, not the
+      # (rebalance_props_daily_test.mbt), the metrics quantile sweep
+      # (quantile_props_test.mbt), and the admin conservation sweep
+      # (conservation_props_test.mbt). The registry budget is <=30min;
+      # the sweeps run in seconds and the timeout is the guard, not the
       # expectation.
       - name: daily property sweeps (random seed, count=1000, max_size=256)
         env:
@@ -73,3 +71,4 @@ jobs:
           moon test cluster/quorum_props_test.mbt
           moon test broker/rebalance_props_daily_test.mbt
           moon test metrics/quantile_props_test.mbt
+          moon test admin/conservation_props_test.mbt
