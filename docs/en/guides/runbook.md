@@ -20,7 +20,7 @@ Every entry answers five questions in order: **what alerted me → what changed 
 | 1 | quorum possible but one follower lag > soft gap | 3 | 2 | 2 | `OK durability=quorum` + `FOLLOWER_LAG` warning | `commit_seq` | `FOLLOWER_LAG` | start catch-up and monitor |
 | 0 (soft timeout) | quorum ack not completed in timeout | 3 | 2 | 2 | `ERR READ_ONLY_DEGRADED` | `commit_seq` frozen | `READ_ONLY_DEGRADED` | inspect follower disk / network |
 | 0 (no follower) | no follower flushed within hard gap | 3 | 1 | 2 | `ERR READ_ONLY_DEGRADED` | `commit_seq` frozen | `READ_ONLY_DEGRADED` | **repair the follower before writes resume** |
-| −1 (explicit) | operator sets `min_in_sync=1` and explicitly enables degraded ack | 3 | 1 | 1 | `OK durability=min_isr` | implementation must define; **default not implemented** | none | explicit, unclean-risk acknowledgement |
+| −1 (explicit) | the explicit-degraded mode (future knob `min_in_sync`; the key is not on today’s config surface) | 3 | 1 | 1 | `OK durability=min_isr` | implementation must define; **default not implemented** | none | explicit, unclean-risk acknowledgement |
 | −2 (conflict) | divergence at or below `commit_seq` | 3 | n/a | 2 | `ERR QUARANTINED` | partition quarantined | `DIVERGENT_COMMITTED` | manual reconcile from audit logs |
 
 > **Spec anchor (REQ-REP-004):** the 1-of-3 survival scenario returns `0x6002 READ_ONLY_DEGRADED` on the write path, so that is the code the row above owes a client; `0x6003 IN_SYNC_REPLICAS_NOT_ENOUGH` is the in-class variant that names the missing replicas more specifically. Timing values (frozen design, replication lease-timing table): `quorum_ack_timeout_ms` = 50 ms (the level 0 soft-timeout deadline), `leader_heartbeat_ms` = 500 ms, `prepare_timeout_ms` = 1000 ms, `follower_lease_ms` = 2000 ms.
@@ -60,6 +60,6 @@ Manual intervention on the metadata log is required only at level −2. Anything
 - **Automatic:** on restart the broker replays the segment log and the delivery ledger; redelivery timers are rebuilt from the ledger, so at-least-once survives the crash.
 - **Manual:** confirm the recovered `leader_epoch` with `mortarmq leader get`.
 
-::: warning Without code yet
-No broker runs today, so no entry has been exercised. The trigger table is frozen design and the three entries are the shape each future entry must take — the `Verify recovery` step is the part that must never be left blank.
+::: warning Not yet exercised
+No entry has been exercised end to end. The trigger table is frozen design and the three entries are the shape each future entry must take — the `Verify recovery` step is the part that must never be left blank.
 :::

@@ -20,7 +20,7 @@
 | 1 | quorum 可达成但有 follower 落后 > soft gap | 3 | 2 | 2 | `OK durability=quorum` + `FOLLOWER_LAG` 警告 | `commit_seq` | `FOLLOWER_LAG` | 启动追赶并观察 |
 | 0（soft timeout） | quorum ack 在超时内未完成 | 3 | 2 | 2 | `ERR READ_ONLY_DEGRADED` | `commit_seq` 冻结 | `READ_ONLY_DEGRADED` | 查 follower 磁盘 / 网络 |
 | 0（no follower） | hard gap 内没有任何 follower flush | 3 | 1 | 2 | `ERR READ_ONLY_DEGRADED` | `commit_seq` 冻结 | `READ_ONLY_DEGRADED` | **先修 follower，再恢复写入** |
-| −1（explicit） | 运维显式设 `min_in_sync=1` 并开启降级 ack | 3 | 1 | 1 | `OK durability=min_isr` | 实现必须定义；**默认不实现** | none | 显式承担 unclean 风险 |
+| −1（explicit） | 显式降级模式（未来旋钮 `min_in_sync`；今天配置面无此键） | 3 | 1 | 1 | `OK durability=min_isr` | 实现必须定义；**默认不实现** | none | 显式承担 unclean 风险 |
 | −2（conflict） | 分歧出现在 `commit_seq` 及以下 | 3 | n/a | 2 | `ERR QUARANTINED` | 分区被隔离 | `DIVERGENT_COMMITTED` | 从审计日志人工对账 |
 
 > **spec 锚点（REQ-REP-004）：** 仅 1/3 存活场景写路径返回 `0x6002 READ_ONLY_DEGRADED`，上行欠客户端的就是这个码；`0x6003 IN_SYNC_REPLICAS_NOT_ENOUGH` 是分类内更具体的变体（点名缺失的副本）。时序值（冻结设计，replication lease-timing 表）：`quorum_ack_timeout_ms` = 50 ms（level 0 soft-timeout 截止）、`leader_heartbeat_ms` = 500 ms、`prepare_timeout_ms` = 1000 ms、`follower_lease_ms` = 2000 ms。
@@ -60,6 +60,6 @@ level 0 及以上**不需要人工介入来保护数据** —— broker 选择�
 - **自动行为：** 重启后 broker 重放 segment 日志与投递台账；重投定时器从台账重建，因此 at-least-once 扛过这次崩溃。
 - **人工步骤：** 用 `mortarmq leader get` 确认恢复后的 `leader_epoch`。
 
-::: warning 目前还没有代码
-今天没有 broker 在跑，所以没有任何条目被实战验证过。触发表是冻结设计，三条条目是**未来每条条目必须长成的样子** —— 其中 `验证恢复` 那一段是永远不许留空的部分。
+::: warning 尚未真演练
+没有任何条目被端到端实战验证过。触发表是冻结设计，三条条目是**未来每条条目必须长成的样子** —— 其中 `验证恢复` 那一段是永远不许留空的部分。
 :::
