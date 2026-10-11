@@ -1,12 +1,11 @@
-/// The leader epoch, written to metadata before it takes effect
-/// (T043, WP-06.03, REQ-REP-003).
+/// The leader epoch, written to metadata before it takes effect.
 ///
 /// One number stands for "which leadership term this replica
 /// recognises". It is monotone by construction: a proposal at or below
 /// the epoch already recorded is refused rather than applied, so the
 /// clock never runs backwards and a delayed or replayed election cannot
 /// revive a term the cluster has already left. That is the whole safety
-/// property fencing later leans on -- WP-06.06 rejects a stale
+/// property fencing later leans on -- a stale
 /// `APPEND` by comparing against this value, and a comparison is only
 /// meaningful if the value underneath it never retreats.
 ///

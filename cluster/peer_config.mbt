@@ -1,5 +1,4 @@
-/// Static cluster membership and the peer channel's shared secret
-/// (REQ-REP-001, REQ-SEC-003).
+/// Static cluster membership and the peer channel's shared secret.
 ///
 /// A v0 cluster is three nodes named in one static table, dialed at the
 /// addresses that table holds, and each node listens on its own
@@ -11,9 +10,9 @@
 ///   package reads a client token, and `@security`'s token store is a
 ///   different type that cannot be passed where a `PeerSecret` is
 ///   expected, so a leaked client token cannot open a peer link by
-///   accident. The scenario in REQ-SEC-003 -- the token leaks, the peer
-///   channel is unaffected -- is a property of the types, not of a check
-///   someone has to remember to run.
+///   accident. That the token can leak while the peer channel carries on
+///   is a property of the types, not of a check someone has to remember
+///   to run.
 /// * `listen_peer` is a configuration field of its own, distinct from
 ///   `listen_client`, so the two faces are separate sockets on separate
 ///   ports from the moment a node starts.
@@ -25,7 +24,7 @@
 /// with a code that would mean something else.
 
 ///|
-/// Node count of the v0 cluster, fixed by REQ-REP-001.
+/// Node count of the v0 cluster, fixed at three.
 ///
 /// Not a tuning knob: the quorum below is derived from it, and a
 /// cluster of a different size would need its own ruling rather than a
@@ -48,7 +47,7 @@ pub const PEER_SECRET_MIN_BYTES : Int = 16
 /// peer yet, so no registered `ErrCode` would mean what happened here.
 /// The operator gets the fault's own name.
 pub(all) suberror ClusterFault {
-  /// REQ-REP-001: v0 is a static three-node cluster, and nothing else.
+  /// v0 is a static three-node cluster, and nothing else.
   NotThreePeers
   /// The table repeats a node id, so it no longer names three nodes.
   DuplicatePeerId
@@ -299,7 +298,7 @@ pub fn ClusterConfig::secret(self : ClusterConfig) -> PeerSecret {
 /// How many members must be durable before a write counts as committed.
 ///
 /// Majority of the static table: three members means two, leader plus
-/// one follower. REQ-REP-001's "2/3" is this number and nothing else --
+/// one follower. Two of three is this number and nothing else --
 /// there is no separate `min_in_sync_replicas` knob to drift away from
 /// it.
 ///

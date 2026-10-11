@@ -1,4 +1,4 @@
-/// The T043 exit, L1: the leader epoch is monotone, and it is written
+/// The leader epoch is monotone, and it is written
 /// to metadata before this replica acts on it.
 ///
 /// The two properties are checked separately because they fail

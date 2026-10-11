@@ -1,5 +1,5 @@
-/// The peer handshake over a real loopback socket, and the REQ-SEC-003
-/// separation between the peer secret and a client token.
+/// The peer handshake over a real loopback socket, and the separation
+/// between the peer secret and a client token.
 ///
 /// Every case here runs the actual protocol over an actual TCP
 /// connection: the accept side and the dial side each get a `Conn`, so
@@ -79,7 +79,7 @@ async fn dial_loopback(port : Int) -> Result[&@net.Conn, @protocol.ErrCode] {
 /// real bound port first, then two ports nothing dials.
 ///
 /// `ClusterConfig` always names three members, so a two-party test
-/// still carries the full table -- REQ-REP-001 has no two-node mode --
+/// still carries the full table -- a v0 cluster has no two-node mode --
 /// and the third row is simply never reached. `second_id` is a
 /// parameter so a fixture can model a node whose id is missing from the
 /// other side's table.
@@ -282,9 +282,9 @@ impl @security.Delay for NoPause with fn sleep_ms(self, ms : Int) -> Unit {
 
 ///|
 async test "a leaked client token cannot open a peer link, and a peer secret is not a client token" {
-  // REQ-SEC-003's scenario, both directions: the client token leaks and
-  // the peer channel is unaffected, and the peer secret is not usable as
-  // a client credential either. The two are different values held in
+  // The scenario in both directions: the client token leaks and the peer
+  // channel carries on, and the peer secret is not usable as a client
+  // credential either. The two are different values held in
   // different types, which is what makes the separation structural.
   let client_token = b"client-token-0123456789"
   let shared = fixture_secret()

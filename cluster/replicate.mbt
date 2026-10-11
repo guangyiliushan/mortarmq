@@ -1,4 +1,4 @@
-/// The APPEND / APPEND_ACK replication stream (T042, REQ-REP-001).
+/// The APPEND / APPEND_ACK replication stream.
 ///
 /// One round of the normal write path, in the order it has to happen:
 ///
@@ -28,11 +28,11 @@
 /// # Boundaries
 ///
 /// * Nothing here decides whether the write is *committed* -- that is
-///   the majority-fsync gate of WP-06.04, and it reads the per-peer
+///   the majority-fsync gate, and it reads the per-peer
 ///   positions this stream records.
 /// * Nothing here rejects a stale epoch -- `leader_epoch` travels in
 ///   both directions from the first version of the frame so that
-///   WP-06.06 can enforce it without a wire change, but a check is not
+///   the stale-epoch check can enforce it without a wire change, but a
 ///   a check until it rejects.
 /// * Rounds are sequential: one batch is written and its
 ///   acknowledgement read before the next batch starts. Pipelining is

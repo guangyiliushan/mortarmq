@@ -1,6 +1,6 @@
 /// Pin every rule `ClusterConfig::new` enforces before a socket is
-/// opened (REQ-REP-001 static three nodes, REQ-SEC-003 the secret), one
-/// rejection per fault, plus the majority arithmetic the commit gate
+/// opened (three static members, and the secret that separates the peer
+/// channel from every client token), one rejection per fault, plus the majority arithmetic the commit gate
 /// will read.
 
 ///|
@@ -49,7 +49,7 @@ test "a three-node static table is accepted and its quorum is a majority" {
       assert_eq(config.peer_count(), @cluster.STATIC_PEER_COUNT)
       assert_eq(config.node_id(), 1U.to_uint16())
       assert_eq(config.listen_port(), 7191)
-      // REQ-REP-001: three members commit at two, never at one.
+      // Three members commit at two, never at one.
       assert_eq(config.quorum(), 2)
       assert_eq(config.quorum() < config.peer_count(), true)
     }

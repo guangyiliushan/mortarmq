@@ -1,4 +1,4 @@
-/// The T042 exit, L1: the replication sequence.
+/// The replication sequence, as an ordering property.
 ///
 /// Every case runs a real round over a real loopback socket and asserts
 /// the *order* things happened in, not only the end state: a trace

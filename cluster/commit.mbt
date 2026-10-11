@@ -1,5 +1,4 @@
-/// The majority-fsync gate the publish path waits on (T044, WP-06.04,
-/// REQ-REP-001).
+/// The majority-fsync gate the publish path waits on.
 ///
 /// `PUB_OK` may only be returned once a quorum of the static cluster has
 /// the write on disk. The arithmetic is deliberately simple: every
@@ -35,7 +34,7 @@
 ///   `commit_seq <= leader.last_flushed_seq` then holds by construction
 ///   rather than by an argument about what callers can arrange.
 /// * Losing quorum shows up here as a horizon that stops advancing,
-///   which is what WP-06.05 turns into an explicit read-only refusal
+///   which the read-only tier turns into an explicit refusal
 ///   rather than a wait.
 
 ///|
@@ -103,7 +102,7 @@ pub fn ClusterNode::commit_horizon(
 /// The whole requirement in one comparison: `true` only once a majority
 /// has fsynced at or past `seq`. A `false` is a wait, never a refusal
 /// -- the write is still in flight and will be acknowledged when the
-/// quorum reaches it (or refused outright once WP-06.05 declares the
+/// quorum reaches it (or refused outright once the cluster declares the
 /// quorum lost).
 ///
 /// Sequence zero names no write, so it is never publishable: refusing

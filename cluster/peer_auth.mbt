@@ -1,5 +1,4 @@
-/// Mutual challenge-response authentication of one peer link
-/// (REQ-SEC-003).
+/// Mutual challenge-response authentication of one peer link.
 ///
 /// Both ends have to prove they hold the same shared secret before a
 /// single replication byte moves, and neither ever sends the secret
@@ -23,7 +22,7 @@
 /// Nothing here reads a `TokenStore`. The value that authenticates a
 /// peer link is a `PeerSecret`, which is a different type from anything
 /// `@security.authenticate` accepts, so a leaked client token -- the
-/// scenario REQ-SEC-003 names -- cannot be presented on this channel at
+/// scenario of a leaked client token cannot be presented on this channel
 /// all, and vice versa. The `cluster_peer_auth_test` cases pin both
 /// directions.
 ///
@@ -35,7 +34,7 @@
 ///   caller also gets back, so the far end learns why the link closed
 ///   and the local caller still sees a named error.
 /// * The tag comparison is `@security.tag_eq`, the one exported
-///   constant-time compare (Q12, CWE-208 / Go `crypto/subtle`): XOR
+///   constant-time compare (CWE-208 / Go `crypto/subtle`): XOR
 ///   accumulator, single verdict extraction, length checked first.
 ///   There is no `==` anywhere on tag bytes in this package, and no
 ///   second copy of the comparison either -- the single-point

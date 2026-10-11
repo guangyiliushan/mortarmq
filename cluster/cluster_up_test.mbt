@@ -1,4 +1,4 @@
-/// The T041 exit, L7: three nodes come up.
+/// Three nodes come up over real sockets.
 ///
 /// Three real loopback listeners are bound at once, one per node's
 /// `listen_peer`, and each node completes an authenticated link to both

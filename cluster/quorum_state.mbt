@@ -1,5 +1,4 @@
-/// The three-tier quorum state, and the one place it is named
-/// (T045, WP-06.05, REQ-REP-004).
+/// The three-tier quorum state, and the one place it is named.
 ///
 /// The frozen degradation matrix has three tiers the cluster can be in,
 /// and four surfaces have to agree on them: `/healthz`, the
@@ -30,13 +29,13 @@
 ///
 /// The state is re-evaluated after every replication round, so it
 /// clears itself as soon as a round completes with a majority in sync.
-/// REQ-REP-004's recovery scenario needs no separate trigger: the same
+/// recovery needs no separate trigger: the same
 /// classification that declared the loss declares the return.
 
 ///|
 /// Default deadline for a quorum acknowledgement, in milliseconds.
 ///
-/// From the A06 lease-timing table (`quorum_ack_timeout_ms`, default 50,
+/// From the replication lease-timing table (`quorum_ack_timeout_ms`, default 50,
 /// range 10..1000). It is how long a write waits for a majority to
 /// fsync before the cluster declares itself read-only; a producer is
 /// never left waiting indefinitely for an answer already known to be

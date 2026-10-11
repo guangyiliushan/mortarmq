@@ -1,5 +1,4 @@
-/// The durability seam replication reads and writes (T042,
-/// REQ-REP-001).
+/// The durability seam replication reads and writes.
 ///
 /// Replication only ever needs four facts about a replica's log: what
 /// has been written, what has been fsynced, and the ability to write
@@ -24,7 +23,7 @@
 /// 1. `last_flushed_seq <= last_appended_seq`, always. Flush never
 ///    invents data that was not written.
 /// 2. Both positions only ever move forward within one leader epoch; a
-///    truncation is a different operation and lands with WP-06.07.
+///    truncation is a different operation and lands on its own.
 /// 3. `append(payloads, true)` returns only after the payloads are
 ///    durable, so the sequence it reports is a `flushed_seq` by the
 ///    time the caller can act on it.

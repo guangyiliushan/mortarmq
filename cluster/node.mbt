@@ -1,6 +1,5 @@
 /// One static-cluster node: its identity, its peer links, and the two
-/// entry points a transport wiring calls (T041, REQ-REP-001,
-/// REQ-SEC-003).
+/// entry points a transport wiring calls.
 ///
 /// A node here owns the peer *protocol* and the bookkeeping that
 /// follows from it, not a socket. `serve_peer` and `dial_peer` take a
@@ -302,7 +301,7 @@ pub fn ClusterNode::follower_progress(
 ///|
 /// The sequences every known peer has reported, both positions.
 ///
-/// The quorum question T044 answers is a function of this list plus the
+/// The quorum question the publish path asks is a function of this list
 /// leader's own flushed position, which is why both positions are kept
 /// per peer rather than collapsed into one "caught up" flag.
 pub fn ClusterNode::follower_positions(

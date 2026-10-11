@@ -1,9 +1,9 @@
-/// The T044 exit: `PUB_OK` waits for a majority to fsync.
+/// `PUB_OK` waits for a majority to fsync.
 ///
 /// The unit cases fix the arithmetic against each way it could be wrong
 /// -- leader-only, dirty-only, a laggard, a follower reporting past the
 /// leader -- and the integration case runs the whole gate over three
-/// real loopback nodes so the G2 determination rests on a live cluster
+/// real loopback nodes so the determination rests on a live cluster
 /// rather than on a table of numbers.
 
 ///|

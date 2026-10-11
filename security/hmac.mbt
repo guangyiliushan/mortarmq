@@ -1,7 +1,7 @@
 /// HMAC-SHA256 (RFC 2104), the keyed MAC the replication peer channel
 /// authenticates with.
 ///
-/// The peer channel (REQ-SEC-003) needs a proof that both ends hold the
+/// The peer channel needs a proof that both ends hold the
 /// same shared secret without ever putting that secret on the wire, and a
 /// plain hash cannot do that: `sha256(secret || nonce)` proves knowledge
 /// of nothing, because the verifier never chose the byte string it is

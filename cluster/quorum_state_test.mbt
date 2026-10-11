@@ -1,4 +1,4 @@
-/// The T045 exit: one matrix, three tiers, and a write that is refused
+/// One matrix, three tiers, and a write that is refused
 /// rather than faked when the majority is gone.
 ///
 /// Two halves. The first walks the frozen degradation matrix row by row
