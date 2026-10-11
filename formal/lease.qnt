@@ -9,11 +9,12 @@
 // `expire` were to advance the term without a promise, the first
 // invariant below finds it.
 //
-// This is a first cut, not the temporalized model: `quint run` and
-// `quint verify` both check the safety properties over a bounded
-// reachability space. The temporalization -- liveness under a fair
-// scheduler, the expected counterexample -- belongs to the formal line
-// task that takes this as its prerequisite.
+// The temporal half below states the election liveness claim: a lapsed
+// lease eventually sees the term it triggered installed. It is written
+// to expose the finding the liveness check is expected to produce --
+// without a progress assumption nothing obliges the election to
+// complete -- and the safety half is unchanged by it.
+
 //
 // Toolchain: quint 0.33.0 (Apache-2.0) against the Apalache 0.62.1
 // server. On Windows the server must be started first, and a Java 21+
@@ -22,6 +23,7 @@
 //   ~/.quint/apalache-dist-0.62.1/apalache/bin/apalache-mc server --port=8822 &
 //   quint run --invariant=leaderImpliesQuorumPromise formal/lease.qnt
 //   quint verify --init=init --step=step --invariant=leaderImpliesQuorumPromise formal/lease.qnt
+//   quint verify --backend tlc --init=init --step=step --temporal=lapseElects formal/lease.qnt
 module lease {
   // Three members, majority of two, three terms -- the same bounds the
   // fencing model uses, and the same reason: the properties are about
@@ -48,13 +50,19 @@ module lease {
   // leader, so there is none before one exists.
   var lease: bool
 
+  // Whether a lease lapse is still waiting on the election it
+  // triggers. `expire` raises it and only `install` clears it, so the
+  // liveness claim below has a state to hold onto.
+  var lapsed: bool
+
   action init = all {
     leaderEpoch' = 0,
     priorLeaderEpoch' = 0,
     p1' = 0,
     p2' = 0,
     p3' = 0,
-    lease' = false
+    lease' = false,
+    lapsed' = false
   }
 
   // The heartbeat. It refreshes liveness and says nothing at all about
@@ -67,7 +75,8 @@ module lease {
     p1' = p1,
     p2' = p2,
     p3' = p3,
-    lease' = true
+    lease' = true,
+    lapsed' = lapsed
   }
 
   // The lease lapses. This is the trigger and nothing more: it names no
@@ -80,7 +89,8 @@ module lease {
     priorLeaderEpoch' = leaderEpoch,
     p1' = p1,
     p2' = p2,
-    p3' = p3
+    p3' = p3,
+    lapsed' = true
   }
 
   // One member promises a term. Promises only ever move up: a member
@@ -95,7 +105,8 @@ module lease {
     priorLeaderEpoch' = leaderEpoch,
     p2' = p2,
     p3' = p3,
-    lease' = lease
+    lease' = lease,
+    lapsed' = lapsed
   }
 
   action promise2(e: int): bool = all {
@@ -106,7 +117,8 @@ module lease {
     priorLeaderEpoch' = leaderEpoch,
     p1' = p1,
     p3' = p3,
-    lease' = lease
+    lease' = lease,
+    lapsed' = lapsed
   }
 
   action promise3(e: int): bool = all {
@@ -117,7 +129,8 @@ module lease {
     priorLeaderEpoch' = leaderEpoch,
     p1' = p1,
     p2' = p2,
-    lease' = lease
+    lease' = lease,
+    lapsed' = lapsed
   }
 
   // Install a term, and only where a majority has promised it. This is
@@ -134,7 +147,8 @@ module lease {
     p1' = p1,
     p2' = p2,
     p3' = p3,
-    lease' = lease
+    lease' = lease,
+    lapsed' = false
   }
 
   // A step in which nothing happens. Without it the model has terminal
@@ -147,7 +161,8 @@ module lease {
     p1' = p1,
     p2' = p2,
     p3' = p3,
-    lease' = lease
+    lease' = lease,
+    lapsed' = lapsed
   }
 
   action step = any {
@@ -193,4 +208,16 @@ module lease {
   // installed, which is what keeps "the lease is up" from meaning
   // anything about a leader that is not there.
   val leaseHeldImpliesALeader = lease implies leaderEpoch > 0
+
+  // The temporal half: a lapsed lease eventually sees the election it
+  // triggers completed -- the term the lapse was waiting on is
+  // installed, which is the only action that clears `lapsed` and the
+  // only one that can move the term forward.
+  //
+  // The check is expected to fail as written: nothing in the model
+  // obliges promises to arrive or the install to fire, so the
+  // scheduler can leave the lapse unanswered forever. That failure is
+  // the finding, not a defect in the property -- the fix belongs with
+  // the fairness or timeout assumption that closes it.
+  temporal lapseElects = always(lapsed leadsTo not(lapsed))
 }
