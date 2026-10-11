@@ -1,0 +1,12 @@
+// The browser main-thread entry of the client library: the JS backend
+// shape only, wired through the async runtime host promise bridge.
+
+import {
+  "moonbitlang/async/js_async",
+}
+
+import {
+  "moonbitlang/async",
+} for "test"
+
+supported_targets = "-all+js"
