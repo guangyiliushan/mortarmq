@@ -71,7 +71,7 @@ test "the byte budget rejects exactly the payload that would overflow it" {
   assert_eq(@broker.PubBudget::admit(budget, 1U), Err(@broker.OverBudgetBytes))
   assert_eq(@broker.PubBudget::report(budget).outstanding_bytes, 1000U)
   // The count cap is reached first here only after completions; the
-  // byte cap keeps its own verdict while count still has room.
+  // byte cap keeps its own answer while count still has room.
   assert_eq(@broker.PubBudget::report(budget).outstanding_count, 2U.to_uint16())
 }
 

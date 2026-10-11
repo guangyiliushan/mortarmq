@@ -279,7 +279,7 @@ test "source DECLARE atomically creates its reserved .dlq twin" {
 }
 
 ///|
-test "client DECLARE of the .dlq namespace is INVALID_TOPIC (L1)" {
+test "client DECLARE of the .dlq namespace is INVALID_TOPIC" {
   let registry = @broker.TopicRegistry::new()
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"orders", 1),
@@ -301,7 +301,7 @@ test "client DECLARE of the .dlq namespace is INVALID_TOPIC (L1)" {
 }
 
 ///|
-test "client PUB to a .dlq twin is INVALID_TOPIC (L1)" {
+test "client PUB to a .dlq twin is INVALID_TOPIC" {
   let registry = @broker.TopicRegistry::new()
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"orders", 1),

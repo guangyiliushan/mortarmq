@@ -523,9 +523,9 @@ pub fn CreditRegistry::report(
 /// tranche of the named subscription (the ownership-event port, the partial-migration
 /// path).
 ///
-/// This is the credit-side port of the ruled one-source-three-consumers
+/// This is the credit-side port of the one-source-three-consumers
 /// event. The coordinator calls it between the ledger's `FENCED` write
-/// and the long-poll waiter wake-up; the eight parameters are the ruled
+/// and the long-poll waiter wake-up; the eight parameters are the
 /// flat event shape, deliberately not a shared record. The group identity travels as `group_id : UInt16`, the same name and type as `NOTICE`/`CONTROL_ACK` (the `group` name stays out of the event). Full ownership
 /// changes never arrive here -- they bump the subscription generation on
 /// the coordinator side and the client re-`SUB`s, so only partial

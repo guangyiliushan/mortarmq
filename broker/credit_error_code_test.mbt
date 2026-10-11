@@ -1,5 +1,5 @@
 /// Prove the mapping surface lands every credit refusal in the
-/// registered code table (L1: the refusal codes are registry members),
+/// registered code table,
 /// that the pairing is total and injective, and that the one documented
 /// stretch -- unknown subscription -- names the registered re-SUB
 /// action code rather than inventing one.

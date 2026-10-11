@@ -2,7 +2,7 @@
 ///
 /// A client does not return credit per `ACK`: it accumulates what it has
 /// processed and sends one `CREDIT` frame when a flush trigger fires.
-/// The ruled triggers are four, any one of them sufficing: 32 pending
+/// The flush triggers are four, any one of them sufficing: 32 pending
 /// messages, 1 MiB pending bytes, the granted budget dropping under the
 /// low-water mark, or 20 ms since the first pending return. `CREDIT`
 /// only carries the accumulated return (`mode = Add`); it never tops the
@@ -161,7 +161,7 @@ pub fn CreditReturnTracker::record_ack(
 /// Answer whether a `CREDIT` frame should go out now, given the client's
 /// view of the granted budget.
 ///
-/// The four ruled triggers, any one sufficing: 32 pending messages, 1
+/// The four flush triggers, any one sufficing: 32 pending messages, 1
 /// MiB pending bytes (with the defaults), `available_count` under
 /// the low-water mark, `available_bytes` under the low-water mark, or 20
 /// ms (the configured deadline) elapsed since the first pending return.
