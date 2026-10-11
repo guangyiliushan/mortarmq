@@ -28,7 +28,7 @@ env:
 
 jobs:
   daily-tier:
-    name: daily property tier (CF4)
+    name: daily property sweeps
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

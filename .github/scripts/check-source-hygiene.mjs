@@ -44,6 +44,14 @@ const TEXT_EXT = new Set([".mbt", ".mbti", ".qnt", ".sh", ".mjs", ".yml", ".yaml
 const TEXT_BASE = new Set(["moon.pkg", "moon.mod"]);
 const PLAN_MARKER =
   /\bT\d{2,3}\b|\bWP-[A-Z0-9.]+|\bREQ-[A-Z]+-\d+\b|\bQ\d+\b|\bR\d+[a-z]?\b|\bR-[A-Z0-9]+\b|\bA\d{2}\b|\bD\d{1,2}\b|\bADR-\d+\b|\bCQ\d+\b|\bINV-\d+\b|suite S\d+|\bgap [AB]-\d\b|\b(CB|CM|CL|CS|CF)\d+\b|\bF\d{2}\b/g;
+// The property-suite ids are local labels inside the property files that
+// define them (names, log labels, file headers map to the registry), so
+// those files run without the property families. Everywhere else the
+// families stay armed: a suite id cited in ordinary code or comments is
+// a plan reference like any other.
+const PROPS_FILE = /props(_daily)?_test\.mbt$/;
+const PLAN_MARKER_IN_PROPS =
+  /\bT\d{2,3}\b|\bWP-[A-Z0-9.]+|\bREQ-[A-Z]+-\d+\b|\bQ\d+\b|\bR\d+[a-z]?\b|\bR-[A-Z0-9]+\b|\bA\d{2}\b|\bD\d{1,2}\b|\bADR-\d+\b|\bINV-\d+\b|suite S\d+|\bgap [AB]-\d\b|\bF\d{2}\b/g;
 
 const quiet = process.argv.includes("--quiet");
 
@@ -92,9 +100,10 @@ for (const file of files) {
 
   // Scan 1: plan markers, line by line so the report names the line.
   const text = buf.toString("utf8");
+  const markerRe = PROPS_FILE.test(rel) ? PLAN_MARKER_IN_PROPS : PLAN_MARKER;
   let fileMarkerHits = 0;
   text.split("\n").forEach((line, index) => {
-    const tokens = [...line.matchAll(PLAN_MARKER)].map((m) => m[0]);
+    const tokens = [...line.matchAll(markerRe)].map((m) => m[0]);
     if (tokens.length > 0) {
       markerHits++;
       fileMarkerHits++;
