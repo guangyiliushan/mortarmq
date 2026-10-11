@@ -247,6 +247,102 @@ pub async fn case_f2(env : @harness.SimEnv) -> Unit {
 }
 
 ///|
+/// The rollback-allow case: the downgrade preconditions of a clean
+/// tracker all pass, and a change after the upgrade point flips the
+/// first check.
+pub async fn case_downgrade_precheck(env : @harness.SimEnv) -> Unit {
+  assert_narrow_contract(env.disk)
+  let tracker = @metadata.ChangeTracker::new()
+  let compatible = @metadata.encode_feature_flag("read-mode", false)
+  let record : @metadata.MmmlRecord = {
+    header: @metadata.MmmlHeader::new(
+      format_version=1,
+      header_version=1,
+      flags=0,
+      record_type=@metadata.ConfigUpdate,
+      leader_epoch=0UL,
+      mutation_id=1UL,
+    ),
+    payload: compatible,
+  }
+  let first = tracker.track(10UL, record)
+  if first is Err(_) {
+    fail("the compatible change failed to track")
+  }
+  let clean = tracker.downgrade_preconditions(10UL)
+  assert_eq(clean.length(), 2)
+  assert_eq(clean[0].name, "no metadata change since the upgrade point")
+  assert_eq(clean[0].passed, true)
+  assert_eq(clean[1].name, "no finalized feature on record")
+  assert_eq(clean[1].passed, true)
+  // A change after the upgrade point flips the first check.
+  let later = tracker.track(20UL, record)
+  if later is Err(_) {
+    fail("the later change failed to track")
+  }
+  let dirty = tracker.downgrade_preconditions(10UL)
+  assert_eq(dirty[0].passed, false)
+  assert_eq(dirty[1].passed, true)
+}
+
+///|
+/// The rollback-refuse case: the explanation lists exactly the
+/// irreversible changes with their names and log positions, and the
+/// finalize gate authorizes new-format writes only after it answers
+/// true.
+pub async fn case_rollback_explain(env : @harness.SimEnv) -> Unit {
+  assert_narrow_contract(env.disk)
+  let tracker = @metadata.ChangeTracker::new()
+  let del : @metadata.DeclareBody = @metadata.Delete("orders")
+  let delete_record : @metadata.MmmlRecord = {
+    header: @metadata.MmmlHeader::new(
+      format_version=1,
+      header_version=1,
+      flags=0,
+      record_type=@metadata.TopicDelete,
+      leader_epoch=0UL,
+      mutation_id=2UL,
+    ),
+    payload: del.to_payload(),
+  }
+  let flagged = @metadata.encode_feature_flag("segment-v2", true)
+  let flag_record : @metadata.MmmlRecord = {
+    header: @metadata.MmmlHeader::new(
+      format_version=1,
+      header_version=1,
+      flags=0,
+      record_type=@metadata.ConfigUpdate,
+      leader_epoch=0UL,
+      mutation_id=3UL,
+    ),
+    payload: flagged,
+  }
+  let first = tracker.track(20UL, delete_record)
+  if first is Err(_) {
+    fail("the delete change failed to track")
+  }
+  assert_eq(tracker.is_finalized("segment-v2"), false)
+  let second = tracker.track(30UL, flag_record)
+  if second is Err(_) {
+    fail("the finalize flag failed to track")
+  }
+  assert_eq(tracker.is_finalized("segment-v2"), true)
+  let irreversible = tracker.one_way_changes()
+  assert_eq(irreversible.length(), 2)
+  assert_eq(irreversible[0].kind, @metadata.TopicDelete)
+  assert_eq(irreversible[0].tier, @metadata.OneWay)
+  assert_eq(irreversible[0].end_offset, 20UL)
+  assert_eq(irreversible[0].detail, "orders")
+  assert_eq(irreversible[1].kind, @metadata.ConfigUpdate)
+  assert_eq(irreversible[1].tier, @metadata.OneWay)
+  assert_eq(irreversible[1].end_offset, 30UL)
+  assert_eq(irreversible[1].detail, "segment-v2")
+  // The refusal a rollback meets is the failing precondition.
+  let refused = tracker.downgrade_preconditions(0UL)
+  assert_eq(refused[1].passed, false)
+}
+
+///|
 /// Run every matrix case and report one status per case in table order.
 ///
 /// A green case asserts its whole assertable surface first; a blocked
@@ -266,12 +362,9 @@ pub async fn run_upgrade_matrix(env : @harness.SimEnv) -> Array[CaseReport] {
   reports.push({ id: "F5", status: Blocked("negotiation-mechanism"), })
   assert_narrow_contract(env.disk)
   reports.push({ id: "F6", status: Blocked("replica-version-field"), })
-  assert_narrow_contract(env.disk)
-  reports.push({
-    id: "downgrade_precheck",
-    status: Blocked("mutation-tracking"),
-  })
-  assert_narrow_contract(env.disk)
-  reports.push({ id: "rollback_explain", status: Blocked("mutation-tracking"), })
+  case_downgrade_precheck(env)
+  reports.push({ id: "downgrade_precheck", status: Green, })
+  case_rollback_explain(env)
+  reports.push({ id: "rollback_explain", status: Green, })
   reports
 }

@@ -14,8 +14,8 @@ async test "the matrix pins its green and blocked sets" {
     { id: "F4", status: @tools.Blocked("code-allocation"), },
     { id: "F5", status: @tools.Blocked("negotiation-mechanism"), },
     { id: "F6", status: @tools.Blocked("replica-version-field"), },
-    { id: "downgrade_precheck", status: @tools.Blocked("mutation-tracking"), },
-    { id: "rollback_explain", status: @tools.Blocked("mutation-tracking"), },
+    { id: "downgrade_precheck", status: @tools.Green, },
+    { id: "rollback_explain", status: @tools.Green, },
   ])
   // The case table itself is the frozen eight rows in table order.
   let cases = @tools.upgrade_cases()

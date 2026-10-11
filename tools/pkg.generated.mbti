@@ -8,9 +8,13 @@ import {
 }
 
 // Values
+pub async fn case_downgrade_precheck(@harness.SimEnv) -> Unit
+
 pub async fn case_f1(@harness.SimEnv) -> Unit
 
 pub async fn case_f2(@harness.SimEnv) -> Unit
+
+pub async fn case_rollback_explain(@harness.SimEnv) -> Unit
 
 pub fn hash_token(BytesView, Bytes) -> Result[Bytes, @security.TokensError]
 

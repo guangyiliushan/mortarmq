@@ -6,6 +6,7 @@ import {
   "guangyiliushan/mortarmq/harness",
   "guangyiliushan/mortarmq/config",
   "guangyiliushan/mortarmq/cli",
+  "guangyiliushan/mortarmq/metadata",
   "moonbitlang/core/debug",
 }
 
