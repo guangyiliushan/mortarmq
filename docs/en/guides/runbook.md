@@ -19,9 +19,11 @@ Every entry answers five questions in order: **what alerted me → what changed 
 | 2 | leader + at least 1 follower flushed within hard gap | 3 | 2 | 2 | `OK durability=quorum` | `commit_seq` | none | normal |
 | 1 | quorum possible but one follower lag > soft gap | 3 | 2 | 2 | `OK durability=quorum` + `FOLLOWER_LAG` warning | `commit_seq` | `FOLLOWER_LAG` | start catch-up and monitor |
 | 0 (soft timeout) | quorum ack not completed in timeout | 3 | 2 | 2 | `ERR READ_ONLY_DEGRADED` | `commit_seq` frozen | `READ_ONLY_DEGRADED` | inspect follower disk / network |
-| 0 (no follower) | no follower flushed within hard gap | 3 | 1 | 2 | `ERR IN_SYNC_REPLICAS_NOT_ENOUGH` | `commit_seq` frozen | `IN_SYNC_REPLICAS_NOT_ENOUGH` | **repair the follower before writes resume** |
+| 0 (no follower) | no follower flushed within hard gap | 3 | 1 | 2 | `ERR READ_ONLY_DEGRADED` | `commit_seq` frozen | `READ_ONLY_DEGRADED` | **repair the follower before writes resume** |
 | −1 (explicit) | operator sets `min_in_sync=1` and explicitly enables degraded ack | 3 | 1 | 1 | `OK durability=min_iris` | implementation must define; **default not implemented** | none | explicit, unclean-risk acknowledgement |
 | −2 (conflict) | divergence at or below `commit_seq` | 3 | n/a | 2 | `ERR QUARANTINED` | partition quarantined | `DIVERGENT_COMMITTED` | manual reconcile from audit logs |
+
+> **Spec anchor (REQ-REP-004):** the 1-of-3 survival scenario returns `0x6002 READ_ONLY_DEGRADED` on the write path, so that is the code the row above owes a client; `0x6003 IN_SYNC_REPLICAS_NOT_ENOUGH` is the in-class variant that names the missing replicas more specifically. Timing values (frozen design, replication lease-timing table): `quorum_ack_timeout_ms` = 50 ms (the level 0 soft-timeout deadline), `leader_heartbeat_ms` = 500 ms, `prepare_timeout_ms` = 1000 ms, `follower_lease_ms` = 2000 ms.
 
 ### What the broker already did
 

@@ -19,9 +19,11 @@
 | 2 | leader + 至少 1 个 follower 在 hard gap 内 flush | 3 | 2 | 2 | `OK durability=quorum` | `commit_seq` | none | 正常 |
 | 1 | quorum 可达成但有 follower 落后 > soft gap | 3 | 2 | 2 | `OK durability=quorum` + `FOLLOWER_LAG` 警告 | `commit_seq` | `FOLLOWER_LAG` | 启动追赶并观察 |
 | 0（soft timeout） | quorum ack 在超时内未完成 | 3 | 2 | 2 | `ERR READ_ONLY_DEGRADED` | `commit_seq` 冻结 | `READ_ONLY_DEGRADED` | 查 follower 磁盘 / 网络 |
-| 0（no follower） | hard gap 内没有任何 follower flush | 3 | 1 | 2 | `ERR IN_SYNC_REPLICAS_NOT_ENOUGH` | `commit_seq` 冻结 | `IN_SYNC_REPLICAS_NOT_ENOUGH` | **先修 follower，再恢复写入** |
+| 0（no follower） | hard gap 内没有任何 follower flush | 3 | 1 | 2 | `ERR READ_ONLY_DEGRADED` | `commit_seq` 冻结 | `READ_ONLY_DEGRADED` | **先修 follower，再恢复写入** |
 | −1（explicit） | 运维显式设 `min_in_sync=1` 并开启降级 ack | 3 | 1 | 1 | `OK durability=min_iris` | 实现必须定义；**默认不实现** | none | 显式承担 unclean 风险 |
 | −2（conflict） | 分歧出现在 `commit_seq` 及以下 | 3 | n/a | 2 | `ERR QUARANTINED` | 分区被隔离 | `DIVERGENT_COMMITTED` | 从审计日志人工对账 |
+
+> **spec 锚点（REQ-REP-004）：** 仅 1/3 存活场景写路径返回 `0x6002 READ_ONLY_DEGRADED`，上行欠客户端的就是这个码；`0x6003 IN_SYNC_REPLICAS_NOT_ENOUGH` 是分类内更具体的变体（点名缺失的副本）。时序值（冻结设计，replication lease-timing 表）：`quorum_ack_timeout_ms` = 50 ms（level 0 soft-timeout 截止）、`leader_heartbeat_ms` = 500 ms、`prepare_timeout_ms` = 1000 ms、`follower_lease_ms` = 2000 ms。
 
 ### broker 已经自动做了什么
 
