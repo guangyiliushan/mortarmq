@@ -151,6 +151,7 @@ pub(all) enum ErrCode {
   DivergentCommitted
   QuorumRecovered
   UncleanElectionRejected
+  ElectionTimeout
 } derive(Eq, @debug.Debug)
 pub fn ErrCode::equal(Self, Self) -> Bool
 pub fn ErrCode::from_uint16(UInt) -> Self?

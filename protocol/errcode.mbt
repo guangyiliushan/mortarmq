@@ -66,6 +66,12 @@ pub(all) enum ErrCode {
   DivergentCommitted // 0x6009
   QuorumRecovered // 0x600A
   UncleanElectionRejected // 0x600B
+  // A member that did not answer inside one election round. This is a
+  // local classification for whoever is driving the round: nothing is
+  // written to a connection and nothing is closed, because a silent
+  // member is more often slow than gone -- the next round is the
+  // retry, not a reconnect.
+  ElectionTimeout // 0x600C
 } derive(Eq, Debug)
 
 ///|
@@ -139,6 +145,7 @@ pub fn ErrCode::to_uint16(self : ErrCode) -> UInt {
     DivergentCommitted => 0x6009U
     QuorumRecovered => 0x600AU
     UncleanElectionRejected => 0x600BU
+    ElectionTimeout => 0x600CU
   }
 }
 
@@ -209,6 +216,7 @@ pub fn ErrCode::from_uint16(code : UInt) -> ErrCode? {
     0x6009U => Some(DivergentCommitted)
     0x600AU => Some(QuorumRecovered)
     0x600BU => Some(UncleanElectionRejected)
+    0x600CU => Some(ElectionTimeout)
     _ => None
   }
 }
