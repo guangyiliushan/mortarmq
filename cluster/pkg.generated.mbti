@@ -86,12 +86,14 @@ pub fn ClusterConfig::secret(Self) -> PeerSecret
 pub struct ClusterNode {
   // private fields
 }
+pub fn ClusterNode::commit_horizon(Self, UInt64) -> UInt64
 pub fn ClusterNode::config(Self) -> ClusterConfig
 pub async fn ClusterNode::dial_peer(Self, &@net.Conn, PeerEntry) -> Result[PeerLink, @protocol.ErrCode]
 pub fn ClusterNode::follower_positions(Self) -> Array[FollowerProgress]
 pub fn ClusterNode::follower_progress(Self, UInt16) -> FollowerProgress?
 pub fn ClusterNode::link_count(Self) -> Int
 pub fn ClusterNode::links(Self) -> Array[PeerLink]
+pub fn ClusterNode::may_publish(Self, UInt64, UInt64) -> Bool
 pub fn ClusterNode::new(ClusterConfig) -> Self
 pub fn ClusterNode::node_id(Self) -> UInt16
 pub fn ClusterNode::peers_connected(Self) -> Bool
