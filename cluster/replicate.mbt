@@ -159,17 +159,9 @@ async fn ClusterNode::ship_batch(
     Some(code) => return Err(code)
     None => ()
   }
-  // An acknowledgement from a node other than the one this round asked
-  // would move the commit horizon on behalf of nobody, so it is refused
-  // before it is recorded.
-  match reply {
-    Ack(ack) if ack.follower_id != link.peer_id() =>
-      return Err(@protocol.AuthFailed)
-    _ => ()
-  }
   match reply {
     Ack(ack) =>
-      match self.record_append_ack(ack) {
+      match self.record_append_ack(ack, link.peer_id()) {
         Err(code) => Err(code)
         Ok(_) => {
           // A completed round is the moment the tier is re-evaluated:

@@ -77,12 +77,7 @@ pub async fn ClusterNode::send_prepare(
     PrepareAck(ack) => ack
     _ => return Err(@protocol.MalformedPayload)
   }
-  // An answer from a node other than the one asked is not an answer to
-  // this round, whatever id it signed itself with.
-  if ack.responder_id != link.peer_id() {
-    return Err(@protocol.AuthFailed)
-  }
-  match self.record_prepare_ack(ack, candidate_epoch) {
+  match self.record_prepare_ack(ack, candidate_epoch, link.peer_id()) {
     Err(code) => Err(code)
     Ok(_) => Ok(ack)
   }
@@ -196,10 +191,7 @@ pub async fn ClusterNode::send_install(
     InstallAck(ack) => ack
     _ => return Err(@protocol.MalformedPayload)
   }
-  if ack.responder_id != link.peer_id() {
-    return Err(@protocol.AuthFailed)
-  }
-  match self.record_install_ack(ack, candidate_epoch) {
+  match self.record_install_ack(ack, candidate_epoch, link.peer_id()) {
     Err(code) => Err(code)
     Ok(_) => Ok(ack)
   }

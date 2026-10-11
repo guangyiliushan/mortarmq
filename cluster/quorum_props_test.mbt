@@ -133,7 +133,7 @@ test "CQ1 the committed ceiling never moves backwards (pin seed=20261014; daily 
           flushed_seq: reported,
           dirty_seq: reported + 1UL,
         }
-        match @cluster.ClusterNode::record_append_ack(node, ack) {
+        match @cluster.ClusterNode::record_append_ack(node, ack, peer) {
           // A refused acknowledgement changes nothing, which is the
           // same conclusion the property draws from an accepted one.
           Err(_) => ()

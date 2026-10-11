@@ -300,7 +300,17 @@ pub fn ClusterNode::node_id(self : ClusterNode) -> UInt16 {
 pub fn ClusterNode::record_append_ack(
   self : ClusterNode,
   ack : AppendAck,
+  proved : UInt16,
 ) -> Result[Unit, @protocol.ErrCode] {
+  // The id in the body is checked against the one the handshake proved
+  // on this connection, never taken on its own. This function is public
+  // because a wiring layer may want to feed it acknowledgements
+  // directly, and a bare acknowledgement could otherwise name any
+  // member of the table and move that member's position -- and with it
+  // the commit horizon -- on its behalf.
+  if ack.follower_id != proved {
+    return Err(@protocol.AuthFailed)
+  }
   if ack.flushed_seq > ack.dirty_seq {
     return Err(@protocol.MalformedPayload)
   }
@@ -487,7 +497,13 @@ pub fn ClusterNode::record_prepare_ack(
   self : ClusterNode,
   ack : PrepareAckMsg,
   candidate_epoch : UInt64,
+  proved : UInt16,
 ) -> Result[Unit, @protocol.ErrCode] {
+  // Identity comes from the caller's attestation; the body only has to
+  // agree with it, so a bare acknowledgement cannot vouch for itself.
+  if ack.responder_id != proved {
+    return Err(@protocol.AuthFailed)
+  }
   let config = self.config
   if ack.responder_id == config.node_id() || !config.has_peer(ack.responder_id) {
     return Err(@protocol.MalformedPayload)
@@ -514,7 +530,11 @@ pub fn ClusterNode::record_install_ack(
   self : ClusterNode,
   ack : InstallAckMsg,
   epoch : UInt64,
+  proved : UInt16,
 ) -> Result[Unit, @protocol.ErrCode] {
+  if ack.responder_id != proved {
+    return Err(@protocol.AuthFailed)
+  }
   let config = self.config
   if ack.responder_id == config.node_id() || !config.has_peer(ack.responder_id) {
     return Err(@protocol.MalformedPayload)

@@ -127,9 +127,9 @@ pub fn ClusterNode::peers_connected(Self) -> Bool
 pub fn ClusterNode::prepared_count(Self) -> Int
 pub fn ClusterNode::promised_members(Self) -> Array[UInt16]
 pub fn ClusterNode::quorum_state(Self) -> QuorumState
-pub fn ClusterNode::record_append_ack(Self, AppendAck) -> Result[Unit, @protocol.ErrCode]
-pub fn ClusterNode::record_install_ack(Self, InstallAckMsg, UInt64) -> Result[Unit, @protocol.ErrCode]
-pub fn ClusterNode::record_prepare_ack(Self, PrepareAckMsg, UInt64) -> Result[Unit, @protocol.ErrCode]
+pub fn ClusterNode::record_append_ack(Self, AppendAck, UInt16) -> Result[Unit, @protocol.ErrCode]
+pub fn ClusterNode::record_install_ack(Self, InstallAckMsg, UInt64, UInt16) -> Result[Unit, @protocol.ErrCode]
+pub fn ClusterNode::record_prepare_ack(Self, PrepareAckMsg, UInt64, UInt16) -> Result[Unit, @protocol.ErrCode]
 pub async fn ClusterNode::send_append(Self, PeerLink, &ReplicaLog, UInt64, Array[Bytes], Bool, Int) -> Result[AppendAck, @protocol.ErrCode]
 pub async fn ClusterNode::send_install(Self, PeerLink, UInt64, UInt64) -> Result[InstallAckMsg, @protocol.ErrCode]
 pub async fn ClusterNode::send_prepare(Self, PeerLink, &ReplicaLog, LeaderEpoch, UInt64) -> Result[PrepareAckMsg, @protocol.ErrCode]

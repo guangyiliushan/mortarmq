@@ -175,7 +175,7 @@ async test "a returning leader is caught up on the entries it missed" {
   let leader = @cluster.ClusterNode::new(
     handshake_config(2U.to_uint16(), 7191, 2U.to_uint16(), fixture_secret()),
   )
-  match @cluster.ClusterNode::record_append_ack(leader, known) {
+  match @cluster.ClusterNode::record_append_ack(leader, known, 1U.to_uint16()) {
     Err(_) => fail("a reported position from a peer must be accepted")
     Ok(_) => ()
   }

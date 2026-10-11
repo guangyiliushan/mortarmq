@@ -22,7 +22,7 @@ fn quorum_node(
       flushed_seq: report.1,
       dirty_seq: report.2,
     }
-    match @cluster.ClusterNode::record_append_ack(node, ack) {
+    match @cluster.ClusterNode::record_append_ack(node, ack, report.0) {
       Err(_) =>
         fail(
           "the fixture peer is in the static table, so this must be accepted",

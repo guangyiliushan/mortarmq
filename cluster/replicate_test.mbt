@@ -417,7 +417,7 @@ test "an acknowledgement from outside the static table is refused" {
   let node = tracked_node()
   let foreign = ack_from(9U.to_uint16(), 1UL, 1UL)
   assert_eq(
-    @cluster.ClusterNode::record_append_ack(node, foreign),
+    @cluster.ClusterNode::record_append_ack(node, foreign, 9U.to_uint16()),
     Err(@protocol.MalformedPayload),
   )
   // A refused acknowledgement records nothing: the node's view of the
@@ -431,7 +431,7 @@ test "an acknowledgement claiming to be flushed past its own writes is refused" 
   let node = tracked_node()
   let impossible = ack_from(2U.to_uint16(), 5UL, 2UL)
   assert_eq(
-    @cluster.ClusterNode::record_append_ack(node, impossible),
+    @cluster.ClusterNode::record_append_ack(node, impossible, 2U.to_uint16()),
     Err(@protocol.MalformedPayload),
   )
   assert_eq(node.follower_positions().length(), 0)
@@ -441,7 +441,10 @@ test "an acknowledgement claiming to be flushed past its own writes is refused" 
 test "a stale acknowledgement never moves a position backwards" {
   let node = tracked_node()
   let reported = ack_from(2U.to_uint16(), 5UL, 7UL)
-  assert_eq(@cluster.ClusterNode::record_append_ack(node, reported), Ok(()))
+  assert_eq(
+    @cluster.ClusterNode::record_append_ack(node, reported, 2U.to_uint16()),
+    Ok(()),
+  )
   assert_eq(
     node.follower_progress(2U.to_uint16()),
     Some({ peer_id: 2U.to_uint16(), flushed_seq: 5UL, dirty_seq: 7UL, }),
@@ -449,14 +452,20 @@ test "a stale acknowledgement never moves a position backwards" {
   // A late or replayed copy of an older acknowledgement is accepted as
   // information and ignored as an update.
   let stale = ack_from(2U.to_uint16(), 3UL, 4UL)
-  assert_eq(@cluster.ClusterNode::record_append_ack(node, stale), Ok(()))
+  assert_eq(
+    @cluster.ClusterNode::record_append_ack(node, stale, 2U.to_uint16()),
+    Ok(()),
+  )
   assert_eq(
     node.follower_progress(2U.to_uint16()),
     Some({ peer_id: 2U.to_uint16(), flushed_seq: 5UL, dirty_seq: 7UL, }),
   )
   // A genuinely newer one still advances both.
   let newer = ack_from(2U.to_uint16(), 6UL, 8UL)
-  assert_eq(@cluster.ClusterNode::record_append_ack(node, newer), Ok(()))
+  assert_eq(
+    @cluster.ClusterNode::record_append_ack(node, newer, 2U.to_uint16()),
+    Ok(()),
+  )
   assert_eq(
     node.follower_progress(2U.to_uint16()),
     Some({ peer_id: 2U.to_uint16(), flushed_seq: 6UL, dirty_seq: 8UL, }),
@@ -547,4 +556,31 @@ async test "a batch from a leader outside the static table is refused before the
   // The refusal came before the write, so nothing reached the log.
   assert_eq(follower_log.last_appended_seq(), 0UL)
   assert_eq(trace.val, [])
+}
+
+///|
+test "an acknowledgement is checked against the attested identity, not its own claim" {
+  let node = tracked_node()
+  // The caller attests node 2 -- the peer this connection proved -- and
+  // the body claims node 3, which is also a member. Membership is not
+  // the question: the body does not get to vouch for itself.
+  let forged = ack_from(3U.to_uint16(), 5UL, 5UL)
+  assert_eq(
+    @cluster.ClusterNode::record_append_ack(node, forged, 2U.to_uint16()),
+    Err(@protocol.AuthFailed),
+  )
+  assert_eq(node.follower_positions().length(), 0)
+  // With the attestation naming the same node, the same body lands.
+  assert_eq(
+    @cluster.ClusterNode::record_append_ack(
+      node,
+      ack_from(3U.to_uint16(), 5UL, 5UL),
+      3U.to_uint16(),
+    ),
+    Ok(()),
+  )
+  assert_eq(
+    node.follower_progress(3U.to_uint16()),
+    Some({ peer_id: 3U.to_uint16(), flushed_seq: 5UL, dirty_seq: 5UL, }),
+  )
 }
