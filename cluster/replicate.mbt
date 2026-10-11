@@ -63,7 +63,7 @@
 ///   write is not committed and is not acknowledged.
 pub async fn ClusterNode::send_append(
   self : ClusterNode,
-  conn : &@net.Conn,
+  link : PeerLink,
   log : &ReplicaLog,
   leader_epoch : UInt64,
   payloads : Array[Bytes],
@@ -86,7 +86,7 @@ pub async fn ClusterNode::send_append(
     Ok(sequence) => sequence
   }
   self.ship_batch(
-    conn, log, leader_epoch, base_seq, payloads, flush_after_append, ack_deadline_ms,
+    link, log, leader_epoch, base_seq, payloads, flush_after_append, ack_deadline_ms,
   )
 }
 
@@ -106,7 +106,7 @@ pub async fn ClusterNode::send_append(
 /// batch, which has no base sequence to name.
 async fn ClusterNode::ship_batch(
   self : ClusterNode,
-  conn : &@net.Conn,
+  link : PeerLink,
   log : &ReplicaLog,
   leader_epoch : UInt64,
   base_seq : UInt64,
@@ -135,13 +135,13 @@ async fn ClusterNode::ship_batch(
   if body_len > @protocol.MAX_FRAME_LEN.reinterpret_as_int() {
     return Err(@protocol.BadLength)
   }
-  match @net.Conn::write_all(conn, frame) {
+  match @net.Conn::write_all(link.channel(), frame) {
     Err(code) => return Err(code)
     Ok(_) => ()
   }
   let reply = match
     @async.with_timeout_opt(ack_deadline_ms, () => {
-      read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS)
+      read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS)
     }) {
     // The majority did not answer inside the deadline. The write stays
     // uncommitted, the cluster goes read-only, and the caller is told
@@ -158,6 +158,14 @@ async fn ClusterNode::ship_batch(
   match refusal(reply) {
     Some(code) => return Err(code)
     None => ()
+  }
+  // An acknowledgement from a node other than the one this round asked
+  // would move the commit horizon on behalf of nobody, so it is refused
+  // before it is recorded.
+  match reply {
+    Ack(ack) if ack.follower_id != link.peer_id() =>
+      return Err(@protocol.AuthFailed)
+    _ => ()
   }
   match reply {
     Ack(ack) =>
@@ -202,11 +210,11 @@ async fn ClusterNode::ship_batch(
 /// * `MalformedPayload` (0x0003) for any frame that is not an `APPEND`.
 pub async fn ClusterNode::serve_append(
   self : ClusterNode,
-  conn : &@net.Conn,
+  link : PeerLink,
   log : &ReplicaLog,
   epoch : LeaderEpoch,
 ) -> Result[AppendAck, @protocol.ErrCode] {
-  let request = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
+  let request = match read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -216,25 +224,29 @@ pub async fn ClusterNode::serve_append(
   }
   let batch = match request {
     Append(batch) => batch
-    _ => return refuse(conn, @protocol.MalformedPayload)
+    _ => return refuse(link.channel(), @protocol.MalformedPayload)
   }
   let config = self.config()
-  if batch.leader_id == config.node_id() || !config.has_peer(batch.leader_id) {
-    return refuse(conn, @protocol.AuthFailed)
+  // The batch must name the node that proved itself on this link. An id
+  // from the table that never spoke on this connection is not a voice
+  // here, whatever address it arrived from -- accepting one would let
+  // any reachable member write into this log as any other.
+  if batch.leader_id != link.peer_id() {
+    return refuse(link.channel(), @protocol.AuthFailed)
   }
   // The fence runs before storage append, never after. A batch from an
   // older term has to leave this replica's log exactly as it found it:
   // writing first and refusing afterwards would still have left the
   // bytes behind, which is the split a stale leader is trying to open.
   if batch.leader_epoch < epoch.current() {
-    return refuse(conn, @protocol.StaleLeaderEpoch)
+    return refuse(link.channel(), @protocol.StaleLeaderEpoch)
   }
   if batch.leader_epoch > epoch.current() {
     // A newer term. Adopt it -- durably, or not at all -- before any
     // of the writes it carries are allowed to land; if the metadata
     // write fails, so does the batch.
     match epoch.elect(batch.leader_epoch) {
-      Err(code) => return refuse(conn, code)
+      Err(code) => return refuse(link.channel(), code)
       Ok(_) => ()
     }
   }
@@ -245,14 +257,14 @@ pub async fn ClusterNode::serve_append(
   if batch.base_seq == 0UL {
     // Sequence zero names no entry; a batch that starts there would
     // truncate the log away entirely.
-    return refuse(conn, @protocol.MalformedPayload)
+    return refuse(link.channel(), @protocol.MalformedPayload)
   }
   if batch.base_seq > next_sequence {
     // The leader is ahead of us: entries this replica has never seen.
     // Taking the batch would leave sequences missing from the middle of
     // the log, and this format has no legitimate holes -- a gap is
     // corruption, not a rewind marker.
-    return refuse(conn, @protocol.CatchupRequired)
+    return refuse(link.channel(), @protocol.CatchupRequired)
   }
   if batch.base_seq < next_sequence {
     // A divergent tail: what this replica holds above the cut belongs to
@@ -262,14 +274,14 @@ pub async fn ClusterNode::serve_append(
     // past its own append position, and its commit point cannot be past
     // that -- so the committed prefix is out of reach by construction.
     match log.truncate(batch.base_seq - 1UL) {
-      Err(code) => return refuse(conn, code)
+      Err(code) => return refuse(link.channel(), code)
       Ok(_) => ()
     }
   }
   let follower_id = config.node_id()
   let leader_epoch = batch.leader_epoch
   match log.append(batch.entries, batch.flush_after_append) {
-    Err(code) => return refuse(conn, code)
+    Err(code) => return refuse(link.channel(), code)
     Ok(_) => ()
   }
   let ack : AppendAck = {
@@ -278,7 +290,7 @@ pub async fn ClusterNode::serve_append(
     flushed_seq: log.last_flushed_seq(),
     dirty_seq: log.last_appended_seq(),
   }
-  match write_peer_msg(conn, Ack(ack)) {
+  match write_peer_msg(link.channel(), Ack(ack)) {
     Err(code) => return Err(code)
     Ok(_) => ()
   }
@@ -316,16 +328,16 @@ pub async fn ClusterNode::serve_append(
 /// * Whatever a round reports, including a quorum that timed out.
 pub async fn ClusterNode::catch_up(
   self : ClusterNode,
-  conn : &@net.Conn,
+  link : PeerLink,
   log : &ReplicaLog,
   epoch : LeaderEpoch,
-  peer_id : UInt16,
   batch_limit : Int,
   ack_deadline_ms : Int,
 ) -> Result[UInt64, @protocol.ErrCode] {
   if batch_limit <= 0 || ack_deadline_ms <= 0 {
     return Err(@protocol.MalformedPayload)
   }
+  let peer_id = link.peer_id()
   let target = log.last_appended_seq()
   let mut next = match self.follower_progress(peer_id) {
     None => 1UL
@@ -343,7 +355,7 @@ pub async fn ClusterNode::catch_up(
     }
     match
       self.ship_batch(
-        conn,
+        link,
         log,
         epoch.current(),
         next,

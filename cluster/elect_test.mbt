@@ -75,12 +75,12 @@ async fn election_round(
           let conn : &@net.Conn = concrete
           match @cluster.ClusterNode::serve_peer(peer_node, conn) {
             Err(_) => ()
-            Ok(_) => {
+            Ok(link) => {
               peer_prepare.val = @cluster.ClusterNode::serve_prepare(
-                peer_node, conn, follower_epoch, follower_log,
+                peer_node, link, follower_epoch, follower_log,
               )
               peer_install.val = @cluster.ClusterNode::serve_install(
-                peer_node, conn, follower_epoch, follower_log,
+                peer_node, link, follower_epoch, follower_log,
               )
             }
           }
@@ -99,12 +99,12 @@ async fn election_round(
         match @cluster.ClusterNode::dial_peer(candidate, conn, expected) {
           Err(_) =>
             fail("both sides hold the same secret, so the handshake must pass")
-          Ok(_) => {
+          Ok(link) => {
             candidate_prepare.val = @cluster.ClusterNode::send_prepare(
-              candidate, conn, candidate_log, candidate_epoch_state, candidate_epoch,
+              candidate, link, candidate_log, candidate_epoch_state, candidate_epoch,
             )
             candidate_install.val = @cluster.ClusterNode::send_install(
-              candidate, conn, candidate_epoch, commit_seq,
+              candidate, link, candidate_epoch, commit_seq,
             )
           }
         }

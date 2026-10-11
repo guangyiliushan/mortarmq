@@ -21,19 +21,58 @@
 
 ///|
 /// One authenticated link to one configured peer.
-pub(all) struct PeerLink {
-  /// The peer's node id, taken from the handshake rather than the
-  /// socket, so a link is attributed to whoever proved it.
-  peer_id : UInt16
-  /// `true` when this node dialed, `false` when the peer dialed in.
-  outbound : Bool
-} derive(Eq, Debug)
 
 ///|
-pub extend PeerLink with Eq::{not_equal, equal}
+/// One authenticated link: the node that proved itself, and the
+/// connection it proved itself over.
+///
+/// The two travel together on purpose. Splitting them -- handing a
+/// function a connection and a different function an id -- would let a
+/// batch claim to come from a node that connection never spoke for, and
+/// an acknowledgement claiming to be from a third node could push the
+/// commit horizon on behalf of nobody. Binding them makes "handshake
+/// first" a property of the type rather than a calling convention: the
+/// only way to obtain a `PeerLink` is to complete a handshake, and the
+/// only id one carries is the id that handshake established.
+///
+/// The fields are private, so nothing outside this package can assemble
+/// one, and no caller can pair an id with somebody else's connection.
+/// What a caller outside the package does need -- the id and which way
+/// the link was opened -- is exposed as methods.
+pub struct PeerLink {
+  priv peer_id : UInt16
+  priv outbound : Bool
+  priv conn : &@net.Conn
+}
 
 ///|
-pub extend PeerLink with @moonbitlang/core/debug.Debug::{to_repr}
+/// The peer's node id, taken from the handshake rather than the socket,
+/// so a link is attributed to whoever proved it.
+pub fn PeerLink::peer_id(self : PeerLink) -> UInt16 {
+  self.peer_id
+}
+
+///|
+/// Whether this node dialed (`true`) or the peer dialed in (`false`).
+pub fn PeerLink::outbound(self : PeerLink) -> Bool {
+  self.outbound
+}
+
+///|
+/// Release the transport; later reads and writes on it fail.
+pub fn PeerLink::close(self : PeerLink) -> Unit {
+  @net.Conn::close(self.conn)
+}
+
+///|
+/// The connection this link was established over.
+///
+/// Deliberately not exported: replication and election code inside this
+/// package need the bytes, and nothing outside it needs a way to send
+/// on a link without going through the identity that came with it.
+fn PeerLink::channel(self : PeerLink) -> &@net.Conn {
+  self.conn
+}
 
 ///|
 /// What one peer has reported about its own log: how far it has written
@@ -160,7 +199,7 @@ pub async fn ClusterNode::serve_peer(
   match peer_handshake_responder(self.config, conn) {
     Err(code) => Err(code)
     Ok(peer_id) => {
-      let link = { peer_id, outbound: false, }
+      let link : PeerLink = { peer_id, outbound: false, conn, }
       self.core.val.links.push(link)
       Ok(link)
     }
@@ -187,7 +226,7 @@ pub async fn ClusterNode::dial_peer(
   match peer_handshake_initiator(self.config, conn, expected) {
     Err(code) => Err(code)
     Ok(peer_id) => {
-      let link = { peer_id, outbound: true, }
+      let link : PeerLink = { peer_id, outbound: true, conn, }
       self.core.val.links.push(link)
       Ok(link)
     }

@@ -199,10 +199,10 @@ async fn replication_round(
               conn,
             ) {
             Err(code) => follower_outcome.val = Err(code)
-            Ok(_) =>
+            Ok(link) =>
               follower_outcome.val = @cluster.ClusterNode::serve_append(
                 @cluster.ClusterNode::new(follower_config),
-                conn,
+                link,
                 follower_log,
                 follower_epoch,
               )
@@ -221,10 +221,10 @@ async fn replication_round(
         }
         match @cluster.ClusterNode::dial_peer(node, conn, expected) {
           Err(code) => leader_outcome.val = Err(code)
-          Ok(_) =>
+          Ok(link) =>
             leader_outcome.val = @cluster.ClusterNode::send_append(
               node,
-              conn,
+              link,
               leader_log,
               1UL,
               payloads,
@@ -322,29 +322,62 @@ async test "an empty batch is refused before it is appended or written" {
   let server = bind_loopback()
   let port = server.addr.port()
   let config = handshake_config(2U.to_uint16(), port, 2U.to_uint16(), secret)
+  // The far side answers as the other member: a node cannot handshake
+  // with itself, and this config names node 2.
+  let far_config = handshake_config(
+    1U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
   let node = @cluster.ClusterNode::new(config)
+  let expected = match config.peer_entry(1U.to_uint16()) {
+    None => fail("the other member must be in the static table")
+    Some(entry) => entry
+  }
   @async.with_task_group() <| group => {
     group.spawn_bg() <| () => {
       defer server.close()
       match
         @async.with_timeout_opt(handshake_budget_ms(), () => server.accept()) {
         None => ()
-        Some(accepted) => accepted.0.close()
+        Some(accepted) => {
+          let concrete : LoopConn = { tcp: accepted.0, }
+          let conn : &@net.Conn = concrete
+          match
+            @cluster.ClusterNode::serve_peer(
+              @cluster.ClusterNode::new(far_config),
+              conn,
+            ) {
+            Err(_) => ()
+            Ok(_) => ()
+          }
+          @net.Conn::close(conn)
+        }
       }
     }
     match dial_loopback(port) {
       Err(_) => fail("the listener is bound, so the dial must connect")
       Ok(conn) => {
-        let outcome = @cluster.ClusterNode::send_append(
-          node,
-          conn,
-          leader_log,
-          1UL,
-          [],
-          true,
-          handshake_budget_ms(),
-        )
-        assert_eq(outcome, Err(@protocol.MalformedPayload))
+        // The guard still runs first -- but only from behind a link that
+        // a handshake produced, which is the point: there is no way to
+        // reach `send_append` without one.
+        match @cluster.ClusterNode::dial_peer(node, conn, expected) {
+          Err(_) =>
+            fail("both sides hold the same secret, so the handshake must pass")
+          Ok(link) => {
+            let outcome = @cluster.ClusterNode::send_append(
+              node,
+              link,
+              leader_log,
+              1UL,
+              [],
+              true,
+              handshake_budget_ms(),
+            )
+            assert_eq(outcome, Err(@protocol.MalformedPayload))
+          }
+        }
         @net.Conn::close(conn)
       }
     }
@@ -465,9 +498,9 @@ async test "a batch from a leader outside the static table is refused before the
           let epoch = fresh_epoch()
           match @cluster.ClusterNode::serve_peer(node, conn) {
             Err(code) => follower_outcome.val = Err(code)
-            Ok(_) =>
+            Ok(link) =>
               follower_outcome.val = @cluster.ClusterNode::serve_append(
-                node, conn, follower_log, epoch,
+                node, link, follower_log, epoch,
               )
           }
           @net.Conn::close(conn)

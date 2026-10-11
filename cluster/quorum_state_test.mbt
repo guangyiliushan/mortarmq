@@ -185,7 +185,7 @@ async test "a missed quorum acknowledgement refuses the write and the next round
             let conn : &@net.Conn = concrete
             match @cluster.ClusterNode::serve_peer(follower, conn) {
               Err(_) => ()
-              Ok(_) => {
+              Ok(link) => {
                 if round == 0 {
                   // The write lands, the reply does not come back inside
                   // the deadline. Delaying before the round rather than
@@ -196,7 +196,7 @@ async test "a missed quorum acknowledgement refuses the write and the next round
                 }
                 match
                   @cluster.ClusterNode::serve_append(
-                    follower, conn, follower_log, follower_epoch,
+                    follower, link, follower_log, follower_epoch,
                   ) {
                   Err(_) => ()
                   Ok(_) => ()
@@ -220,10 +220,10 @@ async test "a missed quorum acknowledgement refuses the write and the next round
         match @cluster.ClusterNode::dial_peer(leader, conn, expected) {
           Err(_) =>
             fail("both sides hold the same secret, so the handshake must pass")
-          Ok(_) => {
+          Ok(link) => {
             let outcome = @cluster.ClusterNode::send_append(
               leader,
-              conn,
+              link,
               leader_log,
               1UL,
               [b"one"],
@@ -267,10 +267,10 @@ async test "a missed quorum acknowledgement refuses the write and the next round
         match @cluster.ClusterNode::dial_peer(leader, conn, expected) {
           Err(_) =>
             fail("both sides hold the same secret, so the handshake must pass")
-          Ok(_) => {
+          Ok(link) => {
             let outcome = @cluster.ClusterNode::send_append(
               leader,
-              conn,
+              link,
               leader_log,
               1UL,
               [b"two"],

@@ -46,7 +46,7 @@
 /// * Whatever the connection reports, and whatever the member refused.
 pub async fn ClusterNode::send_prepare(
   self : ClusterNode,
-  conn : &@net.Conn,
+  link : PeerLink,
   log : &ReplicaLog,
   epoch : LeaderEpoch,
   candidate_epoch : UInt64,
@@ -61,11 +61,11 @@ pub async fn ClusterNode::send_prepare(
     last_leader_epoch: epoch.current(),
     commit_seq: self.commit_seq(),
   })
-  match write_peer_msg(conn, request) {
+  match write_peer_msg(link.channel(), request) {
     Err(code) => return Err(code)
     Ok(_) => ()
   }
-  let reply = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
+  let reply = match read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -76,6 +76,11 @@ pub async fn ClusterNode::send_prepare(
   let ack = match reply {
     PrepareAck(ack) => ack
     _ => return Err(@protocol.MalformedPayload)
+  }
+  // An answer from a node other than the one asked is not an answer to
+  // this round, whatever id it signed itself with.
+  if ack.responder_id != link.peer_id() {
+    return Err(@protocol.AuthFailed)
   }
   match self.record_prepare_ack(ack, candidate_epoch) {
     Err(code) => Err(code)
@@ -102,11 +107,11 @@ pub async fn ClusterNode::send_prepare(
 /// * `MalformedPayload` (0x0003) for any frame that is not a prepare.
 pub async fn ClusterNode::serve_prepare(
   self : ClusterNode,
-  conn : &@net.Conn,
+  link : PeerLink,
   epoch : LeaderEpoch,
   log : &ReplicaLog,
 ) -> Result[PrepareAckMsg, @protocol.ErrCode] {
-  let request = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
+  let request = match read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -116,18 +121,18 @@ pub async fn ClusterNode::serve_prepare(
   }
   let proposed = match request {
     Prepare(msg) => msg
-    _ => return refuse(conn, @protocol.MalformedPayload)
+    _ => return refuse(link.channel(), @protocol.MalformedPayload)
   }
   let config = self.config()
-  // Nobody runs against itself, and an id outside the static table is
-  // not a member whatever address it reached us from.
-  let is_self = proposed.candidate_id == config.node_id()
-  let is_member = config.has_peer(proposed.candidate_id)
-  if is_self || !is_member {
-    return refuse(conn, @protocol.AuthFailed)
+  // The prepare must come from the node that proved itself on this link.
+  // The handshake already excluded this node itself, so equality with the
+  // link's id is the whole check -- and it is a stronger one than
+  // membership, which any member of the table would satisfy.
+  if proposed.candidate_id != link.peer_id() {
+    return refuse(link.channel(), @protocol.AuthFailed)
   }
   match epoch.elect(proposed.candidate_epoch) {
-    Err(code) => return refuse(conn, code)
+    Err(code) => return refuse(link.channel(), code)
     Ok(_) => ()
   }
   let ack : PrepareAckMsg = {
@@ -137,7 +142,7 @@ pub async fn ClusterNode::serve_prepare(
     last_flushed_seq: log.last_flushed_seq(),
     commit_seq: self.commit_seq(),
   }
-  match write_peer_msg(conn, PrepareAck(ack)) {
+  match write_peer_msg(link.channel(), PrepareAck(ack)) {
     Err(code) => return Err(code)
     Ok(_) => ()
   }
@@ -163,7 +168,7 @@ pub async fn ClusterNode::serve_prepare(
 ///   static table.
 pub async fn ClusterNode::send_install(
   self : ClusterNode,
-  conn : &@net.Conn,
+  link : PeerLink,
   candidate_epoch : UInt64,
   commit_seq : UInt64,
 ) -> Result[InstallAckMsg, @protocol.ErrCode] {
@@ -175,11 +180,11 @@ pub async fn ClusterNode::send_install(
     epoch: candidate_epoch,
     commit_seq,
   })
-  match write_peer_msg(conn, request) {
+  match write_peer_msg(link.channel(), request) {
     Err(code) => return Err(code)
     Ok(_) => ()
   }
-  let reply = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
+  let reply = match read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -190,6 +195,9 @@ pub async fn ClusterNode::send_install(
   let ack = match reply {
     InstallAck(ack) => ack
     _ => return Err(@protocol.MalformedPayload)
+  }
+  if ack.responder_id != link.peer_id() {
+    return Err(@protocol.AuthFailed)
   }
   match self.record_install_ack(ack, candidate_epoch) {
     Err(code) => Err(code)
@@ -215,11 +223,11 @@ pub async fn ClusterNode::send_install(
 /// * `MalformedPayload` (0x0003) for any frame that is not an install.
 pub async fn ClusterNode::serve_install(
   self : ClusterNode,
-  conn : &@net.Conn,
+  link : PeerLink,
   epoch : LeaderEpoch,
   log : &ReplicaLog,
 ) -> Result[InstallAckMsg, @protocol.ErrCode] {
-  let request = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
+  let request = match read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -229,16 +237,14 @@ pub async fn ClusterNode::serve_install(
   }
   let incoming = match request {
     Install(msg) => msg
-    _ => return refuse(conn, @protocol.MalformedPayload)
+    _ => return refuse(link.channel(), @protocol.MalformedPayload)
   }
   let config = self.config()
-  let from_self = incoming.leader_id == config.node_id()
-  let is_member = config.has_peer(incoming.leader_id)
-  if from_self || !is_member {
-    return refuse(conn, @protocol.AuthFailed)
+  if incoming.leader_id != link.peer_id() {
+    return refuse(link.channel(), @protocol.AuthFailed)
   }
   match epoch.install(incoming.epoch) {
-    Err(code) => return refuse(conn, code)
+    Err(code) => return refuse(link.channel(), code)
     Ok(_) => ()
   }
   // The committed prefix arrives with the term, and only moves forward.
@@ -248,7 +254,7 @@ pub async fn ClusterNode::serve_install(
     epoch: incoming.epoch,
     flushed_seq: log.last_flushed_seq(),
   }
-  match write_peer_msg(conn, InstallAck(ack)) {
+  match write_peer_msg(link.channel(), InstallAck(ack)) {
     Err(code) => return Err(code)
     Ok(_) => ()
   }

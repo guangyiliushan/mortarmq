@@ -51,9 +51,9 @@ async fn handwritten_append(
           let node = @cluster.ClusterNode::new(follower_config)
           match @cluster.ClusterNode::serve_peer(node, conn) {
             Err(_) => ()
-            Ok(_) =>
+            Ok(link) =>
               follower_outcome.val = @cluster.ClusterNode::serve_append(
-                node, conn, follower_log, follower_epoch,
+                node, link, follower_log, follower_epoch,
               )
           }
           @net.Conn::close(conn)

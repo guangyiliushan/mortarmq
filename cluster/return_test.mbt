@@ -67,10 +67,10 @@ async fn catch_up_round(
           let node = @cluster.ClusterNode::new(returning_config)
           match @cluster.ClusterNode::serve_peer(node, conn) {
             Err(_) => ()
-            Ok(_) =>
+            Ok(link) =>
               match
                 @cluster.ClusterNode::serve_append(
-                  node, conn, returning_log, returning_term,
+                  node, link, returning_log, returning_term,
                 ) {
                 Err(_) => ()
                 Ok(_) => ()
@@ -90,13 +90,12 @@ async fn catch_up_round(
         match @cluster.ClusterNode::dial_peer(leader, conn, expected) {
           Err(_) =>
             fail("both sides hold the same secret, so the handshake must pass")
-          Ok(_) =>
+          Ok(link) =>
             outcome.val = @cluster.ClusterNode::catch_up(
               leader,
-              conn,
+              link,
               leader_log,
               leader_term,
-              1U.to_uint16(),
               4,
               handshake_budget_ms(),
             )

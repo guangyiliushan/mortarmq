@@ -137,13 +137,13 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
           let conn : &@net.Conn = concrete
           match @cluster.ClusterNode::serve_peer(follower, conn) {
             Err(_) => ()
-            Ok(_) =>
+            Ok(link) =>
               // Two rounds on one link: the first asks for an fsync,
               // the second deliberately does not.
               for _ in 0..<2 {
                 match
                   @cluster.ClusterNode::serve_append(
-                    follower, conn, follower_log, follower_epoch,
+                    follower, link, follower_log, follower_epoch,
                   ) {
                   Err(_) => ()
                   Ok(_) => ()
@@ -164,7 +164,7 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
         match @cluster.ClusterNode::dial_peer(leader, conn, expected) {
           Err(_) =>
             fail("both sides hold the same secret, so the handshake must pass")
-          Ok(_) => {
+          Ok(link) => {
             // Nothing is durable anywhere yet, so nothing may be
             // acknowledged.
             gate.val.push(
@@ -172,7 +172,7 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
             )
             let first = @cluster.ClusterNode::send_append(
               leader,
-              conn,
+              link,
               leader_log,
               1UL,
               [b"one"],
@@ -190,7 +190,7 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
             )
             let second = @cluster.ClusterNode::send_append(
               leader,
-              conn,
+              link,
               leader_log,
               1UL,
               [b"two"],

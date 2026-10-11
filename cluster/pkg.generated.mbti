@@ -106,7 +106,7 @@ pub struct ClusterNode {
   // private fields
 }
 pub fn ClusterNode::begin_election(Self) -> Unit
-pub async fn ClusterNode::catch_up(Self, &@net.Conn, &ReplicaLog, LeaderEpoch, UInt16, Int, Int) -> Result[UInt64, @protocol.ErrCode]
+pub async fn ClusterNode::catch_up(Self, PeerLink, &ReplicaLog, LeaderEpoch, Int, Int) -> Result[UInt64, @protocol.ErrCode]
 pub fn ClusterNode::commit_horizon(Self, UInt64) -> UInt64
 pub fn ClusterNode::commit_seq(Self) -> UInt64
 pub fn ClusterNode::config(Self) -> ClusterConfig
@@ -130,13 +130,13 @@ pub fn ClusterNode::quorum_state(Self) -> QuorumState
 pub fn ClusterNode::record_append_ack(Self, AppendAck) -> Result[Unit, @protocol.ErrCode]
 pub fn ClusterNode::record_install_ack(Self, InstallAckMsg, UInt64) -> Result[Unit, @protocol.ErrCode]
 pub fn ClusterNode::record_prepare_ack(Self, PrepareAckMsg, UInt64) -> Result[Unit, @protocol.ErrCode]
-pub async fn ClusterNode::send_append(Self, &@net.Conn, &ReplicaLog, UInt64, Array[Bytes], Bool, Int) -> Result[AppendAck, @protocol.ErrCode]
-pub async fn ClusterNode::send_install(Self, &@net.Conn, UInt64, UInt64) -> Result[InstallAckMsg, @protocol.ErrCode]
-pub async fn ClusterNode::send_prepare(Self, &@net.Conn, &ReplicaLog, LeaderEpoch, UInt64) -> Result[PrepareAckMsg, @protocol.ErrCode]
-pub async fn ClusterNode::serve_append(Self, &@net.Conn, &ReplicaLog, LeaderEpoch) -> Result[AppendAck, @protocol.ErrCode]
-pub async fn ClusterNode::serve_install(Self, &@net.Conn, LeaderEpoch, &ReplicaLog) -> Result[InstallAckMsg, @protocol.ErrCode]
+pub async fn ClusterNode::send_append(Self, PeerLink, &ReplicaLog, UInt64, Array[Bytes], Bool, Int) -> Result[AppendAck, @protocol.ErrCode]
+pub async fn ClusterNode::send_install(Self, PeerLink, UInt64, UInt64) -> Result[InstallAckMsg, @protocol.ErrCode]
+pub async fn ClusterNode::send_prepare(Self, PeerLink, &ReplicaLog, LeaderEpoch, UInt64) -> Result[PrepareAckMsg, @protocol.ErrCode]
+pub async fn ClusterNode::serve_append(Self, PeerLink, &ReplicaLog, LeaderEpoch) -> Result[AppendAck, @protocol.ErrCode]
+pub async fn ClusterNode::serve_install(Self, PeerLink, LeaderEpoch, &ReplicaLog) -> Result[InstallAckMsg, @protocol.ErrCode]
 pub async fn ClusterNode::serve_peer(Self, &@net.Conn) -> Result[PeerLink, @protocol.ErrCode]
-pub async fn ClusterNode::serve_prepare(Self, &@net.Conn, LeaderEpoch, &ReplicaLog) -> Result[PrepareAckMsg, @protocol.ErrCode]
+pub async fn ClusterNode::serve_prepare(Self, PeerLink, LeaderEpoch, &ReplicaLog) -> Result[PrepareAckMsg, @protocol.ErrCode]
 
 pub(all) struct FollowerProgress {
   peer_id : UInt16
@@ -191,13 +191,12 @@ pub fn PeerEntry::equal(Self, Self) -> Bool
 pub fn PeerEntry::not_equal(Self, Self) -> Bool
 pub fn PeerEntry::to_repr(Self) -> @debug.Repr
 
-pub(all) struct PeerLink {
-  peer_id : UInt16
-  outbound : Bool
-} derive(Eq, @debug.Debug)
-pub fn PeerLink::equal(Self, Self) -> Bool
-pub fn PeerLink::not_equal(Self, Self) -> Bool
-pub fn PeerLink::to_repr(Self) -> @debug.Repr
+pub struct PeerLink {
+  // private fields
+}
+pub fn PeerLink::close(Self) -> Unit
+pub fn PeerLink::outbound(Self) -> Bool
+pub fn PeerLink::peer_id(Self) -> UInt16
 
 pub(all) enum PeerMsg {
   Hello(UInt16)

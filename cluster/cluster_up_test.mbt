@@ -157,14 +157,14 @@ async test "three nodes come up on three listen_peer ports with every peer link 
   for node in [node_one, node_two, node_three] {
     assert_eq(node.link_count(), 2)
     assert_eq(node.peers_connected(), true)
-    let peer_ids = node.links().map(link => link.peer_id)
+    let peer_ids = node.links().map(link => link.peer_id())
     assert_eq(peer_ids.length(), 2)
   }
   // node 1 dialed both; node 3 answered both; node 2 did one of each.
-  assert_eq(node_one.links().all(link => link.outbound), true)
-  assert_eq(node_three.links().all(link => !link.outbound), true)
-  let inbound_two = node_two.links().filter(link => !link.outbound)
-  let outbound_two = node_two.links().filter(link => link.outbound)
+  assert_eq(node_one.links().all(link => link.outbound()), true)
+  assert_eq(node_three.links().all(link => !link.outbound()), true)
+  let inbound_two = node_two.links().filter(link => !link.outbound())
+  let outbound_two = node_two.links().filter(link => link.outbound())
   assert_eq(inbound_two.length(), 1)
   assert_eq(outbound_two.length(), 1)
 }
