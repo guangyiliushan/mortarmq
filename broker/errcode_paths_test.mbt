@@ -1,6 +1,6 @@
-/// T009 error-code path reconciliation: ten failure paths across the wire
-/// chain, each pinned to the exact registry code it lands on (WP-01.08,
-/// REQ-PRO-004; exit: every path lands on the 49-code registry).
+/// Error-code path reconciliation: ten failure paths across the wire
+/// chain, each pinned to the exact code it lands on in the 49-code
+/// registry.
 ///
 /// The registry body (names, close semantics, client actions) is owned by the
 /// signed-off code table; this file only reconciles paths against it. Each
