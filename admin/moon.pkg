@@ -11,5 +11,7 @@ import {
 }
 
 import {
+  "guangyiliushan/mortarmq/delivery",
   "guangyiliushan/mortarmq/protocol",
+  "moonbitlang/core/quickcheck",
 } for "test"
