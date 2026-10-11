@@ -25,4 +25,6 @@ import {
 import {
   "moonbitlang/async/io",
   "moonbitlang/async/socket",
+  "moonbitlang/core/env",
+  "moonbitlang/core/quickcheck",
 } for "test"
