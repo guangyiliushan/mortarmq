@@ -1,0 +1,111 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/cli"
+
+import {
+  "guangyiliushan/mortarmq/config",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub const API_VERSION : Int = 1
+
+pub const EXIT_OK : Int = 0
+
+pub const EXIT_REFUSED : Int = 4
+
+pub const EXIT_UNREACHABLE : Int = 3
+
+pub const EXIT_USAGE : Int = 2
+
+pub fn broker_status_row(BrokerStatusRow) -> String
+
+pub fn group_describe_rows(Array[GroupDescribeRow]) -> String
+
+pub fn group_list_rows(Array[GroupListRow]) -> String
+
+pub fn leader_row(LeaderRow) -> String
+
+pub fn resolve_partitions(UInt16?, @config.Config) -> UInt16
+
+pub fn topic_create_exit_code(TopicCreateResult) -> Int
+
+pub fn topic_create_row(TopicCreateResult, UInt16) -> String
+
+pub fn topic_delete_exit_code(TopicDeleteResult) -> Int
+
+pub fn topic_delete_row(TopicDeleteResult) -> String
+
+pub fn topic_list_rows(Array[TopicListRow]) -> String
+
+// Errors
+
+// Types and methods
+pub(all) struct BrokerStatusRow {
+  node_id : UInt16
+  uptime_s : UInt64
+  connections : UInt64
+  version : String
+} derive(Eq, @debug.Debug)
+pub fn BrokerStatusRow::equal(Self, Self) -> Bool
+pub fn BrokerStatusRow::not_equal(Self, Self) -> Bool
+pub fn BrokerStatusRow::to_repr(Self) -> @debug.Repr
+
+pub(all) struct GroupDescribeRow {
+  member_id : UInt64
+  assignment_epoch : UInt64
+  ownership_epoch : UInt64
+  lag : UInt64
+} derive(Eq, @debug.Debug)
+pub fn GroupDescribeRow::equal(Self, Self) -> Bool
+pub fn GroupDescribeRow::not_equal(Self, Self) -> Bool
+pub fn GroupDescribeRow::to_repr(Self) -> @debug.Repr
+
+pub(all) struct GroupListRow {
+  group : String
+  topic : String
+  lag : UInt64
+  state : String
+} derive(Eq, @debug.Debug)
+pub fn GroupListRow::equal(Self, Self) -> Bool
+pub fn GroupListRow::not_equal(Self, Self) -> Bool
+pub fn GroupListRow::to_repr(Self) -> @debug.Repr
+
+pub(all) struct LeaderRow {
+  leader_id : UInt16
+  leader_epoch : UInt64
+  quorum_state : String
+} derive(Eq, @debug.Debug)
+pub fn LeaderRow::equal(Self, Self) -> Bool
+pub fn LeaderRow::not_equal(Self, Self) -> Bool
+pub fn LeaderRow::to_repr(Self) -> @debug.Repr
+
+pub(all) enum TopicCreateResult {
+  Created
+  Existed
+  Mismatch
+} derive(Eq, @debug.Debug)
+pub fn TopicCreateResult::equal(Self, Self) -> Bool
+pub fn TopicCreateResult::not_equal(Self, Self) -> Bool
+pub fn TopicCreateResult::to_repr(Self) -> @debug.Repr
+
+pub(all) enum TopicDeleteResult {
+  Deleted
+  NotFound
+} derive(Eq, @debug.Debug)
+pub fn TopicDeleteResult::equal(Self, Self) -> Bool
+pub fn TopicDeleteResult::not_equal(Self, Self) -> Bool
+pub fn TopicDeleteResult::to_repr(Self) -> @debug.Repr
+
+pub(all) struct TopicListRow {
+  name : String
+  partitions : UInt16
+  state : String
+  created_epoch : UInt64
+} derive(Eq, @debug.Debug)
+pub fn TopicListRow::equal(Self, Self) -> Bool
+pub fn TopicListRow::not_equal(Self, Self) -> Bool
+pub fn TopicListRow::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits

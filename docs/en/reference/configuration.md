@@ -28,7 +28,7 @@ How operators write and validate broker configuration — every key of the allow
 | 12 | `credit_initial_count` | `u32` | `256` | Initial credit window (count); `credit_bytes` = 2 MiB is derived from the same ratio. **Post-freeze revision:** the earlier `64` and its old name are void | read-only |
 | 13 | `metadata_snapshot_records` | `u32` | `8192` | Snapshot threshold; without it the metadata log replays without bound | read-only |
 | 14 | `metrics_enabled` | `bool` | `true` | The `/metrics` switch; turning it off saves sampling overhead | read-only |
-| 15 | `log_level` | `enum` | `info` | The minimum needed for troubleshooting — everything beyond that belongs in `/metrics` | read-only |
+| 15 | `log_level` | `enum: debug\|info\|warn\|error` | `info` | The minimum needed for troubleshooting — everything beyond that belongs in `/metrics` | read-only |
 | 16 | `listen_ws` | `addr` | **disabled** (optional) | The browser demo needs a WebSocket listener; off by default, and `wss` is a reserved slot | read-only |
 | 17 | `listen_admin` | `addr` | `127.0.0.1:7190` | Admin HTTP entry (`/metrics` `/healthz` `/stats` + CLI read paths), bound to localhost by default | read-only |
 | 18 | `ws_origins` | `[str]` | `localhost` / `127.0.0.1` allowlist | WebSocket Origin allowlist (an empty list rejects everything); blocks cross-site WebSocket hijacking | read-only |

@@ -28,7 +28,7 @@
 | 12 | `credit_initial_count` | `u32` | `256` | 初始 credit 窗口（count）；`credit_bytes` = 2 MiB 按同一比例派生。**冻结后修订：** 原 `64` 与旧名作废 | read-only |
 | 13 | `metadata_snapshot_records` | `u32` | `8192` | snapshot 阈值；不设则 log 无界重放 | read-only |
 | 14 | `metrics_enabled` | `bool` | `true` | `/metrics` 开关；关闭即省采样开销 | read-only |
-| 15 | `log_level` | `enum` | `info` | 排障最低需求；再多的可观测归 `/metrics` | read-only |
+| 15 | `log_level` | `enum: debug\|info\|warn\|error` | `info` | 排障最低需求；再多的可观测归 `/metrics` | read-only |
 | 16 | `listen_ws` | `addr` | **未启用**（可选） | 浏览器 demo 需要 WS 监听；默认关闭；`wss` 留位 | read-only |
 | 17 | `listen_admin` | `addr` | `127.0.0.1:7190` | admin HTTP（`/metrics` `/healthz` `/stats` + CLI 读路径）入口；默认绑 localhost | read-only |
 | 18 | `ws_origins` | `[str]` | `localhost` / `127.0.0.1` 白名单 | WS Origin 白名单（空 = 拒绝全部）；防跨站 WS 劫持 | read-only |
