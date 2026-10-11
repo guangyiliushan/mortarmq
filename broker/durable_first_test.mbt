@@ -39,8 +39,11 @@ fn open_durable_window() -> @broker.CreditRegistry {
 async fn durable_events(
   disk : @harness.FakeDisk,
 ) -> Array[@delivery.LedgerEvent] {
-  match @delivery.read_ledger_events(disk, durable_path()) {
-    Ok(events) => events
+  match @delivery.scan_ledger(disk, durable_path()) {
+    Ok(scan) => {
+      assert_eq(scan.first_invalid, None)
+      scan.events
+    }
     Err(_) => abort("expected the ledger to read back")
   }
 }
