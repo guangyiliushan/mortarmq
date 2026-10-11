@@ -26,6 +26,8 @@ pub const NOTICE_KIND_ASSIGN : Byte = 0x00
 
 pub const NOTICE_KIND_REVOKE : Byte = 0x01
 
+pub fn admit_sub(GroupCoordinator, UInt64, UInt16, Bool, UInt16) -> Result[SubOutcome, @protocol.ErrCode]
+
 pub fn clamp_batch(Array[@protocol.MsgPayload], UInt16, UInt) -> Array[@protocol.MsgPayload]
 
 pub fn fence_installed(UInt, UInt) -> Result[Unit, @protocol.ErrCode]
@@ -333,6 +335,16 @@ pub fn SlidingBitmap::mark(Self, UInt64) -> Bool
 pub fn SlidingBitmap::new(UInt64) -> Self
 pub fn SlidingBitmap::snapshot(Self) -> Array[UInt64]
 pub fn SlidingBitmap::watermark(Self) -> UInt64
+
+pub(all) struct SubOutcome {
+  subscription_id : UInt16
+  member_id : UInt64
+  membership_epoch : UInt
+  assignment_epoch : UInt
+} derive(Eq, @debug.Debug)
+pub fn SubOutcome::equal(Self, Self) -> Bool
+pub fn SubOutcome::not_equal(Self, Self) -> Bool
+pub fn SubOutcome::to_repr(Self) -> @debug.Repr
 
 pub struct TopicRegistry {
   // private fields
