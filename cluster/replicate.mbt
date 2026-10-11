@@ -338,7 +338,11 @@ pub async fn ClusterNode::serve_append(
     }
     match log.truncate(cut) {
       Err(code) => return refuse(link.channel(), code)
-      Ok(_) => ()
+      Ok(_) =>
+        // Recorded before the batch lands rather than after: if the
+        // append below fails, the tail is still gone and a watcher
+        // still needs to know that the end moved backwards on purpose.
+        self.core.val.last_truncation = Some(cut)
     }
   }
   let follower_id = config.node_id()

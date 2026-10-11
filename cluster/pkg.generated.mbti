@@ -117,6 +117,7 @@ pub fn ClusterNode::has_install_quorum(Self) -> Bool
 pub fn ClusterNode::has_prepare_quorum(Self) -> Bool
 pub fn ClusterNode::installed_count(Self) -> Int
 pub fn ClusterNode::installed_members(Self) -> Array[UInt16]
+pub fn ClusterNode::last_truncation(Self) -> UInt64?
 pub fn ClusterNode::link_count(Self) -> Int
 pub fn ClusterNode::links(Self) -> Array[PeerLink]
 pub fn ClusterNode::may_publish(Self, UInt64, UInt64) -> Bool

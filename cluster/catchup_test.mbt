@@ -191,3 +191,81 @@ async test "the same batch is cut when the committed prefix is below it" {
   // the batch took the slot the cut opened.
   assert_eq(follower_log.held(), [1UL, 2UL])
 }
+
+///|
+/// A truncation leaves a record of where the tail was cut.
+///
+/// A log's end moving backwards is the one decrease an observer cannot
+/// explain from outside: without a record, the cut this format performs
+/// on a divergent tail and the failure that cut exists to catch look
+/// exactly alike. The record is read off the node the round ran on,
+/// which is where the cut is made, and it is read there for both
+/// outcomes -- a round that cut nothing has nothing to say, and a round
+/// refused before the cut has nothing to say either.
+async test "a truncation records where the tail was cut, and a round that does not cut records nothing" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let follower_log = traced_log("follower", trace)
+  let follower_epoch = fresh_epoch()
+  assert_eq(follower_epoch.elect(1UL), Ok(1UL))
+
+  // A round that lands without cutting: the tail only grows, so there
+  // is no decrease to explain.
+  let untouched : Ref[@cluster.ClusterNode?] = Ref::Ref(None)
+  let (first, _reply) = handwritten_append(
+    1U.to_uint16(),
+    2U.to_uint16(),
+    2U.to_uint16(),
+    follower_log,
+    follower_epoch,
+    batch_from(1UL, 1UL, [b"a", b"b", b"c"]),
+    observed=untouched,
+  )
+  match first {
+    Err(_) => fail("the first batch must land")
+    Ok(ack) => assert_eq(ack.flushed_seq, 3UL)
+  }
+  match untouched.val {
+    None => fail("the round must hand back the node it ran on")
+    Some(node) => assert_eq(node.last_truncation(), None)
+  }
+
+  // The divergent tail goes: sequences two and three belonged to a
+  // history the sender does not share, and the cut lands at one.
+  let cut : Ref[@cluster.ClusterNode?] = Ref::Ref(None)
+  let (second, _reply) = handwritten_append(
+    1U.to_uint16(),
+    2U.to_uint16(),
+    2U.to_uint16(),
+    follower_log,
+    follower_epoch,
+    batch_from(1UL, 2UL, [b"p"]),
+    observed=cut,
+  )
+  match second {
+    Err(_) => fail("the divergent tail must be cut, not refused")
+    Ok(ack) => assert_eq(ack.flushed_seq, 2UL)
+  }
+  assert_eq(follower_log.held(), [1UL, 2UL])
+  match cut.val {
+    None => fail("the round must hand back the node it ran on")
+    Some(node) => assert_eq(node.last_truncation(), Some(1UL))
+  }
+
+  // A batch refused before the cut reaches one: nothing moved backwards,
+  // so nothing is recorded as having done so.
+  let refused : Ref[@cluster.ClusterNode?] = Ref::Ref(None)
+  let (gap, _reply) = handwritten_append(
+    1U.to_uint16(),
+    2U.to_uint16(),
+    2U.to_uint16(),
+    follower_log,
+    follower_epoch,
+    batch_from(1UL, 5UL, [b"e"]),
+    observed=refused,
+  )
+  assert_eq(gap, Err(@protocol.CatchupRequired))
+  match refused.val {
+    None => fail("the round must hand back the node it ran on")
+    Some(node) => assert_eq(node.last_truncation(), None)
+  }
+}

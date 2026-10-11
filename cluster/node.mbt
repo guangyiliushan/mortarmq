@@ -116,6 +116,9 @@ priv struct NodeCore {
   // a log, because what a watcher needs is that a change happened, not
   // every round that agreed with the change it already reported.
   mut quorum_event : @protocol.ErrCode?
+  // Where the divergent tail was last cut back to, or nothing if this
+  // replica has never truncated.
+  mut last_truncation : UInt64?
 }
 
 ///|
@@ -172,6 +175,7 @@ pub fn ClusterNode::new(config : ClusterConfig) -> ClusterNode {
       installed: [],
       commit_seq: 0UL,
       quorum_event: None,
+      last_truncation: None,
     }),
   }
 }
@@ -504,6 +508,27 @@ pub fn ClusterNode::note_committed(
   if commit_seq > self.core.val.commit_seq {
     self.core.val.commit_seq = commit_seq
   }
+}
+
+///|
+/// Where this replica's tail was last cut back to, or nothing if it has
+/// never truncated.
+///
+/// A truncation is the one operation that legitimately moves a log's end
+/// backwards, and it is rare enough that without a record it is
+/// indistinguishable from the thing monitoring exists to catch: a log
+/// that went backwards on its own. Recording where the cut landed says
+/// that this decrease was the protocol's doing, at that sequence, and
+/// that nothing below it moved.
+///
+/// It records the position the tail was cut *to*, so the sequence that
+/// disappeared is everything above it -- which is exactly what the
+/// follower reported next when it acknowledged the batch that followed.
+/// `None` rather than zero distinguishes "never truncated" from "cut
+/// back to the start of the log", which is a real case: a batch whose
+/// base sequence is one takes an entire log with it.
+pub fn ClusterNode::last_truncation(self : ClusterNode) -> UInt64? {
+  self.core.val.last_truncation
 }
 
 ///|

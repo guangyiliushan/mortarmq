@@ -23,6 +23,7 @@ async fn handwritten_append(
   follower_epoch : @cluster.LeaderEpoch,
   batch : @cluster.AppendBatch,
   committed_seq? : UInt64 = 0UL,
+  observed? : Ref[@cluster.ClusterNode?] = Ref::Ref(None),
 ) -> (Result[@cluster.AppendAck, @protocol.ErrCode], @cluster.PeerMsg?) {
   let secret = fixture_secret()
   let server = bind_loopback()
@@ -50,6 +51,9 @@ async fn handwritten_append(
           let concrete : LoopConn = { tcp: accepted.0, }
           let conn : &@net.Conn = concrete
           let node = @cluster.ClusterNode::new(follower_config)
+          // Handed back so a case can read what the round left on the
+          // node rather than only what it answered with.
+          observed.val = Some(node)
           // What this replica has already committed, when a case needs
           // the truncated tail to be partly off limits. Zero means
           // nothing is known committed, which `note_committed` treats
