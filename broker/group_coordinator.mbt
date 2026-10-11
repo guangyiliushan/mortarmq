@@ -3,8 +3,8 @@
 /// The coordinator is the only assignment authority: members
 /// join with the topics they subscribe and leave explicitly, and every
 /// recomputation is deterministic, so the same join and leave sequence
-/// always produces the same assignment (L1 "assignment results are
-/// determined"). Assignment changes leave as NOTICE payloads in
+/// always produces the same assignment. Assignment changes leave as
+/// NOTICE payloads in
 /// (topic_id, partition) order with REVOKE before ASSIGN per moved
 /// partition: the shape the incremental-rebalance protocol consumes.
 ///

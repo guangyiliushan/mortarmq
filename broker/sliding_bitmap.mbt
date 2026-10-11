@@ -1,6 +1,6 @@
 /// Track one bounded window of sequences in a 1024-bit sliding bitmap.
 ///
-/// One structure serves both bounded sets of ADR-0011: the
+/// One structure serves both bounded sets: the
 /// out-of-order ACK set (whose watermark reads as `ack_floor`, the
 /// consumer cursor derivation) and the producer dedup `accepted_set` (whose
 /// watermark reads as `high_watermark`). The bit of a sequence is its low

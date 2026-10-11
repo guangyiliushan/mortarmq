@@ -1,7 +1,7 @@
 /// Exercise the derived consumer cursor and its truth
 /// hierarchy (L4): the delivery log decides, the checkpoint may only
 /// agree or lose. The floor advances over durable completions only,
-/// never regresses (CQ1), and recovery replays the log whatever the
+/// never regresses, and recovery replays the log whatever the
 /// checkpoint claims.
 
 ///|
@@ -166,7 +166,7 @@ test "a checkpoint behind the log is lagging and the log wins" {
 ///|
 test "a checkpoint ahead of the log is leading and the log wins" {
   // The log knows only seq 0; a checkpoint claiming 2 led the durable
-  // prefix -- the L4 conflict. The log decides, the hint is discarded.
+  // prefix. The log decides, the hint is discarded.
   let events = [deliver_event(1, 0UL), ack_event(1, 0UL)]
   let cursor = @broker.ConsumerCursor::replay(1, 0UL, events)
   let leading : @broker.CursorCheckpoint = {

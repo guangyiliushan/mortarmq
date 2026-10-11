@@ -19,13 +19,13 @@
 /// # Stability
 ///
 /// * `ack_floor` is the longest consumed prefix: it advances over gaps
-///   only when the gap itself is consumed, and never regresses (CQ1).
-/// * The out-of-order set is the shared 1024-bit sliding bitmap
-///   (ADR-0011); the system keeps at most `max_in_flight` = 1000 unacked
+///   only when the gap itself is consumed, and never regresses.
+/// * The out-of-order set is the shared 1024-bit sliding bitmap; the
+///   system keeps at most `max_in_flight` = 1000 unacked
 ///   sequences inside the window.
 /// * Recovery replays the log. A checkpoint is classified against the
 ///   derived result -- adopted when it agrees, lagging when behind,
-///   leading when it claims past the durable prefix (the L4 conflict),
+///   leading when it claims past the durable prefix,
 ///   divergent when its window disagrees -- and never changes the result.
 /// * The MMCU codec carries no CRC: a corrupt hint decodes to nothing and
 ///   a wrong-looking hint is rejected by the comparison against the log
@@ -50,8 +50,8 @@ pub(all) enum HintStatus {
   Adopted
   /// The checkpoint is behind the log; the log wins and the cache is stale.
   Lagging
-  /// The checkpoint claims past the durable prefix (it led the log).
-  /// This is the L4 conflict: discarded, the log decides.
+  /// The checkpoint claims past the durable prefix (it led the log):
+  /// discarded, the log decides.
   Leading
   /// The floor agrees but the out-of-order window disagrees.
   /// Discarded, the log decides.
