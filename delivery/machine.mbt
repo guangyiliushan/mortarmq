@@ -623,8 +623,8 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
 /// Fail one in-flight delivery by ACK timeout and schedule the retry.
 ///
 /// Same backoff, cap, and idempotent no-op rules as `nack`; the durable
-/// event is `TIMEOUT` and the attempt still counts (design: "ack timeout
-/// ... attempt 不减少").
+/// event is `TIMEOUT` and the attempt still counts -- a timeout never
+/// decrements the billed attempt.
 pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(
   self : DeliveryMachine,
   disk : D,
@@ -1269,8 +1269,9 @@ pub fn DeliveryMachine::state_of(
 }
 
 ///|
-/// Rebuild the in-memory retry timer queue after a restart (the frozen
-/// "timer 只保存在内存；ledger 已持久化 DELIVER，重启后重建 timer").
+/// Rebuild the in-memory retry timer queue after a restart: the timers
+/// live in memory only, and the durable ledger is the truth source they
+/// are rebuilt from.
 ///
 /// A retry waiting out its backoff keeps the remainder of its journaled
 /// delay -- wall timestamps rebuild ticks across the restart -- while

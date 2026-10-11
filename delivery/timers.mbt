@@ -125,7 +125,7 @@ pub fn RetryTimers::next_due_tick(self : RetryTimers) -> UInt64? {
 ///|
 /// Pop every matured timer (`due_tick_ms <= now_tick_ms`) in composite
 /// order. The executor must re-check the entry's current state before it
-/// redelivers (design: "触发时必须重新检查当前状态").
+/// redelivers: the state check, not the timer, decides whether to send.
 pub fn RetryTimers::due(
   self : RetryTimers,
   now_tick_ms : UInt64,
