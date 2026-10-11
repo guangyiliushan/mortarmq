@@ -5,7 +5,10 @@
 ///|
 fn indexed_topic(index : Int) -> Bytes {
   let buf = Buffer()
-  buf.write_uint16_be(index.to_uint16())
+  // the code is a name carrier, not a meaning: shift codes past the
+  // reserved dollar-prefix window so the fixture passes the namespace gate
+  let code = if index < 0x2400 { index } else { index + 0x100 }
+  buf.write_uint16_be(code.to_uint16())
   buf.contents()
 }
 
@@ -179,7 +182,8 @@ test "the maximum partition count is accepted and replays identically" {
 
 ///|
 test "identifiers exhaust at the maximum and replays still succeed" {
-  // R11 halves the capacity: every source DECLARE claims two identifiers
+  // The paired-identifier rule halves the capacity: every source DECLARE
+  // claims two identifiers
   // (source + twin), so 32767 topics fill 65534 of the 65535 slots and the
   // last odd slot can never satisfy a pair.
   let registry = @broker.TopicRegistry::new()

@@ -29,11 +29,11 @@
 ///   empty map, and durable metadata plus mutation-level deduplication
 ///   are later subsystems that will wrap, not silently replace, this
 ///   behavior.
-/// * Validation stops at three checks -- an empty name, a zero partition
-///   count (both refused with `InvalidTopic`), and the reserved `.dlq`
-///   namespace). The wire decoder already owns length bounds; richer
-///   name syntax (wildcards, reserved prefixes) belongs to later
-///   subsystems and is not invented here.
+/// * Validation stops at four checks -- an empty name, a zero partition
+///   count, the reserved `.dlq` suffix, and the reserved `$` prefix, all
+///   refused with `InvalidTopic`. The wire decoder already owns length
+///   bounds; richer name syntax (wildcards) belongs to later subsystems
+///   and is not invented here.
 /// * The `.dlq` namespace is reserved: a new topic's
 ///   DECLARE atomically creates its `<name>.dlq` twin from the same
 ///   identifier sequence and with the same partition count, in the same
@@ -42,6 +42,13 @@
 ///   is refused with `InvalidTopic`, and client PUB resolves through
 ///   `validate_publish`, which refuses twin identifiers with the same
 ///   code. Replays create nothing new.
+/// * The `$` prefix is reserved for the internal namespace: a user
+///   DECLARE of a `$` name is refused with `InvalidTopic`, and a user
+///   PUB resolving to a `$` entry is refused with the same code at
+///   `validate_publish`. The reservation is enforced at the user
+///   entrances; internal writers enter beside these gates, never
+///   through them, so a system entry still stores, routes and replays
+///   like any other.
 
 ///|
 /// Carry the DECLARE result: the assigned or existing identifier, the
@@ -91,6 +98,17 @@ fn has_dlq_suffix(name : Bytes) -> Bool {
 ///|
 fn dlq_name(name : Bytes) -> Bytes {
   name + DLQ_SUFFIX
+}
+
+///|
+const RESERVED_PREFIX : Bytes = b"$"
+
+///|
+fn has_reserved_prefix(name : Bytes) -> Bool {
+  if name.length() == 0 {
+    return false
+  }
+  name[0] == RESERVED_PREFIX[0]
 }
 
 ///|
@@ -205,6 +223,9 @@ pub fn TopicRegistry::declare_topic(
   if has_dlq_suffix(topic) {
     return Err(@protocol.InvalidTopic)
   }
+  if has_reserved_prefix(topic) {
+    return Err(@protocol.InvalidTopic)
+  }
   if partition_count.to_uint() == 0U {
     return Err(@protocol.InvalidTopic)
   }
@@ -241,15 +262,16 @@ pub fn TopicRegistry::declare_topic(
 ///|
 /// The PUB-side gate: every publish resolves its target through
 /// here. A `.dlq` twin is a system resource -- present for the source, but
-/// never client-publishable -- and answers `InvalidTopic` (0x000B); an
+/// never client-publishable -- and answers `InvalidTopic` (0x000B); the
+/// same code refuses any entry in the reserved `$` namespace. An
 /// identifier no declare ever assigned answers `UnknownTopic`.
 pub fn TopicRegistry::validate_publish(
   self : TopicRegistry,
   topic_id : UInt16,
 ) -> Result[Unit, @protocol.ErrCode] {
-  for _name, entry in self.entries {
+  for name, entry in self.entries {
     if entry.topic_id == topic_id {
-      if entry.is_dlq {
+      if entry.is_dlq || has_reserved_prefix(name) {
         return Err(@protocol.InvalidTopic)
       }
       return Ok(())
