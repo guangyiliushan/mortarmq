@@ -19,10 +19,10 @@ import {
   "guangyiliushan/mortarmq/security",
   "moonbitlang/core/debug",
   "moonbitlang/core/env",
+  "moonbitlang/async",
 }
 
 import {
-  "moonbitlang/async",
   "moonbitlang/async/io",
   "moonbitlang/async/socket",
 } for "test"

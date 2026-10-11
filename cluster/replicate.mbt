@@ -44,6 +44,9 @@
 ///
 /// `flush_after_append` is the instruction for the *follower* -- the
 /// leader always flushes its own copy first, per rule 1 above.
+/// `ack_deadline_ms` is how long to wait for the majority's answer
+/// before the cluster declares itself read-only; the standing default
+/// is `QUORUM_ACK_TIMEOUT_MS`.
 ///
 /// # Errors
 ///
@@ -56,6 +59,8 @@
 /// * Whatever the follower refused, carried back from its `Reject`
 ///   frame, and `AuthFailed` (0x0006) if an acknowledgement arrives
 ///   from a node outside the static table.
+/// * `ReadOnlyDegraded` (0x6002) when the deadline expires first: the
+///   write is not committed and is not acknowledged.
 pub async fn ClusterNode::send_append(
   self : ClusterNode,
   conn : &@net.Conn,
@@ -63,10 +68,17 @@ pub async fn ClusterNode::send_append(
   leader_epoch : UInt64,
   payloads : Array[Bytes],
   flush_after_append : Bool,
+  ack_deadline_ms : Int,
 ) -> Result[AppendAck, @protocol.ErrCode] {
   // An empty batch has no first entry, so it has no base sequence to
   // name; that is a caller bug rather than a message to send.
   if payloads.length() == 0 {
+    return Err(@protocol.MalformedPayload)
+  }
+  // The deadline is not optional: a round that waits forever has no way
+  // to notice the quorum is gone, and a producer would hang on an answer
+  // that is already known to be no.
+  if ack_deadline_ms <= 0 {
     return Err(@protocol.MalformedPayload)
   }
   let base_seq = match log.append(payloads, true) {
@@ -92,9 +104,19 @@ pub async fn ClusterNode::send_append(
     Err(code) => return Err(code)
     Ok(_) => ()
   }
-  let reply = match read_peer_msg(conn) {
-    Err(code) => return Err(code)
-    Ok(msg) => msg
+  let reply = match
+    @async.with_timeout_opt(ack_deadline_ms, () => read_peer_msg(conn)) {
+    // The majority did not answer inside the deadline. The write stays
+    // uncommitted, the cluster goes read-only, and the caller is told
+    // no rather than left waiting or handed a success it cannot stand
+    // behind. The link is suspect after a cancelled read, so the caller
+    // is expected to tear it down rather than reuse it.
+    None => {
+      self.note_ack_timeout()
+      return Err(@protocol.ReadOnlyDegraded)
+    }
+    Some(Err(code)) => return Err(code)
+    Some(Ok(msg)) => msg
   }
   match refusal(reply) {
     Some(code) => return Err(code)
@@ -104,7 +126,13 @@ pub async fn ClusterNode::send_append(
     Ack(ack) =>
       match self.record_append_ack(ack) {
         Err(code) => Err(code)
-        Ok(_) => Ok(ack)
+        Ok(_) => {
+          // A completed round is the moment the tier is re-evaluated:
+          // this is where a cluster that lost its majority notices, and
+          // where one that got it back stops being read-only.
+          self.reclassify(log.last_flushed_seq())
+          Ok(ack)
+        }
       }
     _ => Err(@protocol.MalformedPayload)
   }

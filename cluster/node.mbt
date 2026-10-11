@@ -64,6 +64,7 @@ pub extend FollowerProgress with @moonbitlang/core/debug.Debug::{to_repr}
 priv struct NodeCore {
   links : Array[PeerLink]
   followers : Array[FollowerProgress]
+  mut quorum : QuorumState
 }
 
 ///|
@@ -110,7 +111,7 @@ pub struct ClusterNode {
 /// }
 /// ```
 pub fn ClusterNode::new(config : ClusterConfig) -> ClusterNode {
-  { config, core: Ref::Ref({ links: [], followers: [], }), }
+  { config, core: Ref::Ref({ links: [], followers: [], quorum: Healthy, }), }
 }
 
 ///|
@@ -308,4 +309,64 @@ pub fn ClusterNode::follower_positions(
   self : ClusterNode,
 ) -> Array[FollowerProgress] {
   self.core.val.followers.copy()
+}
+
+///|
+/// The tier this cluster's quorum is in, as this node last observed it.
+///
+/// Starts `Healthy`: a node that has completed no round has seen
+/// nothing go wrong, and reporting read-only before the first attempt
+/// would alarm on a cluster that has not yet been asked to do
+/// anything. From then on it is re-evaluated at every round boundary,
+/// so it clears itself when a round completes with a majority in sync
+/// and sets itself the moment one cannot.
+pub fn ClusterNode::quorum_state(self : ClusterNode) -> QuorumState {
+  self.core.val.quorum
+}
+
+///|
+/// Record that a quorum acknowledgement did not arrive inside its
+/// deadline.
+///
+/// The write this round carried is not acknowledged; the tier becomes
+/// read-only and stays there until a later round completes with a
+/// majority. The caller reports `write_refusal` for it rather than
+/// inventing an answer.
+fn ClusterNode::note_ack_timeout(self : ClusterNode) -> Unit {
+  self.core.val.quorum = ReadOnly(AckTimeout)
+}
+
+///|
+/// Re-evaluate the tier from the positions now known, after a round
+/// completed.
+///
+/// "In sync" means durable at exactly the leader's own position: a
+/// member that has acknowledged nothing has told us nothing about where
+/// it is, and a member that acknowledged an older position is behind.
+/// The classification itself is `classify_quorum`, so a round and a
+/// hand-rolled matrix row can never disagree.
+fn ClusterNode::reclassify(
+  self : ClusterNode,
+  own_flushed_seq : UInt64,
+) -> Unit {
+  let config = self.config
+  let mut in_sync = 1
+  for entry in config.peers() {
+    if entry.node_id == config.node_id() {
+      continue
+    }
+    match self.follower_progress(entry.node_id) {
+      Some(progress) =>
+        if progress.flushed_seq == own_flushed_seq {
+          in_sync = in_sync + 1
+        }
+      None => ()
+    }
+  }
+  self.core.val.quorum = classify_quorum(
+    in_sync,
+    config.quorum(),
+    in_sync < config.peer_count(),
+    false,
+  )
 }

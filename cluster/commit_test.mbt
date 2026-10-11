@@ -176,6 +176,7 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
               1UL,
               [b"one"],
               true,
+              handshake_budget_ms(),
             )
             match first {
               Err(_) => fail("the first round must complete")
@@ -193,6 +194,7 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
               1UL,
               [b"two"],
               false,
+              handshake_budget_ms(),
             )
             match second {
               Err(_) => fail("the second round must complete")

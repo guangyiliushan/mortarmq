@@ -147,7 +147,13 @@ async fn replication_round(
           Err(code) => leader_outcome.val = Err(code)
           Ok(_) =>
             leader_outcome.val = @cluster.ClusterNode::send_append(
-              node, conn, leader_log, 1UL, payloads, flush_after_append,
+              node,
+              conn,
+              leader_log,
+              1UL,
+              payloads,
+              flush_after_append,
+              handshake_budget_ms(),
             )
         }
         @net.Conn::close(conn)
@@ -260,6 +266,7 @@ async test "an empty batch is refused before it is appended or written" {
           1UL,
           [],
           true,
+          handshake_budget_ms(),
         )
         assert_eq(outcome, Err(@protocol.MalformedPayload))
         @net.Conn::close(conn)

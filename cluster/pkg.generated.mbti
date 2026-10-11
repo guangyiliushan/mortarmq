@@ -18,7 +18,11 @@ pub const PEER_SECRET_MIN_BYTES : Int = 16
 
 pub const PEER_TAG_BYTES : Int = 32
 
+pub const QUORUM_ACK_TIMEOUT_MS : Int = 50
+
 pub const STATIC_PEER_COUNT : Int = 3
+
+pub fn classify_quorum(Int, Int, Bool, Bool) -> QuorumState
 
 pub fn decode_peer_msg(BytesView) -> PeerMsg?
 
@@ -97,8 +101,9 @@ pub fn ClusterNode::may_publish(Self, UInt64, UInt64) -> Bool
 pub fn ClusterNode::new(ClusterConfig) -> Self
 pub fn ClusterNode::node_id(Self) -> UInt16
 pub fn ClusterNode::peers_connected(Self) -> Bool
+pub fn ClusterNode::quorum_state(Self) -> QuorumState
 pub fn ClusterNode::record_append_ack(Self, AppendAck) -> Result[Unit, @protocol.ErrCode]
-pub async fn ClusterNode::send_append(Self, &@net.Conn, &ReplicaLog, UInt64, Array[Bytes], Bool) -> Result[AppendAck, @protocol.ErrCode]
+pub async fn ClusterNode::send_append(Self, &@net.Conn, &ReplicaLog, UInt64, Array[Bytes], Bool, Int) -> Result[AppendAck, @protocol.ErrCode]
 pub async fn ClusterNode::serve_append(Self, &@net.Conn, &ReplicaLog) -> Result[AppendAck, @protocol.ErrCode]
 pub async fn ClusterNode::serve_peer(Self, &@net.Conn) -> Result[PeerLink, @protocol.ErrCode]
 
@@ -153,6 +158,27 @@ pub struct PeerSecret {
 }
 pub fn PeerSecret::new(Bytes) -> Result[Self, ClusterFault]
 pub fn PeerSecret::tag(Self, BytesView) -> Bytes
+
+pub(all) enum QuorumState {
+  Healthy
+  Soft
+  ReadOnly(ReadOnlyReason)
+} derive(Eq, @debug.Debug)
+pub fn QuorumState::code(Self) -> UInt16
+pub fn QuorumState::equal(Self, Self) -> Bool
+pub fn QuorumState::may_write(Self) -> Bool
+pub fn QuorumState::not_equal(Self, Self) -> Bool
+pub fn QuorumState::to_repr(Self) -> @debug.Repr
+pub fn QuorumState::warning(Self) -> @protocol.ErrCode?
+pub fn QuorumState::write_refusal(Self) -> @protocol.ErrCode?
+
+pub(all) enum ReadOnlyReason {
+  AckTimeout
+  NoFollower
+} derive(Eq, @debug.Debug)
+pub fn ReadOnlyReason::equal(Self, Self) -> Bool
+pub fn ReadOnlyReason::not_equal(Self, Self) -> Bool
+pub fn ReadOnlyReason::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
