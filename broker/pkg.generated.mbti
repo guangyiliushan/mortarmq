@@ -3,7 +3,9 @@ package "guangyiliushan/mortarmq/broker"
 
 import {
   "guangyiliushan/mortarmq/delivery",
+  "guangyiliushan/mortarmq/harness",
   "guangyiliushan/mortarmq/protocol",
+  "guangyiliushan/mortarmq/storage",
   "moonbitlang/core/debug",
 }
 
@@ -40,9 +42,18 @@ pub fn pull_ok(Array[@protocol.MsgPayload]) -> Array[@protocol.WirePayload]
 
 pub fn pull_refused() -> @protocol.WirePayload
 
+pub async fn[D : @harness.Disk] redeliver_one(@delivery.DeliveryMachine, CreditRegistry, D, @delivery.DeliveryKey, UInt16, UInt64, UInt64, UInt64, UInt, UInt64, @storage.Watermark?) -> Result[@delivery.DeliveryAttempt, RedeliverError]
+
 pub fn route_partition(Bytes, UInt16) -> UInt16
 
 // Errors
+pub(all) suberror RedeliverError {
+  CreditRefused(CreditError)
+  DeliveryFailed(@delivery.DeliveryError)
+} derive(Eq, @debug.Debug)
+pub fn RedeliverError::equal(Self, Self) -> Bool
+pub fn RedeliverError::not_equal(Self, Self) -> Bool
+pub fn RedeliverError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct ConsumerCursor {
