@@ -108,8 +108,10 @@ pub extend PeerMsg with @moonbitlang/core/debug.Debug::{to_repr}
 /// `base_seq` is the sequence of the first entry; entry `i` carries
 /// `base_seq + i`, so the follower's numbering is the leader's by
 /// construction rather than by agreement. `leader_epoch` rides along
-/// from the first version of the frame so that adding the fencing check
-/// later is not a wire change; nothing enforces it yet.
+/// from the first version of the frame so that the fencing check is not
+/// a wire change; the check itself compares the epoch against the
+/// promise this replica holds, and refuses an older term before any
+/// storage append happens.
 /// `flush_after_append` selects the follower's durability for this
 /// batch -- a follower that is only catching up on written-but-unflushed
 /// state reports a `dirty_seq` above its `flushed_seq`, which is exactly

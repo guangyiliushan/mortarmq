@@ -30,10 +30,10 @@
 /// * Nothing here decides whether the write is *committed* -- that is
 ///   the majority-fsync gate, and it reads the per-peer
 ///   positions this stream records.
-/// * Nothing here rejects a stale epoch -- `leader_epoch` travels in
-///   both directions from the first version of the frame so that
-///   the stale-epoch check can enforce it without a wire change, but a
-///   a check until it rejects.
+/// * A batch from an older term is refused with `StaleLeaderEpoch`
+///   before storage append, so a stale leader leaves no writes behind.
+///   A batch from a newer term is adopted durably first, so the writes
+///   it carries land under a promise this replica has recorded.
 /// * Rounds are sequential: one batch is written and its
 ///   acknowledgement read before the next batch starts. Pipelining is
 ///   an optimization and none of the ordering rules above depend on it.
@@ -156,11 +156,15 @@ pub async fn ClusterNode::send_append(
 ///   the leader learns why this round did not land. Whether the link
 ///   stays open after that is the caller's decision; this function
 ///   reports and stops.
+/// * `StaleLeaderEpoch` (0x6005) when the batch carries an older term
+///   than this replica has already promised. Refused before the log is
+///   touched, so a stale leader leaves no writes behind.
 /// * `MalformedPayload` (0x0003) for any frame that is not an `APPEND`.
 pub async fn ClusterNode::serve_append(
   self : ClusterNode,
   conn : &@net.Conn,
   log : &ReplicaLog,
+  epoch : LeaderEpoch,
 ) -> Result[AppendAck, @protocol.ErrCode] {
   let request = match read_peer_msg(conn) {
     Err(code) => return Err(code)
@@ -177,6 +181,22 @@ pub async fn ClusterNode::serve_append(
   let config = self.config()
   if batch.leader_id == config.node_id() || !config.has_peer(batch.leader_id) {
     return refuse(conn, @protocol.AuthFailed)
+  }
+  // The fence runs before storage append, never after. A batch from an
+  // older term has to leave this replica's log exactly as it found it:
+  // writing first and refusing afterwards would still have left the
+  // bytes behind, which is the split a stale leader is trying to open.
+  if batch.leader_epoch < epoch.current() {
+    return refuse(conn, @protocol.StaleLeaderEpoch)
+  }
+  if batch.leader_epoch > epoch.current() {
+    // A newer term. Adopt it -- durably, or not at all -- before any
+    // of the writes it carries are allowed to land; if the metadata
+    // write fails, so does the batch.
+    match epoch.elect(batch.leader_epoch) {
+      Err(code) => return refuse(conn, code)
+      Ok(_) => ()
+    }
   }
   let follower_id = config.node_id()
   let leader_epoch = batch.leader_epoch

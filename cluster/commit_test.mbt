@@ -121,6 +121,7 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
   // Node 3 is bound and in the table but takes no part in either round:
   // the majority the gate needs is the leader plus one follower.
   let _laggard = cluster_node(3U.to_uint16(), ports[2], ports, secret)
+  let follower_epoch = fresh_epoch()
   defer server_one.close()
   defer server_three.close()
 
@@ -142,7 +143,7 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
               for _ in 0..<2 {
                 match
                   @cluster.ClusterNode::serve_append(
-                    follower, conn, follower_log,
+                    follower, conn, follower_log, follower_epoch,
                   ) {
                   Err(_) => ()
                   Ok(_) => ()

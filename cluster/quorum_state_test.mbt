@@ -167,6 +167,7 @@ async test "a missed quorum acknowledgement refuses the write and the next round
   )
   let follower = @cluster.ClusterNode::new(follower_config)
   let leader = @cluster.ClusterNode::new(leader_config)
+  let follower_epoch = fresh_epoch()
 
   // A node that has completed no round has seen nothing go wrong.
   assert_eq(leader.quorum_state(), @cluster.QuorumState::Healthy)
@@ -195,7 +196,7 @@ async test "a missed quorum acknowledgement refuses the write and the next round
                 }
                 match
                   @cluster.ClusterNode::serve_append(
-                    follower, conn, follower_log,
+                    follower, conn, follower_log, follower_epoch,
                   ) {
                   Err(_) => ()
                   Ok(_) => ()

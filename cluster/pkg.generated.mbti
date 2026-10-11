@@ -104,7 +104,7 @@ pub fn ClusterNode::peers_connected(Self) -> Bool
 pub fn ClusterNode::quorum_state(Self) -> QuorumState
 pub fn ClusterNode::record_append_ack(Self, AppendAck) -> Result[Unit, @protocol.ErrCode]
 pub async fn ClusterNode::send_append(Self, &@net.Conn, &ReplicaLog, UInt64, Array[Bytes], Bool, Int) -> Result[AppendAck, @protocol.ErrCode]
-pub async fn ClusterNode::serve_append(Self, &@net.Conn, &ReplicaLog) -> Result[AppendAck, @protocol.ErrCode]
+pub async fn ClusterNode::serve_append(Self, &@net.Conn, &ReplicaLog, LeaderEpoch) -> Result[AppendAck, @protocol.ErrCode]
 pub async fn ClusterNode::serve_peer(Self, &@net.Conn) -> Result[PeerLink, @protocol.ErrCode]
 
 pub(all) struct FollowerProgress {

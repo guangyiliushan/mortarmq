@@ -103,6 +103,7 @@ async fn replication_round(
     2U.to_uint16(),
     secret,
   )
+  let follower_epoch = fresh_epoch()
   let follower_outcome : Ref[Result[@cluster.AppendAck, @protocol.ErrCode]] = Ref::Ref(
     Err(@protocol.Internal),
   )
@@ -129,6 +130,7 @@ async fn replication_round(
                 @cluster.ClusterNode::new(follower_config),
                 conn,
                 follower_log,
+                follower_epoch,
               )
           }
           @net.Conn::close(conn)
@@ -386,11 +388,12 @@ async test "a batch from a leader outside the static table is refused before the
           let concrete : LoopConn = { tcp: accepted.0, }
           let conn : &@net.Conn = concrete
           let node = @cluster.ClusterNode::new(follower_config)
+          let epoch = fresh_epoch()
           match @cluster.ClusterNode::serve_peer(node, conn) {
             Err(code) => follower_outcome.val = Err(code)
             Ok(_) =>
               follower_outcome.val = @cluster.ClusterNode::serve_append(
-                node, conn, follower_log,
+                node, conn, follower_log, epoch,
               )
           }
           @net.Conn::close(conn)

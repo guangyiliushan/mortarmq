@@ -37,6 +37,27 @@ impl @cluster.MetadataLog for RecordingLog with fn append(self, record : Bytes) 
 }
 
 ///|
+/// A fresh epoch together with the recording metadata log it writes to.
+///
+/// Returned as a pair because a case that needs to make the metadata
+/// write fail has to reach the log behind the epoch, while a case that
+/// only needs a promise to compare against does not care about it.
+fn fresh_epoch_with_log() -> (@cluster.LeaderEpoch, RecordingLog) {
+  let log = recording_log()
+  let sink : &@cluster.MetadataLog = log
+  (@cluster.LeaderEpoch::new(sink), log)
+}
+
+///|
+/// A fresh epoch for a replica that has not recognised a leader yet.
+///
+/// Shared with the replication tests: every follower needs one now that
+/// an `APPEND` is checked against the promise before it touches the log.
+fn fresh_epoch() -> @cluster.LeaderEpoch {
+  fresh_epoch_with_log().0
+}
+
+///|
 /// Decode one recorded byte string back through the metadata codec.
 fn recorded(log : RecordingLog, index : Int) -> @metadata.MmmlRecord raise {
   match @metadata.decode_mmml_record(log.records.val[index][:]) {
