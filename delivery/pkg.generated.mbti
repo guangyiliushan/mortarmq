@@ -19,6 +19,8 @@ pub const MAX_BACKOFF_MS : UInt = 30000
 
 pub const RETRY_BACKOFF_BASE_MS : UInt = 1000
 
+pub fn counts_of_events(Array[LedgerEvent], UInt16, Int) -> DeliveryCounts
+
 pub fn decode_ledger_event(BytesView) -> Result[LedgerEvent, LedgerFault]
 
 pub fn decode_mmdl(BytesView) -> Result[MmdlEnvelope, DeliveryError]
@@ -103,6 +105,25 @@ pub fn DeliveryAttempt::equal(Self, Self) -> Bool
 pub fn DeliveryAttempt::not_equal(Self, Self) -> Bool
 pub fn DeliveryAttempt::to_repr(Self) -> @debug.Repr
 
+pub(all) struct DeliveryCounts {
+  published : UInt64
+  delivered : UInt64
+  retained : UInt64
+  dlq : UInt64
+  dropped : UInt64
+  ack_floor : UInt64
+  max_sequence : UInt64
+  lag : UInt64
+} derive(Eq, @debug.Debug)
+pub fn DeliveryCounts::conserved(Self) -> Bool
+pub fn DeliveryCounts::conserved_without_drop(Self) -> Bool
+pub fn DeliveryCounts::equal(Self, Self) -> Bool
+pub fn DeliveryCounts::floor_lag_consistent(Self) -> Bool
+pub fn DeliveryCounts::not_equal(Self, Self) -> Bool
+pub fn DeliveryCounts::to_repr(Self) -> @debug.Repr
+pub fn DeliveryCounts::totals_monotone_from(Self, Self) -> Bool
+pub fn DeliveryCounts::zero() -> Self
+
 pub(all) struct DeliveryKey {
   group_id : UInt16
   topic_id : UInt16
@@ -120,6 +141,7 @@ pub(all) struct DeliveryMachine {
 pub async fn[D : @harness.Disk] DeliveryMachine::ack(Self, D, DeliveryKey, UInt64, UInt64, @storage.Watermark?) -> Result[AckResult, DeliveryError]
 pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(Self, D, DeliveryKey, UInt64, UInt64, @storage.Watermark?) -> Result[DeliveryAttempt, DeliveryError]
 pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(Self, D, DeliveryKey, DeadLetterRequest, (Bytes) -> Result[UInt64, DeliveryError], UInt64, @storage.Watermark?) -> Result[DeadLetterResult, DeliveryError]
+pub fn DeliveryMachine::counts(Self, UInt16) -> DeliveryCounts
 pub fn DeliveryMachine::log_first_invalid(Self) -> Int?
 pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(Self, D, R, DeliveryKey, UInt64, DeliveryOutcome, UInt64, @storage.Watermark?) -> Result[RetryPlan, DeliveryError]
 pub fn DeliveryMachine::new(UInt16, UInt16, LedgerWriter) -> Self
