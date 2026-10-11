@@ -64,7 +64,7 @@ Core ops `0x01–0x09` (client command surface + common responses); extension op
 
 ## 3. Error Code Registry (globally registered)
 
-The registry is a look-up table, not prose — 49 codes across four registered segments, each row carrying a "what the client should do" column. It has its own page so it can be consulted without reading the spec.
+The registry is a look-up table, not prose — 50 codes across four registered segments, each row carrying a "what the client should do" column. It has its own page so it can be consulted without reading the spec.
 
 → **[Error Code Registry](./errors.md)** — `0x0xxx` protocol/session · `0x2xxx` metadata · `0x4xxx` backpressure/quota · `0x6xxx` replication.
 

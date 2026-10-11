@@ -9,7 +9,7 @@ If you are learning the system rather than looking something up, start at [Conce
 | Page | What it specifies |
 |---|---|
 | [Protocol](./protocol.md) | **Single source of truth** for the v0 wire protocol: frame format, the 15-op table, field semantics, versioning rules |
-| [Error codes](./errors.md) | The 49-code registry across four segments, each row with the "what the client should do" column |
+| [Error codes](./errors.md) | The 50-code registry across four segments, each row with the "what the client should do" column |
 | [Configuration](./configuration.md) | The JSON allowlist — type, default, rationale and update mode for every key |
 | [CLI](./cli.md) | The 7 commands, TSV column order, exit codes and `--api-version` |
 | [Metrics](./metrics.md) | The 15-metric allowlist on `/metrics`, `/healthz` and `/stats` |
