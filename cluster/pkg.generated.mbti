@@ -109,6 +109,13 @@ pub fn FollowerProgress::equal(Self, Self) -> Bool
 pub fn FollowerProgress::not_equal(Self, Self) -> Bool
 pub fn FollowerProgress::to_repr(Self) -> @debug.Repr
 
+pub struct LeaderEpoch {
+  // private fields
+}
+pub fn LeaderEpoch::current(Self) -> UInt64
+pub async fn LeaderEpoch::elect(Self, UInt64) -> Result[UInt64, @protocol.ErrCode]
+pub fn LeaderEpoch::new(&MetadataLog) -> Self
+
 pub(all) struct PeerEntry {
   node_id : UInt16
   host : String
@@ -148,6 +155,10 @@ pub fn PeerSecret::tag(Self, BytesView) -> Bytes
 // Type aliases
 
 // Traits
+pub(open) trait MetadataLog {
+  async fn append(Self, Bytes) -> Result[UInt64, @protocol.ErrCode]
+}
+
 pub(open) trait ReplicaLog {
   fn last_appended_seq(Self) -> UInt64
   fn last_flushed_seq(Self) -> UInt64

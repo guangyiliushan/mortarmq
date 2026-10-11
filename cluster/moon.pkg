@@ -6,6 +6,7 @@
 // side adds async and socket so the handshake can run over a real
 // loopback listener.
 import {
+  "guangyiliushan/mortarmq/metadata",
   "guangyiliushan/mortarmq/net",
   "guangyiliushan/mortarmq/protocol",
   "guangyiliushan/mortarmq/security",
