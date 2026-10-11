@@ -1,7 +1,7 @@
-/// Exercise the credit window behind REQ-DEL-005: the admission gate,
+/// Exercise the credit window: the admission gate,
 /// the `CREDIT` apply path with its clamps and epoch fencing, the
-/// redelivery-pays rule (Q16), the fenced ownership-change release
-/// (Q14b/Q28/Q29), and the slow-consumer acceptance case -- inject a
+/// redelivery-pays rule, the fenced ownership-change release
+/// and the slow-consumer acceptance case -- inject a
 /// consumer that stops returning credit and prove the buffered total
 /// never leaves the window.
 
@@ -40,7 +40,7 @@ fn small_window(
 }
 
 ///|
-/// A window sized to the A07 defaults, for the buffer-bound assertions.
+/// A window sized to the default grant, for the buffer-bound assertions.
 fn default_window() -> @broker.CreditWindow {
   @broker.CreditWindow::new(
     sub_one(),
@@ -270,7 +270,7 @@ test "a redelivery attempt consumes credit again" {
   assert_eq(admit_one(window, 100), Err(@broker.NoCredit))
   // The client processed exactly one message and returns exactly one.
   assert_eq(apply(window, @broker.Add, 1, 100) is Ok(_), true)
-  // The redelivery of an unreturned message pays again (Q16): three
+  // The redelivery of an unreturned message pays again: three
   // consumes against one return leave the window at two outstanding.
   assert_eq(admit_one(window, 100), Ok(()))
   let report = @broker.CreditWindow::report(window)
@@ -288,7 +288,7 @@ test "outstanding folds down through returns and stays put otherwise" {
     1U.to_uint16(),
   )
   // An ACK is the ledger's business: nothing in this module moves on it.
-  // Only the credit return folds outstanding down (golden case 20).
+  // Only the credit return folds outstanding down.
   assert_eq(apply(window, @broker.Add, 1, 100) is Ok(_), true)
   let report = @broker.CreditWindow::report(window)
   assert_eq(report.outstanding_count, 0U.to_uint16())
@@ -425,7 +425,7 @@ test "the ownership change port releases only the fenced partition tranche" {
 
 ///|
 test "slow consumer injection keeps the buffered total inside the window" {
-  // A07 default grant: 256 messages / 2 MiB. The consumer may stop
+  // Default grant: 256 messages / 2 MiB. The consumer may stop
   // returning credit entirely; the buffer must never leave the window.
   let window = default_window()
   let tracker = @broker.CreditReturnTracker::with_window_defaults(

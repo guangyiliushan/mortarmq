@@ -1,5 +1,4 @@
-/// Track the approximate outbound pending bytes of one connection
-/// (T054, REQ-DEL-005, gap B-5 verdict 2026-10-01).
+/// Track the approximate outbound pending bytes of one connection.
 ///
 /// `moonbitlang/async` 0.20.2 exposes no outbound queued/byte
 /// statistics on its socket and io surface, so the soft/hard pending
@@ -7,11 +6,11 @@
 /// path itself counts `bytes_queued - bytes_written`, where `written`
 /// accumulates the byte counts `write_once` returns. The threshold
 /// semantics stay exactly as designed -- soft slow at 75% of the hard
-/// limit, hard slow above the hard limit (the A07 connection
+/// limit, hard slow above the hard limit (the connection
 /// backpressure state machine, NATS-style) -- and this counter is the
 /// gauge they read.
 ///
-/// # Counting accuracy (the T054 exit note)
+/// # Counting accuracy
 ///
 /// * `pending_bytes` is an **approximation that excludes kernel
 ///   buffers**. It measures what the application has handed to the
@@ -30,7 +29,7 @@
 ///   than wrapping.
 /// * If a future `moonbitlang/async` exposes real socket statistics the
 ///   judgement can be tightened to them without changing the threshold
-///   semantics (gap B-5 revisiting clause).
+///   semantics.
 ///
 /// # Boundaries
 ///
@@ -65,7 +64,7 @@ priv struct PendingCore {
 /// Count the outbound pending bytes of one connection.
 ///
 /// Build with `OutboundPending::new` for explicit thresholds or
-/// `OutboundPending::with_defaults` for the A07 parameter table
+/// `OutboundPending::with_defaults` for the default parameter table
 /// (soft 75% of a 64 MiB hard limit).
 pub struct OutboundPending {
   priv soft_bytes : UInt
@@ -92,7 +91,7 @@ pub fn OutboundPending::new(
 }
 
 ///|
-/// Open a gauge at the A07 parameter table defaults: soft slow at 75%
+/// Open a gauge at the default parameter set: soft slow at 75%
 /// of the hard limit, hard limit 64 MiB (the NATS default the table
 /// adopted).
 ///
@@ -127,7 +126,7 @@ pub fn OutboundPending::queued(
 
 ///|
 /// Count `bytes` as accepted by the transport -- the return value of
-/// `write_once` accumulated over the sending path (gap B-5).
+/// `write_once` accumulated over the sending path.
 ///
 /// The subtraction saturates at zero: more written than queued is a
 /// caller bug and the gauge floors rather than wrapping.

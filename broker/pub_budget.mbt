@@ -1,5 +1,4 @@
-/// Bound the outstanding PUB budget of one connection (T110,
-/// REQ-DEL-007 producer overload, hard decision 5).
+/// Bound the outstanding PUB budget of one connection.
 ///
 /// A connection keeps a bounded number and volume of accepted-but-not
 /// yet completed PUBs: every accepted PUB occupies `outstanding_count`
@@ -8,10 +7,9 @@
 /// actionable code before anything can pile up toward an out-of-memory
 /// condition. A refused PUB is never accepted and never dropped
 /// silently -- the record is not appended and the producer is told
-/// exactly why (decision 5: refuse by backpressure first).
+/// exactly why (refuse by backpressure first).
 ///
-/// The budget is the connection-scoped protection from the A07
-/// producer section: `conn_max_outstanding_pub_count` guards against a
+/// The budget is the connection-scoped protection for producers: `conn_max_outstanding_pub_count` guards against a
 /// flood of un-quorumed publishes and `conn_max_outstanding_pub_bytes`
 /// guards leader and replication memory. The rate token bucket, the
 /// storage high watermark and the replication read-only gate sit next
@@ -58,8 +56,8 @@ pub extend PubError with @moonbitlang/core/debug.Debug::{to_repr}
 ///
 /// `OverBudgetCount` becomes `BACKPRESSURE` (0x4001, back off and
 /// retry) and `OverBudgetBytes` becomes `QUOTA_EXCEEDED` (0x4002, slow
-/// down) -- the two producer-overload codes REQ-DEL-007 names, both
-/// already registered with distinct client actions. The A07 admission
+/// down) -- the two producer-overload codes of the registry, both
+/// already registered with distinct client actions. The admission
 /// notes collapse both budget checks onto `BACKPRESSURE`; the split
 /// follows the registry's distinct actions so a volume-stalled producer
 /// is told to slow down rather than to retry harder. Zero new codes.
@@ -110,7 +108,7 @@ priv struct PubCore {
 /// Count the outstanding PUBs of one connection against its caps.
 ///
 /// Build with `PubBudget::new` for explicit caps or
-/// `PubBudget::with_defaults` for the A07 parameter table.
+/// `PubBudget::with_defaults` for the default parameter set.
 pub struct PubBudget {
   priv max_count : UInt16
   priv max_bytes : UInt
@@ -120,9 +118,7 @@ pub struct PubBudget {
 ///|
 /// Open a budget with explicit caps.
 ///
-/// `max_count` is the most PUBs that may be outstanding at once (A07
-/// default 256) and `max_bytes` the most bytes they may occupy (A07
-/// default 8 MiB).
+/// `max_count` is the most PUBs that may be outstanding at once (default 256) and `max_bytes` the most bytes they may occupy (default 8 MiB).
 pub fn PubBudget::new(max_count : UInt16, max_bytes : UInt) -> PubBudget {
   {
     max_count,
@@ -132,7 +128,7 @@ pub fn PubBudget::new(max_count : UInt16, max_bytes : UInt) -> PubBudget {
 }
 
 ///|
-/// Open a budget at the A07 parameter table defaults: 256 outstanding
+/// Open a budget at the default parameter set: 256 outstanding
 /// PUBs or 8 MiB of un-completed publish volume per connection.
 pub fn PubBudget::with_defaults() -> PubBudget {
   PubBudget::new(256U.to_uint16(), 8388608U)

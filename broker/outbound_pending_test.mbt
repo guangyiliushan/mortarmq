@@ -1,4 +1,4 @@
-/// Exercise the outbound pending approximation (T054, gap B-5): the
+/// Exercise the outbound pending approximation: the
 /// queued-minus-written accounting, its saturation, and the soft/hard
 /// classification whose thresholds keep their designed semantics.
 

@@ -1,4 +1,4 @@
-/// Exercise the connection PUB budget (T110, REQ-DEL-007, decision 5):
+/// Exercise the connection PUB budget:
 /// exact count and byte caps, explicit actionable refusals that land on
 /// the registered 0x4001/0x4002 codes, saturating completions, and the
 /// slow-PUB acceptance case -- freeze completions, flood publishes, and
@@ -109,7 +109,7 @@ test "over-budget refusals map to the registered 0x4001 and 0x4002 codes" {
 }
 
 ///|
-test "the defaults match the A07 parameter table" {
+test "the defaults match the documented parameter set" {
   let budget = @broker.PubBudget::with_defaults()
   assert_eq(@broker.PubBudget::admit(budget, 8388608U) is Ok(_), true)
   assert_eq(@broker.PubBudget::report(budget).outstanding_count, 1U.to_uint16())

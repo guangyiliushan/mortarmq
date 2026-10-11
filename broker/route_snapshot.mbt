@@ -100,7 +100,7 @@ pub fn RoutingSnapshot::empty() -> RoutingSnapshot {
 ///
 /// The entries are copied into a map of their own, so declarations that
 /// land after this call leave the returned snapshot untouched. The caller
-/// passes the metadata log byte offset just past the last committed
+/// passes the metadata log byte offset past the last committed
 /// mutation behind the registry state; this function records the number
 /// without inspecting it.
 /// Replaying an accepted declaration and refusing a partition count change
@@ -110,7 +110,7 @@ pub fn RoutingSnapshot::empty() -> RoutingSnapshot {
 /// Parameters:
 ///
 /// * `registry` : The declare-side registry whose live topics to freeze.
-/// * `applied` : The metadata log byte offset just past the last mutation
+/// * `applied` : The metadata log byte offset past the last mutation
 ///   applied to `registry`; zero marks "nothing applied yet".
 ///
 /// Returns the frozen view at `applied`.

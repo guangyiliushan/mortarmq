@@ -1,11 +1,11 @@
-/// Exercise the four-trigger credit return policy from REQ-DEL-005:
+/// Exercise the four-trigger credit return policy:
 /// 32 pending messages, 1 MiB pending bytes, the low-water marks of the
 /// granted budget, and the 20 ms deadline since the first pending
 /// return -- any one flushing the accumulated return.
 
 ///|
 fn default_tracker() -> @broker.CreditReturnTracker {
-  // A07 defaults: flush 32 / 1 MiB, low water 25% of 256 msgs / 2 MiB,
+  // Defaults: flush 32 / 1 MiB, low water 25% of 256 msgs / 2 MiB,
   // deadline 20 ms.
   @broker.CreditReturnTracker::with_window_defaults(256U.to_uint16(), 2097152U)
 }

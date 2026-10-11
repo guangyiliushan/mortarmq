@@ -95,7 +95,7 @@ test "a re-declare with fewer partitions is refused and stores nothing new" {
 
 ///|
 test "distinct topics receive distinct identifiers one twin slot apart" {
-  // R11: each source DECLARE also claims the next identifier for its
+  // Each source DECLARE also claims the next identifier for its
   // `.dlq` twin, so live source identifiers run 1, 3, 5, ...
   let registry = @broker.TopicRegistry::new()
   assert_eq(
@@ -255,7 +255,7 @@ test "refused declares never create a topic or consume an identifier" {
 }
 
 ///|
-test "source DECLARE atomically creates its reserved .dlq twin (R11)" {
+test "source DECLARE atomically creates its reserved .dlq twin" {
   let registry = @broker.TopicRegistry::new()
   assert_eq(
     @broker.TopicRegistry::declare_topic(registry, b"orders", 3),

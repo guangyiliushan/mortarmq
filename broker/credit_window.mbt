@@ -1,4 +1,4 @@
-/// Hold the per-subscription credit window behind REQ-DEL-005.
+/// Hold the per-subscription credit window that bounds un-returned deliveries.
 ///
 /// One `CreditWindow` owns the dual message-and-byte budget of one
 /// subscription: what the client may still receive (`granted`) and what
@@ -6,7 +6,7 @@
 /// (`outstanding`). Every delivery attempt -- first delivery or the
 /// redelivery of an unreturned message -- passes the `admit` gate and
 /// consumes budget, so a slow consumer can never make the broker buffer
-/// more than the window allows, and a redelivery pays for itself (Q16).
+/// more than the window allows, and a redelivery pays for itself.
 ///
 /// The window is keyed by `subscription_id`; `CreditRegistry` is the map
 /// and the lookup surface that refuses an unknown key with
@@ -24,17 +24,14 @@
 ///   `CREDIT` frame) or when an ownership change releases a fenced
 ///   partition tranche. An `ACK` never touches this module; ACK drives
 ///   the delivery ledger, `CREDIT` drives the window.
-/// * Stale epochs are refused without any modification (golden cases 10
-///   and 11): a `CREDIT` carrying an old membership epoch or an old
+/// * Stale epochs are refused without any modification: a `CREDIT` carrying an old membership epoch or an old
 ///   subscription generation leaves every counter and `credit_epoch`
 ///   untouched.
 /// * `credit_epoch` is a monotonic credit-change generation: every
-///   successful apply and every release bumps it exactly once (golden
-///   case 14), so the `OK(CREDIT)` result the wire echoes back is
+///   successful apply and every release bumps it exactly once, so the `OK(CREDIT)` result the wire echoes back is
 ///   ordered evidence of which mutation a client is looking at.
 /// * Nothing here is persisted. A connection drop or a reconnect discards
-///   the window via `CreditRegistry::discard`; `SUB`/`PULL` rebuild it
-///   (golden cases 27 and 28). Frames and sockets live elsewhere; this
+///   the window via `CreditRegistry::discard`; `SUB`/`PULL` rebuild it. Frames and sockets live elsewhere; this
 ///   module is pure state.
 
 ///|
@@ -59,11 +56,10 @@ pub extend CreditMode with @moonbitlang/core/debug.Debug::{to_repr}
 /// Refuse a credit operation with the reason the caller must act on.
 ///
 /// The window stays deliberately transport-neutral: these are the
-/// mechanism-level reasons from the A07 credit algorithm, and the
-/// delivery layer maps them onto the registered wire codes (the T053
-/// mapping). `MessageExceedsCredit` and `NoCredit` correspond to the
+/// mechanism-level reasons from the credit algorithm, and the
+/// delivery layer maps them onto the registered wire codes (the wire-code mapping). `MessageExceedsCredit` and `NoCredit` correspond to the
 /// 0x4005 / 0x4006 wire codes, `Backpressure` to 0x4001; overflow is not
-/// an error here because applies clamp (golden cases 5 and 6).
+/// an error here because applies clamp.
 pub(all) enum CreditError {
   UnknownSubscription
   StaleGeneration
@@ -144,14 +140,14 @@ pub struct CreditWindow {
 ///
 /// Parameters mirror the wire: `subscription_id` from the `SUB` result,
 /// `membership_epoch` and `ownership_generation` the epochs the
-/// subscription runs under (the generation is the Q28 subscription
+/// subscription runs under (the generation is the subscription
 /// full-change generation maintained by the coordinator), and
 /// `initial_count` / `initial_bytes` the `SUB` credit fields (defaults
-/// 256 messages / 2 MiB per A07). `max_count` / `max_bytes` clamp every
+/// 256 messages / 2 MiB). `max_count` / `max_bytes` clamp every
 /// later apply; `in_flight_cap` is the connection-level in-flight limit
 /// the admission gate enforces. An initial grant above the maximum is
 /// clamped at construction, and a zero initial grant is a legal stopped
-/// window (golden case 1).
+/// window.
 ///
 /// Example:
 ///
@@ -228,8 +224,8 @@ pub fn CreditWindow::report(self : CreditWindow) -> CreditReport {
 /// budget on success.
 ///
 /// `msg_bytes` is `key_len + value_len` of the message; the frame header
-/// is never billed (golden case 17). A redelivery of an unreturned
-/// message calls `admit` again and consumes again -- the Q16 rule that
+/// is never billed. A redelivery of an unreturned
+/// message calls `admit` again and consumes again -- the rule that
 /// every attempt pays for the buffer it occupies.
 ///
 /// # Errors
@@ -240,7 +236,7 @@ pub fn CreditWindow::report(self : CreditWindow) -> CreditReport {
 /// * `NoCredit` -- the message cannot go out now but could after the
 ///   client returns credit: the message dimension is exhausted, or the
 ///   byte budget left cannot cover this message while the window capacity
-///   still could. The caller retains the message (golden case 18; no
+///   still could. The caller retains the message (no
 ///   partial delivery ever).
 /// * `MessageExceedsCredit` -- the message is larger than the whole
 ///   window capacity (`granted_bytes + outstanding_bytes`), so no amount
@@ -301,21 +297,20 @@ pub fn CreditWindow::admit(
 ///|
 /// Apply one `CREDIT` frame: `Set` replaces the granted budget, `Add`
 /// returns the carried amounts on top of it, and the returned amounts
-/// fold `outstanding` down on `Add` (golden case 20 -- outstanding
+/// fold `outstanding` down on `Add` (outstanding
 /// shrinks with client credit, never with ACKs).
 ///
 /// The epochs must match the subscription this window runs under;
 /// otherwise nothing is modified. Both modes clamp the granted budget
 /// into the room the maximum leaves above `outstanding`, which is what
 /// keeps `granted + outstanding` inside the cap no matter what a client
-/// sends (golden cases 5, 6 and 13). A successful apply bumps
+/// sends. A successful apply bumps
 /// `credit_epoch` exactly once.
 ///
 /// # Errors
 ///
 /// * `StaleGeneration` -- a stale `membership_epoch` or subscription
-///   generation; no counter and no `credit_epoch` moves (golden cases 10
-///   and 11).
+///   generation; no counter and no `credit_epoch` moves.
 pub fn CreditWindow::apply(
   self : CreditWindow,
   mode : CreditMode,
@@ -377,13 +372,13 @@ pub fn CreditWindow::apply(
 /// Release the in-flight tranche of one partition after an ownership
 /// change, fenced by the epoch the tranche was delivered under.
 ///
-/// The `Revoking` to `Released` transition is the trigger (Q14b): by the
+/// The `Revoking` to `Released` transition is the trigger: by the
 /// time the release runs the old owner has discarded the payloads, so
 /// the freed budget reopens the window without overlapping the old
 /// consumer's buffer. `old_epoch` is the replay fence -- a second call
 /// with the same epoch, or any call naming an epoch the tranche was not
 /// booked under, releases nothing. A successful release bumps
-/// `credit_epoch` once (Q28). Returns whether anything was released.
+/// `credit_epoch` once. Returns whether anything was released.
 pub fn CreditWindow::release_partition(
   self : CreditWindow,
   partition : UInt16,
@@ -451,8 +446,7 @@ pub fn CreditRegistry::register(
 ///|
 /// Drop the window of one subscription: a connection close, a stale
 /// generation teardown, or a reconnect path. Later lookups report
-/// `UnknownSubscription`, and nothing resurrects the counters (golden
-/// cases 27 and 28).
+/// `UnknownSubscription`, and nothing resurrects the counters.
 pub fn CreditRegistry::discard(
   self : CreditRegistry,
   subscription_id : UInt16,
@@ -526,7 +520,7 @@ pub fn CreditRegistry::report(
 
 ///|
 /// Consume one `ownership_changed` event: release the fenced partition
-/// tranche of the named subscription (Q29 port, Q14b partial-migration
+/// tranche of the named subscription (the ownership-event port, the partial-migration
 /// path).
 ///
 /// This is the credit-side port of the ruled one-source-three-consumers
@@ -534,7 +528,7 @@ pub fn CreditRegistry::report(
 /// and the long-poll waiter wake-up; the eight parameters are the ruled
 /// flat event shape, deliberately not a shared record. The group identity travels as `group_id : UInt16`, the same name and type as `NOTICE`/`CONTROL_ACK` (the `group` name stays out of the event). Full ownership
 /// changes never arrive here -- they bump the subscription generation on
-/// the coordinator side and the client re-`SUB`s (Q14b), so only partial
+/// the coordinator side and the client re-`SUB`s, so only partial
 /// migrations name a partition with an `old_epoch` to fence against. An
 /// unknown subscription or an epoch that does not match the booked
 /// tranche is a no-op: a replayed event can never release twice.

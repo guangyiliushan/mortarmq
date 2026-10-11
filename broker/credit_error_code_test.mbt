@@ -1,4 +1,4 @@
-/// Prove the T053 mapping surface lands every credit refusal in the
+/// Prove the mapping surface lands every credit refusal in the
 /// registered code table (L1: the refusal codes are registry members),
 /// that the pairing is total and injective, and that the one documented
 /// stretch -- unknown subscription -- names the registered re-SUB
@@ -30,7 +30,7 @@ test "every credit refusal maps to a registered wire code" {
 
 ///|
 test "the overload refusals map to the registered 0x4xxx backpressure family" {
-  // Decision 5 and REQ-DEL-007: explicit refusal, actionable code, no
+  // Explicit refusal, actionable code, no
   // new codes -- the 0x4xxx range is exactly what the registry holds.
   assert_eq(
     @broker.CreditError::Backpressure.to_err_code().to_uint16(),

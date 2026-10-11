@@ -1,4 +1,4 @@
-/// Model the client-side credit return policy from REQ-DEL-005.
+/// Model the client-side credit return policy.
 ///
 /// A client does not return credit per `ACK`: it accumulates what it has
 /// processed and sends one `CREDIT` frame when a flush trigger fires.
@@ -7,7 +7,7 @@
 /// low-water mark, or 20 ms since the first pending return. `CREDIT`
 /// only carries the accumulated return (`mode = Add`); it never tops the
 /// window back up to its initial size, so an ACK storm cannot become a
-/// credit storm (A07 update coalescing).
+/// credit storm (update coalescing).
 ///
 /// This tracker is the policy half of that contract: it accumulates
 /// returns and answers when to flush. It holds no transport and no
@@ -50,7 +50,7 @@ priv struct ReturnCore {
 /// Decide when a client returns accumulated credit.
 ///
 /// Build with `CreditReturnTracker::new` for explicit policy values or
-/// `CreditReturnTracker::with_window_defaults` for the A07 parameter
+/// `CreditReturnTracker::with_window_defaults` for the default parameter
 /// table.
 pub struct CreditReturnTracker {
   priv flush_count : UInt16
@@ -64,11 +64,11 @@ pub struct CreditReturnTracker {
 ///|
 /// Build a tracker with explicit flush thresholds.
 ///
-/// `flush_count` / `flush_bytes` are the batch triggers (A07 defaults 32
+/// `flush_count` / `flush_bytes` are the batch triggers (defaults 32
 /// messages / 1 MiB), `low_count` / `low_bytes` the low-water marks the
-/// granted budget is compared against (A07 default 25% of the initial
+/// granted budget is compared against (default 25% of the initial
 /// grant), and `max_delay_ms` the deadline since the first pending
-/// return (A07 default 20 ms).
+/// return (default 20 ms).
 pub fn CreditReturnTracker::new(
   flush_count : UInt16,
   flush_bytes : UInt,
@@ -92,7 +92,7 @@ pub fn CreditReturnTracker::new(
 }
 
 ///|
-/// Build a tracker from the A07 parameter table for a window opened
+/// Build a tracker from the default parameter table for a window opened
 /// with the given initial grant: flush at 32 messages or 1 MiB, flush
 /// early when the granted budget drops under 25% of the initial grant,
 /// and flush at the latest 20 ms after the first pending return.
@@ -162,7 +162,7 @@ pub fn CreditReturnTracker::record_ack(
 /// view of the granted budget.
 ///
 /// The four ruled triggers, any one sufficing: 32 pending messages, 1
-/// MiB pending bytes (with the A07 defaults), `available_count` under
+/// MiB pending bytes (with the defaults), `available_count` under
 /// the low-water mark, `available_bytes` under the low-water mark, or 20
 /// ms (the configured deadline) elapsed since the first pending return.
 /// With nothing pending the answer is always false.
