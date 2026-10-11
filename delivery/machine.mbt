@@ -315,7 +315,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
         RetryScheduled(count) => count + 1
       }
   }
-  // Defense in depth for the L1 rule "attempt 6 is never enqueued": the
+  // Defense in depth for the "attempt 6 is never enqueued" rule: the
   // budget-exhausted entry already sits in `DeadLetterQueued`, and this
   // guard keeps a stray caller from billing past `MAX_ATTEMPTS` anyway.
   if attempt > MAX_ATTEMPTS {

@@ -173,7 +173,7 @@ async test "ownership change fences in-flight deliveries and remembers the id" {
 }
 
 ///|
-/// Run the L4 scenario around the ACK flush boundary and return the final
+/// Run the crash-injection scenario around the ACK flush boundary and return the final
 /// durable events. The client retried each op after a kill; when the ACK
 /// retry answered `UnknownDelivery` (the ACK never became durable and the
 /// restart policy made the entry redeliverable) the client redelivered.
@@ -287,7 +287,7 @@ async fn run_l4_case(kill_at : Int) -> Array[@delivery.LedgerEvent] {
 }
 
 ///|
-async test "kill injection before and after the ACK flush is idempotent (L4)" {
+async test "kill injection before and after the ACK flush is idempotent" {
   // No kill and kills at the two writes and at the flush: the write-kill
   // cases retry cleanly and converge on the identical durable history.
   let baseline = run_l4_case(0)

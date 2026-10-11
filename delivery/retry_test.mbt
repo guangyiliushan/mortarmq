@@ -106,7 +106,7 @@ async test "the same seed reproduces the same backoff draw" {
 }
 
 ///|
-async test "the 6th delivery is never enqueued after max attempts (L1)" {
+async test "the 6th delivery is never enqueued after max attempts" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = retry_machine(path)
@@ -141,7 +141,7 @@ async test "the 6th delivery is never enqueued after max attempts (L1)" {
     }
   }
   assert_eq(machine.state_of(retry_key(1)), Some(@delivery.DeadLetterQueued(5)))
-  // The L1 rule: attempt 6 is refused and nothing is billed for it.
+  // The budget rule: attempt 6 is refused and nothing is billed for it.
   match machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
     Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
     _ => fail("expected attempt 6 to be refused")

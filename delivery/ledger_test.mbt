@@ -1,5 +1,5 @@
 /// Exercise the frozen 52-byte v0 delivery-ledger event log and its write
-/// path, including the L1 property that ledger streams and message-record
+/// path, including the property that ledger streams and message-record
 /// streams never mix.
 
 ///|
@@ -171,7 +171,7 @@ async test "ledger writer group-syncs every 128 events" {
 }
 
 ///|
-async test "ledger and record streams never mix (L1)" {
+async test "ledger and record streams never mix" {
   let disk = @harness.FakeDisk::new()
   let ledger_path = b"data/partitions/0001/0000/delivery.mql"
   let segment_path = b"data/partitions/0001/0000/segment-0000.bin"

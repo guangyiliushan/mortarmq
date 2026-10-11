@@ -147,7 +147,7 @@ async test "a pending backoff keeps its remainder across a restart" {
 }
 
 ///|
-async test "restart rebuilds pending retries and keeps the ledger consistent (L4)" {
+async test "restart rebuilds pending retries and keeps the ledger consistent" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = t_machine(path)

@@ -1,6 +1,6 @@
 /// Exercise the frozen MMDL envelope and the DLQ flow: the three loop
 /// guards, the durable write order, envelope
-/// flattening, and the documented replay blind spot (L1).
+/// flattening, and the documented replay blind spot.
 
 ///|
 fn dlq_key(sequence : UInt64) -> @delivery.DeliveryKey {
@@ -191,7 +191,7 @@ async test "dead-letter writes the envelope then terminates the source" {
 ///|
 /// A `.dlq` topic is terminal: the loop guard refuses to build `.dlq.dlq`
 /// and quarantines instead (defense layer 1).
-async test "a .dlq topic never produces a second DLQ (L1 layer 1)" {
+async test "a .dlq topic never produces a second DLQ (guard layer 1)" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
@@ -257,7 +257,7 @@ async test "a .dlq topic never produces a second DLQ (L1 layer 1)" {
 ///|
 /// A replayed envelope whose death path already lists this hop refuses
 /// re-entry (defense layer 2): no DLQ record, no loop.
-async test "a death path that already lists the hop refuses re-entry (L1 layer 2)" {
+async test "a death path that already lists the hop refuses re-entry (guard layer 2)" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
@@ -321,7 +321,7 @@ async test "a death path that already lists the hop refuses re-entry (L1 layer 2
 ///|
 /// A death path at the frozen bound of 8 hops reports DLQ_PATH_OVERFLOW
 /// (0x0030) after quarantining (defense layer 3).
-async test "an eight-hop death path reports DLQ_PATH_OVERFLOW (L1 layer 3)" {
+async test "an eight-hop death path reports DLQ_PATH_OVERFLOW (guard layer 3)" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = dlq_machine(path)
