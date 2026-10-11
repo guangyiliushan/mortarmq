@@ -2,8 +2,8 @@
 ///
 /// The size axis is total frame bytes on the wire, the same axis as the
 /// 2026-09-30 historical baseline (decode_64B/1KiB/64KiB were measured on full
-/// frame buffers). The grid is the frozen one from the plan performance
-/// goals: empty / 64B / 1KiB / 64KiB / 1MiB / 16MiB, each measured as
+/// frame buffers). The grid is frozen: empty / 64B / 1KiB / 64KiB / 1MiB /
+/// 16MiB, each measured as
 /// `encode`, `decode`, and `decode+copy topic/key/value`. Do not reshape this
 /// matrix to make numbers look better; report whatever it prints.
 ///
@@ -15,7 +15,7 @@
 ///   value of MAX_VALUE_LEN). An exactly 16 MiB PUB frame is protocol-
 ///   illegal because MAX_VALUE_LEN deliberately sits below MAX_FRAME_LEN.
 /// - `decode` is the full receive path: decode_frame + decode_wire_payload,
-///   borrowing every field (the T007 shape).
+///   borrowing every field.
 /// - `decode+copy` additionally materializes key and value with to_owned(),
 ///   the ownership-boundary copy a consumer pays when it keeps a field.
 /// - `decode_frame` rows are the continuity check against the historical

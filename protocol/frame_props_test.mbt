@@ -1,10 +1,8 @@
-/// Frame codec properties CF1-CF4 (M3 suite S2, INV-010, REQ-QUA-002).
-///
-/// CF1 round-trip, CF2 hostile bytes never panic, CF3 length-boundary errors
-/// fire at the exact position, CF4 malformed samples never pollute later
-/// decodes. Each property pins seed and count so a failure reproduces
-/// exactly. CF1-C3 belong to the commit tier and CF4 to the daily tier in the
-/// M3 registry; CI scheduling is wired by the docs lane.
+/// Frame codec properties CF1-CF4: round-trip equality, hostile bytes never
+/// panic, length boundaries fail at the exact field, and malformed samples
+/// never pollute later decodes. Each property pins seed and count so a
+/// failure reproduces exactly. CF1-C3 run on the commit tier and CF4 on the
+/// daily tier; the tier schedule is enforced by the CI workflows.
 ///
 /// quickcheck is pinned by the toolchain (moon 0.1.20260920 /
 /// moonbitlang/core 0.10.14+7d59c7ec9), see the note in moon.mod.
@@ -197,7 +195,7 @@ test "CF2 arbitrary bytes decode without panicking (quickcheck seed=20261011 is 
 ///
 /// The deterministic prelude pins the five documented boundaries with exact
 /// outcomes; the property then drives the raw length with the integer
-/// portfolio so 0 and u32::max arrive as counterexample candidates.
+/// portfolio so 0 and 0xFFFFFFFF arrive as counterexample candidates.
 test "CF3 length boundaries reject at the exact position (quickcheck seed=20261012 is reproducible)" {
   let prefix_of = fn(length : UInt) -> Bytes {
     let buf = Buffer()
@@ -221,7 +219,7 @@ test "CF3 length boundaries reject at the exact position (quickcheck seed=202610
       }
     _ => fail("length=1 frame must decode")
   }
-  // MAX_FRAME_LEN is legal (waits); MAX_FRAME_LEN+1 and u32::max are not.
+  // MAX_FRAME_LEN is legal (waits); MAX_FRAME_LEN+1 and 0xFFFFFFFF are not.
   match @protocol.decode_frame(prefix_of(@protocol.MAX_FRAME_LEN)[:]) {
     @protocol.Need(1) => ()
     _ => fail("max length must wait for its op byte")
@@ -232,7 +230,7 @@ test "CF3 length boundaries reject at the exact position (quickcheck seed=202610
   }
   match @protocol.decode_frame(prefix_of(0xFFFFFFFFU)[:]) {
     @protocol.DecodeError(@protocol.BadLength) => ()
-    _ => fail("u32 max must fail at the length field")
+    _ => fail("0xFFFFFFFF length must fail at the length field")
   }
   @quickcheck.check(
     (draw : UInt) => {

@@ -3,11 +3,11 @@ name = "guangyiliushan/mortarmq"
 version = "0.1.0"
 
 // Async runtime pin. 0.20.2 is the version the browser JS backend is verified against.
-// Property-test pin (T008): moonbitlang/core/quickcheck is bundled with the
-// toolchain, so its version is pinned by the compiler, not moon.mod:
-// moon 0.1.20260920 / moonbitlang/core 0.10.14+7d59c7ec9. moon.mod cannot pin
-// core (`moon.mod only supports versioned registry dependencies in import`;
-// registry has no moonbitlang/core). Bump both together when upgrading moon.
+// Property-test pin: moonbitlang/core/quickcheck ships inside the moon
+// toolchain, so the toolchain is what pins it -- moon 0.1.20260920 bundles
+// moonbitlang/core 0.10.14+7d59c7ec9. moon.mod cannot pin core ("moon.mod
+// only supports versioned registry dependencies in import"; the registry has
+// no moonbitlang/core). Upgrading moon upgrades core with it.
 import {
   "moonbitlang/async@0.20.2",
 }
