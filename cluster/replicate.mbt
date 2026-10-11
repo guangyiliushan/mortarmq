@@ -156,6 +156,9 @@ pub async fn ClusterNode::send_append(
 ///   the leader learns why this round did not land. Whether the link
 ///   stays open after that is the caller's decision; this function
 ///   reports and stops.
+/// * `CatchupRequired` (0x6007) when `base_seq` is past this replica's
+///   end. Taking it would punch a hole in the log, and this format
+///   tolerates none.
 /// * `StaleLeaderEpoch` (0x6005) when the batch carries an older term
 ///   than this replica has already promised. Refused before the log is
 ///   touched, so a stale leader leaves no writes behind.
@@ -194,6 +197,34 @@ pub async fn ClusterNode::serve_append(
     // of the writes it carries are allowed to land; if the metadata
     // write fails, so does the batch.
     match epoch.elect(batch.leader_epoch) {
+      Err(code) => return refuse(conn, code)
+      Ok(_) => ()
+    }
+  }
+  // Where this replica's log ends and where the batch says it should
+  // continue. An empty log ends at zero, so the next sequence is always
+  // one above the last one held -- or one when nothing is held at all.
+  let next_sequence = log.last_appended_seq() + 1UL
+  if batch.base_seq == 0UL {
+    // Sequence zero names no entry; a batch that starts there would
+    // truncate the log away entirely.
+    return refuse(conn, @protocol.MalformedPayload)
+  }
+  if batch.base_seq > next_sequence {
+    // The leader is ahead of us: entries this replica has never seen.
+    // Taking the batch would leave sequences missing from the middle of
+    // the log, and this format has no legitimate holes -- a gap is
+    // corruption, not a rewind marker.
+    return refuse(conn, @protocol.CatchupRequired)
+  }
+  if batch.base_seq < next_sequence {
+    // A divergent tail: what this replica holds above the cut belongs to
+    // a history the leader does not share. It goes before the batch
+    // lands, so the two never coexist. The cut is always above the
+    // caller's own commit point -- a leader only ever offers a base one
+    // past its own append position, and its commit point cannot be past
+    // that -- so the committed prefix is out of reach by construction.
+    match log.truncate(batch.base_seq - 1UL) {
       Err(code) => return refuse(conn, code)
       Ok(_) => ()
     }

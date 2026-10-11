@@ -191,4 +191,5 @@ pub(open) trait ReplicaLog {
   fn last_appended_seq(Self) -> UInt64
   fn last_flushed_seq(Self) -> UInt64
   async fn append(Self, Array[Bytes], Bool) -> Result[UInt64, @protocol.ErrCode]
+  async fn truncate(Self, UInt64) -> Result[Unit, @protocol.ErrCode]
 }

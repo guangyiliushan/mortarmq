@@ -30,6 +30,11 @@
 /// 4. `append(payloads, false)` advances `last_appended_seq` only; the
 ///    gap between the two positions is exactly what a later flush
 ///    closes.
+/// 5. `truncate(to_seq)` removes every sequence above `to_seq` from both
+///    positions. The bytes go, they are not marked: this format has no
+///    compaction, so there is no legitimate hole for a removed record to
+///    stand in for, and a placeholder left behind would be a record
+///    recovery could mistake for data. What is gone is gone.
 ///
 /// # Boundaries
 ///
@@ -66,4 +71,15 @@ pub(open) trait ReplicaLog {
     UInt64,
     @protocol.ErrCode,
   ]
+
+  /// Drop every sequence above `to_seq`, moving both positions back to
+  /// `to_seq` -- or to zero when the log becomes empty.
+  ///
+  /// Used when a replica's tail diverges from the leader's: the leader
+  /// is offering entries that do not continue what this replica holds,
+  /// so the tail goes before the batch lands. Nothing below `to_seq` is
+  /// ever requested: a caller's own append position is always at or
+  /// above its commit point, so the committed prefix is out of reach by
+  /// construction. A `to_seq` at or above the current end is a no-op.
+  async fn truncate(Self, to_seq : UInt64) -> Result[Unit, @protocol.ErrCode]
 }

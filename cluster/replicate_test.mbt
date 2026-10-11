@@ -12,6 +12,10 @@
 struct LogState {
   mut appended : UInt64
   mut flushed : UInt64
+  // The sequences this log actually holds, in order. Counters alone
+  // cannot answer the question this file exists to answer -- what is
+  // left after a truncation -- so the entries are kept.
+  mut entries : Array[UInt64]
 }
 
 ///|
@@ -30,7 +34,11 @@ struct TracedLog {
 
 ///|
 fn traced_log(name : String, trace : Ref[Array[(String, UInt64)]]) -> TracedLog {
-  { name, trace, state: Ref::Ref({ appended: 0UL, flushed: 0UL, }), }
+  {
+    name,
+    trace,
+    state: Ref::Ref({ appended: 0UL, flushed: 0UL, entries: [], }),
+  }
 }
 
 ///|
@@ -55,6 +63,11 @@ impl @cluster.ReplicaLog for TracedLog with fn append(
     last = last + 1UL
   }
   self.state.val.appended = last
+  let mut held = first
+  while held <= last {
+    self.state.val.entries.push(held)
+    held = held + 1UL
+  }
   self.trace.val.push((self.name + ".append", first))
   if durable {
     // An fsync that was asked for and reported done: only here does
@@ -70,7 +83,44 @@ impl @cluster.ReplicaLog for TracedLog with fn append(
 ///|
 // Promote the trait methods onto the type explicitly rather than relying
 // on implicit promotion, the same convention `net/tcp` uses for `Conn`.
+// `truncate` is deliberately not promoted here: it is reached through
+// the trait object `serve_append` holds, and promoting it would name a
+// method nothing calls directly.
 extend TracedLog with @cluster.ReplicaLog::{last_appended_seq, last_flushed_seq}
+
+///|
+impl @cluster.ReplicaLog for TracedLog with fn truncate(self, to_seq : UInt64) -> Result[
+  Unit,
+  @protocol.ErrCode,
+] {
+  // Keep only what is at or below the cut, then recompute both
+  // positions from what survived: a counter still pointing at a dropped
+  // sequence would be a ghost of its own.
+  let kept : Array[UInt64] = []
+  let mut last : UInt64 = 0UL
+  for sequence in self.state.val.entries {
+    if sequence <= to_seq {
+      kept.push(sequence)
+      last = sequence
+    }
+  }
+  self.state.val.entries = kept
+  self.state.val.appended = last
+  if self.state.val.flushed > last {
+    self.state.val.flushed = last
+  }
+  self.trace.val.push((self.name + ".truncate", to_seq))
+  Ok(())
+}
+
+///|
+/// The sequences this log holds right now, in order.
+///
+/// The whole point of a truncation test: a tail that was dropped must
+/// not still be readable afterwards.
+fn TracedLog::held(self : TracedLog) -> Array[UInt64] {
+  self.state.val.entries.copy()
+}
 
 ///|
 /// Run one replication round over a fresh loopback link: node 1
