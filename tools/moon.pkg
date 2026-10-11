@@ -2,4 +2,13 @@
 
 import {
   "guangyiliushan/mortarmq/security",
+  "guangyiliushan/mortarmq/storage",
+  "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/config",
+  "guangyiliushan/mortarmq/cli",
+  "moonbitlang/core/debug",
 }
+
+import {
+  "moonbitlang/async",
+} for "test"

@@ -2,15 +2,52 @@
 package "guangyiliushan/mortarmq/tools"
 
 import {
+  "guangyiliushan/mortarmq/harness",
   "guangyiliushan/mortarmq/security",
+  "moonbitlang/core/debug",
 }
 
 // Values
+pub async fn case_f1(@harness.SimEnv) -> Unit
+
+pub async fn case_f2(@harness.SimEnv) -> Unit
+
 pub fn hash_token(BytesView, Bytes) -> Result[Bytes, @security.TokensError]
+
+pub async fn run_upgrade_matrix(@harness.SimEnv) -> Array[CaseReport]
+
+pub fn upgrade_cases() -> Array[UpgradeCase]
 
 // Errors
 
 // Types and methods
+pub(all) struct CaseReport {
+  id : String
+  status : CaseStatus
+} derive(Eq, @debug.Debug)
+pub fn CaseReport::equal(Self, Self) -> Bool
+pub fn CaseReport::not_equal(Self, Self) -> Bool
+pub fn CaseReport::to_repr(Self) -> @debug.Repr
+
+pub(all) enum CaseStatus {
+  Green
+  Blocked(String)
+} derive(Eq, @debug.Debug)
+pub fn CaseStatus::equal(Self, Self) -> Bool
+pub fn CaseStatus::not_equal(Self, Self) -> Bool
+pub fn CaseStatus::to_repr(Self) -> @debug.Repr
+
+pub(all) struct UpgradeCase {
+  id : String
+  old_format : String
+  new_format : String
+  expected : String
+  diagnostics : String
+  source : String
+} derive(Eq, @debug.Debug)
+pub fn UpgradeCase::equal(Self, Self) -> Bool
+pub fn UpgradeCase::not_equal(Self, Self) -> Bool
+pub fn UpgradeCase::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
