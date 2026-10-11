@@ -63,7 +63,19 @@
 
 ## `0x6xxx` —— 复制（`0x6001–0x600b`）
 
-QUORUM_LOST 0x6001 / READ_ONLY_DEGRADED 0x6002 / IN_SYNC_REPLICAS_NOT_ENOUGH 0x6003 / FOLLOWER_LAG 0x6004 / STALE_LEADER_EPOCH 0x6005 / LEASE_EXPIRED 0x6006 / CATCHUP_REQUIRED 0x6007 / LOG_GAP 0x6008 / DIVERGENT_COMMITTED 0x6009 / QUORUM_RECOVERED 0x600a / UNCLEAN_ELECTION_REJECTED 0x600b.
+| 码 | 名称 | 断连 | 客户端动作 |
+|---:|---|---|---|
+| 0x6001 | QUORUM_LOST | no | 停止写入；等恢复（`/healthz` 状态告诉你在哪一级） |
+| 0x6002 | READ_ONLY_DEGRADED | no | 稍后重试；读路径继续 |
+| 0x6003 | IN_SYNC_REPLICAS_NOT_ENOUGH | no | 等待；运维先修好 follower 再恢复写入（[RB-1](../guides/runbook.md)） |
+| 0x6004 | FOLLOWER_LAG | no | 仅警告；继续 |
+| 0x6005 | STALE_LEADER_EPOCH | no | 重新发现 leader / epoch |
+| 0x6006 | LEASE_EXPIRED | no | 新 leader 稳定后重试 |
+| 0x6007 | CATCHUP_REQUIRED | no | 等 follower 追平 |
+| 0x6008 | LOG_GAP | no | 运维路径（[RB-1](../guides/runbook.md)）；勿盲目重试 |
+| 0x6009 | DIVERGENT_COMMITTED | no | 从审计日志人工对账（[RB-1](../guides/runbook.md) level −2） |
+| 0x600a | QUORUM_RECOVERED | no | 提示性；写入恢复 |
+| 0x600b | UNCLEAN_ELECTION_REJECTED | no | 设计上拒绝；重试无解 |
 
 ## 注册规则
 

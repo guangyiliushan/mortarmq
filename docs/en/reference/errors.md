@@ -63,7 +63,19 @@ Segments follow a fixed four-way split: `0x0xxx` protocol/session, `0x2xxx` meta
 
 ## `0x6xxx` — replication (`0x6001–0x600b`)
 
-QUORUM_LOST 0x6001 / READ_ONLY_DEGRADED 0x6002 / IN_SYNC_REPLICAS_NOT_ENOUGH 0x6003 / FOLLOWER_LAG 0x6004 / STALE_LEADER_EPOCH 0x6005 / LEASE_EXPIRED 0x6006 / CATCHUP_REQUIRED 0x6007 / LOG_GAP 0x6008 / DIVERGENT_COMMITTED 0x6009 / QUORUM_RECOVERED 0x600a / UNCLEAN_ELECTION_REJECTED 0x600b.
+| Code | Name | Closes connection | Client action |
+|---:|---|---|---|
+| 0x6001 | QUORUM_LOST | no | Stop writing; wait for recovery (the `/healthz` state tells you which level) |
+| 0x6002 | READ_ONLY_DEGRADED | no | Retry later; reads continue |
+| 0x6003 | IN_SYNC_REPLICAS_NOT_ENOUGH | no | Wait; the operator repairs the follower before writes resume ([RB-1](../guides/runbook.md)) |
+| 0x6004 | FOLLOWER_LAG | no | Warning only; keep going |
+| 0x6005 | STALE_LEADER_EPOCH | no | Rediscover the leader / epoch |
+| 0x6006 | LEASE_EXPIRED | no | Retry after the new leader settles |
+| 0x6007 | CATCHUP_REQUIRED | no | Wait for the follower to catch up |
+| 0x6008 | LOG_GAP | no | Operator path ([RB-1](../guides/runbook.md)); do not retry blindly |
+| 0x6009 | DIVERGENT_COMMITTED | no | Manual reconcile from the audit logs ([RB-1](../guides/runbook.md) level −2) |
+| 0x600a | QUORUM_RECOVERED | no | Informational; writes resume |
+| 0x600b | UNCLEAN_ELECTION_REJECTED | no | Refused by design; no retry unblocks it |
 
 ## Registration rules
 
