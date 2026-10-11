@@ -4,10 +4,14 @@
  *
  * Two scans over the code and CI surfaces, both zero-dependency:
  *
- *   1. Plan markers. Task, ruling and schedule identifiers (the T / WP /
- *      REQ / Q / R-nn / A-nn / D-day families) describe the plan, not the
- *      code; a comment states the fact instead (section 3.4). Surfaces:
- *      .mbt, .mbti, .qnt, moon.pkg, moon.mod, scripts, workflow files.
+ *   1. Plan markers. Task, ruling, schedule, decision, registry and
+ *      property-suite identifiers describe the plan, not the code; a
+ *      comment states the fact instead (section 3.4). The families are
+ *      the task and work-package ids, the requirement and ruling ids,
+ *      the decision-record and invariant-registry ids, the suite and
+ *      gap-register ids, the property-suite ids and the domain-series
+ *      ids. Surfaces: .mbt, .mbti, .qnt, moon.pkg, moon.mod, scripts,
+ *      workflow files.
  *   2. Control bytes. A source file may not carry a byte below 0x20 except
  *      tab, lf and cr, and never 0x7F. The failure mode this catches is a
  *      patching pipeline that wrote bare control bytes into a .mbt: the
@@ -39,7 +43,7 @@ const SKIP_DIRS = new Set([
 const TEXT_EXT = new Set([".mbt", ".mbti", ".qnt", ".sh", ".mjs", ".yml", ".yaml"]);
 const TEXT_BASE = new Set(["moon.pkg", "moon.mod"]);
 const PLAN_MARKER =
-  /\bT\d{2,3}\b|\bWP-[A-Z0-9.]+|\bREQ-[A-Z]+-\d+\b|\bQ\d+\b|\bR\d+[a-z]?\b|\bR-[A-Z0-9]+\b|\bA\d{2}\b|\bD\d{1,2}\b/g;
+  /\bT\d{2,3}\b|\bWP-[A-Z0-9.]+|\bREQ-[A-Z]+-\d+\b|\bQ\d+\b|\bR\d+[a-z]?\b|\bR-[A-Z0-9]+\b|\bA\d{2}\b|\bD\d{1,2}\b|\bADR-\d+\b|\bCQ\d+\b|\bINV-\d+\b|suite S\d+|\bgap [AB]-\d\b|\b(CB|CM|CL|CS|CF)\d+\b|\bF\d{2}\b/g;
 
 const quiet = process.argv.includes("--quiet");
 
