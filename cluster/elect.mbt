@@ -311,7 +311,7 @@ pub async fn ClusterNode::serve_install(
     Ok(_) => ()
   }
   // The committed prefix arrives with the term, and only moves forward.
-  self.note_committed(incoming.commit_seq)
+  self.note_committed(incoming.commit_seq, log)
   let ack : InstallAckMsg = {
     responder_id: config.node_id(),
     epoch: incoming.epoch,

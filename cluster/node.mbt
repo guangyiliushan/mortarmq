@@ -517,12 +517,24 @@ pub fn ClusterNode::commit_seq(self : ClusterNode) -> UInt64 {
 ///
 /// Monotone: an install from an older term cannot walk the committed
 /// prefix back, and a replayed install changes nothing.
+///
+/// Taken at what this replica's own log holds as well. The reported
+/// prefix is a promise about what a majority has, not a position this
+/// replica is in: a value past the end of this log would be a committed
+/// prefix naming entries that are not here, and the horizon read off it
+/// would call a write durable when no majority can recover it. So what
+/// the leader says is settled is capped by what this replica actually
+/// has, which is the same rule every implementation of this protocol
+/// applies to the number that travels with an install.
 pub fn ClusterNode::note_committed(
   self : ClusterNode,
   commit_seq : UInt64,
+  log : &ReplicaLog,
 ) -> Unit {
-  if commit_seq > self.core.val.commit_seq {
-    self.core.val.commit_seq = commit_seq
+  let held = log.last_appended_seq()
+  let bounded = if commit_seq > held { held } else { commit_seq }
+  if bounded > self.core.val.commit_seq {
+    self.core.val.commit_seq = bounded
   }
 }
 

@@ -12,6 +12,8 @@ pub const FOLLOWER_LEASE_MS : UInt64 = 2000
 
 pub const LEADER_HEARTBEAT_MS : UInt64 = 500
 
+pub const MAX_TERM_JUMP : UInt64 = 1000
+
 pub const PEER_DOMAIN : Bytes = b"mortarmq-peer-v1"
 
 pub const PEER_FRAME_TIMEOUT_MS : Int = 10000
@@ -126,7 +128,7 @@ pub fn ClusterNode::links(Self) -> Array[PeerLink]
 pub fn ClusterNode::may_publish(Self, UInt64, UInt64) -> Bool
 pub fn ClusterNode::new(ClusterConfig) -> Self
 pub fn ClusterNode::node_id(Self) -> UInt16
-pub fn ClusterNode::note_committed(Self, UInt64) -> Unit
+pub fn ClusterNode::note_committed(Self, UInt64, &ReplicaLog) -> Unit
 pub fn ClusterNode::note_lease_expired(Self, UInt64) -> Unit
 pub fn ClusterNode::note_lease_refreshed(Self) -> Unit
 pub fn ClusterNode::peers_connected(Self) -> Bool

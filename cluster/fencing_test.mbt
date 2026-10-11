@@ -58,7 +58,7 @@ async fn handwritten_append(
           // the truncated tail to be partly off limits. Zero means
           // nothing is known committed, which `note_committed` treats
           // as a no-op.
-          node.note_committed(committed_seq)
+          node.note_committed(committed_seq, follower_log)
           match @cluster.ClusterNode::serve_peer(node, conn) {
             Err(_) => ()
             Ok(link) =>

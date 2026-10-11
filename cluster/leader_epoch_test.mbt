@@ -164,3 +164,29 @@ async test "the epoch rises strictly across a run of elections" {
     check = check + 1
   }
 }
+
+///|
+/// A term may move, but not by whatever a message claims.
+///
+/// A term is adopted from a member that is believed, and one member is
+/// enough to move it -- so what stands between a damaged or hostile
+/// number and a replica that can never stand again is how far it may
+/// jump. A large jump is not refused outright: a member partitioned away
+/// keeps electing on its own side and comes back holding a term that has
+/// moved a long way, and turning that away would strand the cluster
+/// instead of repairing it. Inside the bound is the repaired partition;
+/// outside it is the thing the bound is for.
+async test "a term may jump, but not by whatever a message claims" {
+  // Ordinary motion, then one step past the bound from there.
+  let jumped = fresh_epoch()
+  assert_eq(jumped.elect(1UL), Ok(1UL))
+  assert_eq(jumped.elect(1001UL), Ok(1001UL))
+
+  let bounded = fresh_epoch()
+  assert_eq(bounded.elect(1UL), Ok(1UL))
+  assert_eq(bounded.elect(1002UL), Err(@protocol.MalformedPayload))
+  // Refused means nothing moved: the replica is still where it was, and
+  // can still stand for a term of its own choosing.
+  assert_eq(bounded.current(), 1UL)
+  assert_eq(bounded.elect(2UL), Ok(2UL))
+}

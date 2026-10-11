@@ -229,3 +229,31 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
   assert_eq(follower_log.last_appended_seq(), 2UL)
   assert_eq(follower_log.last_flushed_seq(), 1UL)
 }
+
+///|
+/// A committed prefix is capped at what this replica actually holds.
+///
+/// The number that travels with an install is a promise about what a
+/// majority has, not a position this replica is in. Taking it as written
+/// would let one member hand over a committed prefix naming entries that
+/// are not here, and the horizon read off it would call a write durable
+/// that no majority can recover.
+async test "a committed prefix past the end of one's own log is capped" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let log = traced_log("replica", trace)
+  let node = tracked_node()
+  // Nothing written here: nothing can be committed here either.
+  node.note_committed(5UL, log)
+  assert_eq(node.commit_seq(), 0UL)
+
+  match log.append([b"a", b"b"], true) {
+    Err(_) => fail("the fixture log must accept its seed")
+    Ok(_) => ()
+  }
+  // Past the end, so what is held is what is taken.
+  node.note_committed(5UL, log)
+  assert_eq(node.commit_seq(), 2UL)
+  // Within the log it is taken as written, and never walks backwards.
+  node.note_committed(1UL, log)
+  assert_eq(node.commit_seq(), 2UL)
+}

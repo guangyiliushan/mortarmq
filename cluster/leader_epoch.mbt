@@ -189,6 +189,19 @@ async fn LeaderEpoch::record_term(
   if !must_be_newer && proposed < current {
     return Err(@protocol.StaleLeaderEpoch)
   }
+  // A term is accepted from a member that is believed, not from a
+  // number that arrived. One member can already push this replica's
+  // term up, so the only thing standing between a corrupted or hostile
+  // value and a replica that can never stand again is how far it may
+  // jump. Bounded rather than refused outright, because a large jump is
+  // real: when a partition heals, the member that has been electing on
+  // the far side comes back with a term that has moved a long way, and
+  // turning that away would strand the cluster instead of repairing it.
+  // The bound is what admits the healing case while keeping wraparound,
+  // damage and single-step attacks outside it.
+  if proposed - current > MAX_TERM_JUMP {
+    return Err(@protocol.MalformedPayload)
+  }
   if proposed > current {
     let record = match leader_elect_record(proposed) {
       Err(code) => return Err(code)
@@ -233,3 +246,17 @@ fn leader_elect_record(epoch : UInt64) -> Result[Bytes, @protocol.ErrCode] {
     Ok(record) => Ok(record)
   }
 }
+
+///|
+/// How far a term may jump in one step.
+///
+/// A term is normally one above the last, but not always: a replica that
+/// was partitioned away keeps electing on its own side and comes back
+/// holding a term that has moved a long way, and a cluster that refuses
+/// that has refused to heal. The bound is therefore wide enough for a
+/// repaired partition and narrow enough that wraparound, damage and a
+/// value pushed a step at a time all land outside it. Reaching it is a
+/// refusal and not a catastrophe: the replica stays where it is and an
+/// operator can see that something is wrong, rather than a single bad
+/// number having taken it to a term nothing else will ever reach.
+pub const MAX_TERM_JUMP : UInt64 = 1000

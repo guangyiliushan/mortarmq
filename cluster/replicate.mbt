@@ -226,11 +226,19 @@ async fn ClusterNode::ship_batch_round(
     None => ()
   }
   match reply {
-    Ack(ack) =>
+    Ack(ack) => {
+      // The echo has to name the round this answer is for. A member
+      // answering a different one is either stale or is not who it says
+      // it is, and either way its positions belong to some other round
+      // rather than to this one.
+      if ack.leader_epoch != leader_epoch {
+        return Err(@protocol.StaleLeaderEpoch)
+      }
       match self.record_append_ack(ack, link.peer_id()) {
         Err(code) => Err(code)
         Ok(_) => Ok(ack)
       }
+    }
     _ => Err(@protocol.MalformedPayload)
   }
 }

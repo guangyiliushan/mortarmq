@@ -139,6 +139,13 @@ async test "an expired lease ends in a new leader at a higher term, with a major
   // ... which is the candidate's licence to stand. Its own term is
   // durable before it asks anyone, so it counts from the first moment.
   assert_eq(candidate_term.elect(1UL), Ok(1UL))
+  // The member has to hold what the install calls settled: a committed
+  // prefix past the end of one's own log is capped at what is there,
+  // so a member that had nothing would adopt nothing.
+  match follower_log.append([b"a", b"b"], true) {
+    Err(_) => fail("the fixture log must accept its seed")
+    Ok(_) => ()
+  }
 
   let outcome = election_round(
     candidate, 1UL, 2UL, candidate_log, follower_log, candidate_term, follower_term,
@@ -258,7 +265,9 @@ async test "a prepare for a term the cluster has already left is refused" {
 }
 
 ///|
-test "a member that has committed further than this candidate is not counted" {
+async test "a member that has committed further than this candidate is not counted" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let candidate_log = traced_log("candidate", trace)
   let candidate = tracked_node()
   candidate.begin_election()
   let ahead : @cluster.PrepareAckMsg = {
@@ -285,8 +294,18 @@ test "a member that has committed further than this candidate is not counted" {
   assert_eq(candidate.has_prepare_quorum(), false)
 
   // Once this candidate has committed at least as far, the same answer
-  // is perfectly ordinary.
-  candidate.note_committed(9UL)
+  // is perfectly ordinary. The log has to hold it first: a committed
+  // prefix past the end of one's own log is capped there, and a
+  // candidate claiming otherwise has nothing to compare against.
+  match
+    candidate_log.append(
+      [b"1", b"2", b"3", b"4", b"5", b"6", b"7", b"8", b"9"],
+      true,
+    ) {
+    Err(_) => fail("the fixture log must accept its seed")
+    Ok(_) => ()
+  }
+  candidate.note_committed(9UL, candidate_log)
   assert_eq(
     @cluster.ClusterNode::record_prepare_ack(
       candidate,

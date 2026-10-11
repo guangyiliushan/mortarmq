@@ -584,3 +584,102 @@ test "an acknowledgement is checked against the attested identity, not its own c
     Some({ peer_id: 3U.to_uint16(), flushed_seq: 5UL, dirty_seq: 5UL, }),
   )
 }
+
+///|
+/// An acknowledgement naming another round is not this one's.
+///
+/// The echo is what ties an answer to the batch it answers. Without it a
+/// stale or forged acknowledgement is counted here -- and while the
+/// positions it carries cannot move anything backwards, being counted at
+/// all would move the horizon on the strength of an answer nobody asked
+/// for.
+async test "an acknowledgement that echoes another term is refused" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let leader_log = traced_log("leader", trace)
+  let secret = fixture_secret()
+  let server = bind_loopback()
+  let port = server.addr.port()
+  let follower_config = handshake_config(
+    1U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let leader_config = handshake_config(
+    2U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let follower = @cluster.ClusterNode::new(follower_config)
+  let leader = @cluster.ClusterNode::new(leader_config)
+
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server.close()
+      match
+        @async.with_timeout_opt(handshake_budget_ms(), () => server.accept()) {
+        None => ()
+        Some(accepted) => {
+          let concrete : LoopConn = { tcp: accepted.0, }
+          let conn : &@net.Conn = concrete
+          match @cluster.ClusterNode::serve_peer(follower, conn) {
+            Err(_) => ()
+            Ok(_) => {
+              // Take the batch first, so the answer is written into a
+              // socket the client has already used.
+              match @cluster.read_peer_msg(conn, handshake_budget_ms()) {
+                Err(_) => ()
+                Ok(_) => ()
+              }
+              // An answer that names a term this round never ran under.
+              match
+                @cluster.write_peer_msg(
+                  conn,
+                  @cluster.PeerMsg::Ack({
+                    follower_id: 1U.to_uint16(),
+                    leader_epoch: 9UL,
+                    flushed_seq: 1UL,
+                    dirty_seq: 1UL,
+                  }),
+                ) {
+                Err(_) => ()
+                Ok(_) => ()
+              }
+            }
+          }
+          @net.Conn::close(conn)
+        }
+      }
+    }
+    match dial_loopback(port) {
+      Err(_) => fail("the listener is bound, so the dial must connect")
+      Ok(conn) => {
+        let expected = match leader_config.peer_entry(1U.to_uint16()) {
+          None => fail("node 1 must be in the static table")
+          Some(entry) => entry
+        }
+        match @cluster.ClusterNode::dial_peer(leader, conn, expected) {
+          Err(_) =>
+            fail("both sides hold the same secret, so the handshake must pass")
+          Ok(link) => {
+            let outcome = @cluster.ClusterNode::send_append(
+              leader,
+              link,
+              leader_log,
+              1UL,
+              [b"one"],
+              true,
+              handshake_budget_ms(),
+            )
+            assert_eq(outcome, Err(@protocol.StaleLeaderEpoch))
+            // Refused means nothing was counted: the positions it
+            // carried belong to some other round.
+            assert_eq(leader.follower_positions().length(), 0)
+          }
+        }
+        @net.Conn::close(conn)
+      }
+    }
+  }
+}
