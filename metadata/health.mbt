@@ -17,20 +17,14 @@
 /// metadata write. The two never share machinery.
 
 ///|
-pub const METADATA_READ_ONLY_CODE : UInt16 = 0x2003
-
-///|
-pub const METADATA_QUARANTINED_CODE : UInt16 = 0x2004
-
-///|
 pub(all) enum MetadataMode {
   /// No anomaly observed; the write path is open.
   Healthy
   /// An anomaly degraded the metadata to read-only; writes are refused
-  /// with `METADATA_READ_ONLY_CODE` and can be retried later.
+  /// with the registered `MetadataReadOnly` code and can be retried later.
   ReadOnly
   /// Damage was escalated for human intervention (RB-2); writes are
-  /// refused with `METADATA_QUARANTINED_CODE`.
+  /// refused with the registered `MetadataQuarantined` code.
   Quarantined
 } derive(Eq, Debug)
 
@@ -106,10 +100,13 @@ pub fn MetadataGuard::entries(self : MetadataGuard) -> Array[QuarantineEntry] {
 ///|
 /// The registered write-path refusal code for the current mode, or
 /// `None` while the write path is open.
-pub fn MetadataGuard::write_refusal_code(self : MetadataGuard) -> UInt16? {
+///
+/// Both targets are constructors of the 49-code registry
+/// (REQ-PRO-004); this module never emits raw numeric codes.
+pub fn MetadataGuard::write_refusal(self : MetadataGuard) -> @protocol.ErrCode? {
   match self.mode {
     Healthy => None
-    ReadOnly => Some(METADATA_READ_ONLY_CODE)
-    Quarantined => Some(METADATA_QUARANTINED_CODE)
+    ReadOnly => Some(@protocol.MetadataReadOnly)
+    Quarantined => Some(@protocol.MetadataQuarantined)
   }
 }

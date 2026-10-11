@@ -435,12 +435,9 @@ async test "recovery degradation drives the gate without skipping damage" {
     _ => fail("expected a corruption abort")
   }
   assert_eq(gate.mode(), @metadata.MetadataMode::ReadOnly)
-  assert_eq(gate.write_refusal_code(), Some(@metadata.METADATA_READ_ONLY_CODE))
+  assert_eq(gate.write_refusal(), Some(@protocol.MetadataReadOnly))
   gate.escalate_to_quarantine()
-  assert_eq(
-    gate.write_refusal_code(),
-    Some(@metadata.METADATA_QUARANTINED_CODE),
-  )
+  assert_eq(gate.write_refusal(), Some(@protocol.MetadataQuarantined))
 }
 
 ///|

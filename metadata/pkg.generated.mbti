@@ -3,14 +3,11 @@ package "guangyiliushan/mortarmq/metadata"
 
 import {
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/protocol",
   "moonbitlang/core/debug",
 }
 
 // Values
-pub const METADATA_QUARANTINED_CODE : UInt16 = 0x2004
-
-pub const METADATA_READ_ONLY_CODE : UInt16 = 0x2003
-
 pub const MMML_FORMAT_VERSION : Int = 1
 
 pub const MMML_HEADER_BYTES : Int = 34
@@ -51,6 +48,7 @@ pub(all) suberror MetadataFault {
 } derive(Eq, @debug.Debug)
 pub fn MetadataFault::equal(Self, Self) -> Bool
 pub fn MetadataFault::not_equal(Self, Self) -> Bool
+pub fn MetadataFault::to_err_code(Self) -> @protocol.ErrCode
 pub fn MetadataFault::to_repr(Self) -> @debug.Repr
 
 // Types and methods
@@ -96,7 +94,7 @@ pub fn MetadataGuard::mode(Self) -> MetadataMode
 pub fn MetadataGuard::new() -> Self
 pub fn MetadataGuard::note_log_corruption(Self, UInt, UInt) -> Unit
 pub fn MetadataGuard::restore_healthy(Self) -> Unit
-pub fn MetadataGuard::write_refusal_code(Self) -> UInt16?
+pub fn MetadataGuard::write_refusal(Self) -> @protocol.ErrCode?
 
 pub(all) enum MetadataMode {
   Healthy
