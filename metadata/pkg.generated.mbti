@@ -105,6 +105,18 @@ pub fn MetadataMode::equal(Self, Self) -> Bool
 pub fn MetadataMode::not_equal(Self, Self) -> Bool
 pub fn MetadataMode::to_repr(Self) -> @debug.Repr
 
+pub(all) struct MetadataService {
+  mut machine : DeclareMachine
+  mut gate : MetadataGuard
+}
+pub fn MetadataService::new() -> Self
+pub fn MetadataService::partition_count(Self, String) -> UInt?
+pub fn MetadataService::quarantine_entries(Self) -> Array[QuarantineEntry]
+pub fn MetadataService::read_face(Self) -> MetadataMode
+pub async fn MetadataService::recover(Self, &@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, @protocol.ErrCode]
+pub async fn MetadataService::save(Self, &@harness.Disk, Bytes, UInt64, UInt64) -> Result[Unit, @protocol.ErrCode]
+pub fn MetadataService::submit_mutation(Self, UInt64, UInt64, Array[DeclareBody]) -> Result[Array[DeclareOutcome], @protocol.ErrCode]
+
 pub(all) struct MmmlHeader {
   format_version : Byte
   header_version : Byte
