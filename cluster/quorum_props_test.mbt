@@ -96,23 +96,21 @@ test "CQ1 the committed ceiling never moves backwards (pin seed=20261014; daily 
   if quorum_daily() {
     println("CQ1-daily seed=\{seed} count=\{count}")
   }
-  // One node for the whole run: the property is about what a sequence
-  // of acknowledgements does to a position, so the node carrying them
-  // has to be the same one across them.
-  let node = tracked_node()
+  // One configuration, but a fresh node per sample: state carried
+  // across samples would let one sample's assertion ride on another's
+  // positions, and the property would be about neither.
+  let config = match fixture_config() {
+    Err(_) => fail("the fixture table must be valid")
+    Ok(config) => config
+  }
   @quickcheck.check(
     (draw : UInt) => {
+      let node = @cluster.ClusterNode::new(config)
       // The leader's own durability varies per sample but is fixed
       // within one, because the ceiling is capped by it and a cap that
       // moved mid-sample would hide the thing being measured.
       let own = (draw % 64U).to_uint64() + 1UL
       let mut ceiling = node.commit_horizon(own)
-      // What each peer has already reported, so a replay can be checked
-      // against the position it was replaying rather than only against
-      // the ceiling -- a single peer moving back would often leave the
-      // ceiling where it was, and would still be a regression.
-      let mut reported_by_two = quorum_position(node, 2U.to_uint16())
-      let mut reported_by_three = quorum_position(node, 3U.to_uint16())
       for step in 0..<4 {
         let peer = if step % 2 == 0 { 2U.to_uint16() } else { 3U.to_uint16() }
         // Half the steps replay a position the peer may already have
@@ -122,31 +120,29 @@ test "CQ1 the committed ceiling never moves backwards (pin seed=20261014; daily 
         } else {
           (draw % 64U).to_uint64() + 1UL
         }
-        let before = if peer == 2U.to_uint16() {
-          reported_by_two
-        } else {
-          reported_by_three
-        }
+        let before = quorum_position(node, peer)
         let ack : @cluster.AppendAck = {
           follower_id: peer,
           leader_epoch: 1UL,
           flushed_seq: reported,
           dirty_seq: reported + 1UL,
         }
-        match @cluster.ClusterNode::record_append_ack(node, ack, peer) {
-          // A refused acknowledgement changes nothing, which is the
-          // same conclusion the property draws from an accepted one.
-          Err(_) => ()
-          Ok(_) => ()
+        let accepted = match node.record_append_ack(ack, peer) {
+          Ok(_) => true
+          Err(_) => false
         }
-        match node.follower_progress(peer) {
-          None => return false
-          Some(progress) => if progress.flushed_seq < before { return false }
-        }
-        if peer == 2U.to_uint16() {
-          reported_by_two = quorum_position(node, 2U.to_uint16())
-        } else {
-          reported_by_three = quorum_position(node, 3U.to_uint16())
+        // The two outcomes are different claims and are checked
+        // differently: an accepted acknowledgement may hold or advance
+        // the position, while a refused one must leave it exactly as it
+        // was -- "refused, and nothing moved" is not the same statement
+        // as "moved forward".
+        let after = quorum_position(node, peer)
+        if accepted {
+          if after < before {
+            return false
+          }
+        } else if after != before {
+          return false
         }
         let next = node.commit_horizon(own)
         if next < ceiling {
@@ -162,6 +158,24 @@ test "CQ1 the committed ceiling never moves backwards (pin seed=20261014; daily 
 }
 
 ///|
+/// One quorum as the code counts it: the candidate plus the members
+/// that answered.
+///
+/// The candidate belongs to every quorum it builds -- it promised its
+/// own term before asking anyone and installed it on itself -- which is
+/// why two such quorums intersect even when no member is shared.
+fn quorum_with_candidate(
+  candidate : UInt16,
+  members : Array[UInt16],
+) -> Array[UInt16] {
+  let full : Array[UInt16] = [candidate]
+  for id in members {
+    full.push(id)
+  }
+  full
+}
+
+///|
 test "CQ2 a promise quorum and a commit quorum cannot be disjoint (pin seed=20261014; daily mode logs the run seed)" {
   let seed = quorum_seed()
   let count = quorum_count()
@@ -174,24 +188,154 @@ test "CQ2 a promise quorum and a commit quorum cannot be disjoint (pin seed=2026
   }
   let table = config.peers()
   let quorum = config.quorum()
-  // The reason the rest of this holds: two groups that each hold more
-  // than half of the members cannot avoid each other. Stated separately
-  // so a failure says which half broke -- the arithmetic or the
-  // sampling.
+  let candidate = config.node_id()
+  // The arithmetic the rest rests on: two groups that each hold more
+  // than half the members cannot avoid each other, whichever candidate
+  // built them. Stated separately so a failure says which half broke --
+  // the reasoning or the code.
   assert_eq(quorum * 2 > table.length(), true)
   @quickcheck.check(
     (draw : UInt) => {
+      // Both halves run through the real bookkeeping, one member at a
+      // time, stopping when the code says the quorum is there. The
+      // counts that come out are therefore the code's, not the
+      // fixture's: a quorum the counters would never have reached is
+      // exactly what this property exists to catch.
+      let node = @cluster.ClusterNode::new(config)
+      node.begin_election()
       let span = table.length().reinterpret_as_uint()
       let start_a = (draw % span).reinterpret_as_int()
       let start_b = (draw / 7U % span).reinterpret_as_int()
-      let promised = quorum_subset(table, quorum, start_a)
-      let durable = quorum_subset(table, quorum, start_b)
-      // A member that promised the term and a member that made it
-      // durable are never different sets of nodes, so a term is always
-      // installed where somebody committed to it first.
-      quorum_overlap(promised, durable).length() > 0
+      let offered = quorum_subset(table, quorum, start_a).filter(id => {
+        id != candidate
+      })
+      for id in offered {
+        if !node.has_prepare_quorum() {
+          let ack : @cluster.PrepareAckMsg = {
+            responder_id: id,
+            promised_epoch: 1UL,
+            last_seq: 0UL,
+            last_flushed_seq: 0UL,
+            commit_seq: 0UL,
+          }
+          match @cluster.ClusterNode::record_prepare_ack(node, ack, 1UL, id) {
+            Err(_) => return false
+            Ok(_) => ()
+          }
+        }
+      }
+      // The candidate counts as one of the quorum, so exactly this many
+      // members are needed. Delete the conjunct in `has_prepare_quorum`
+      // and the loop above stops before recording anyone -- which is
+      // where this assertion fails rather than passing quietly.
+      if node.promised_members().length() != quorum - 1 {
+        return false
+      }
+      let installed_offered = quorum_subset(table, quorum, start_b).filter(id => {
+        id != candidate
+      })
+      for id in installed_offered {
+        if !node.has_install_quorum() {
+          let ack : @cluster.InstallAckMsg = {
+            responder_id: id,
+            epoch: 1UL,
+            flushed_seq: 0UL,
+          }
+          match @cluster.ClusterNode::record_install_ack(node, ack, 1UL, id) {
+            Err(_) => return false
+            Ok(_) => ()
+          }
+        }
+      }
+      if node.installed_members().length() != quorum - 1 {
+        return false
+      }
+      // The two quorums the code actually built, counted the way the
+      // code counts them. The candidate is in both -- it promised its
+      // own term durably and installed it -- so they intersect in it
+      // whenever no member is shared, and in a member whenever the two
+      // draws happened to land on one. The arithmetic line above is
+      // what carries the general case: quorums that share no fixed
+      // member cannot be disjoint when each holds more than half.
+      let promised_quorum = quorum_with_candidate(
+        candidate,
+        node.promised_members(),
+      )
+      let installed_quorum = quorum_with_candidate(
+        candidate,
+        node.installed_members(),
+      )
+      if promised_quorum.length() < quorum || installed_quorum.length() < quorum {
+        return false
+      }
+      quorum_overlap(promised_quorum, installed_quorum).length() > 0
     },
     count~,
     seed~,
   )
+}
+
+///|
+test "a promise counts once, and only from the member it came from" {
+  let node = tracked_node()
+  node.begin_election()
+  let first : @cluster.PrepareAckMsg = {
+    responder_id: 2U.to_uint16(),
+    promised_epoch: 1UL,
+    last_seq: 0UL,
+    last_flushed_seq: 0UL,
+    commit_seq: 0UL,
+  }
+  assert_eq(
+    @cluster.ClusterNode::record_prepare_ack(node, first, 1UL, 2U.to_uint16()),
+    Ok(()),
+  )
+  assert_eq(node.prepared_count(), 2)
+  // The same member answering again does not count a second time: one
+  // member out of three must not be able to make a quorum on its own.
+  assert_eq(
+    @cluster.ClusterNode::record_prepare_ack(node, first, 1UL, 2U.to_uint16()),
+    Ok(()),
+  )
+  assert_eq(node.prepared_count(), 2)
+  assert_eq(node.promised_members(), [2U.to_uint16()])
+
+  // A promise on a term this round never proposed is not this round's.
+  let wrong_term : @cluster.PrepareAckMsg = {
+    responder_id: 3U.to_uint16(),
+    promised_epoch: 9UL,
+    last_seq: 0UL,
+    last_flushed_seq: 0UL,
+    commit_seq: 0UL,
+  }
+  assert_eq(
+    @cluster.ClusterNode::record_prepare_ack(
+      node,
+      wrong_term,
+      1UL,
+      3U.to_uint16(),
+    ),
+    Err(@protocol.StaleLeaderEpoch),
+  )
+  assert_eq(node.prepared_count(), 2)
+
+  // Neither is an answer from a member the table does not contain.
+  let stranger : @cluster.PrepareAckMsg = {
+    responder_id: 9U.to_uint16(),
+    promised_epoch: 1UL,
+    last_seq: 0UL,
+    last_flushed_seq: 0UL,
+    commit_seq: 0UL,
+  }
+  assert_eq(
+    @cluster.ClusterNode::record_prepare_ack(
+      node,
+      stranger,
+      1UL,
+      9U.to_uint16(),
+    ),
+    Err(@protocol.MalformedPayload),
+  )
+  assert_eq(node.prepared_count(), 2)
+  assert_eq(node.has_prepare_quorum(), true)
 }

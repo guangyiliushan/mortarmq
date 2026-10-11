@@ -32,8 +32,16 @@
 ///
 /// The candidate reports where its own log and committed prefix stand
 /// alongside the term it proposes, so a member sees what it would be
-/// joining; the member answers with its own positions and the candidate
-/// picks a log from among them rather than assuming its own is best.
+/// joining; the member answers with its own positions.
+///
+/// Those positions are load-bearing rather than reported for interest.
+/// A member that has committed further than this candidate has makes
+/// standing an unclean election, because this candidate would install a
+/// committed prefix smaller than a member already holds -- so the
+/// promise is refused instead of counted. Choosing a better log and
+/// catching up to it first is what would make standing legal, and this
+/// node cannot yet pull from a member, so the choice of consistency
+/// over availability is left where the design puts it: with an operator.
 ///
 /// # Errors
 ///
@@ -41,6 +49,8 @@
 ///   reply that is not an acknowledgement to the round in flight.
 /// * `StaleLeaderEpoch` (0x6005) when the member promised a different
 ///   term -- somebody is already further along than this candidate.
+/// * `UncleanElectionRejected` (0x600B) when a member has committed
+///   further than this candidate has.
 /// * `AuthFailed` (0x0006) when the answer comes from outside the
 ///   static table.
 /// * Whatever the connection reports, and whatever the member refused.

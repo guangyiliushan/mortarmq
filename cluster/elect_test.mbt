@@ -256,3 +256,46 @@ async test "a prepare for a term the cluster has already left is refused" {
   }
   assert_eq(follower_term.current(), 3UL)
 }
+
+///|
+test "a member that has committed further than this candidate is not counted" {
+  let candidate = tracked_node()
+  candidate.begin_election()
+  let ahead : @cluster.PrepareAckMsg = {
+    responder_id: 2U.to_uint16(),
+    promised_epoch: 1UL,
+    last_seq: 9UL,
+    last_flushed_seq: 9UL,
+    commit_seq: 9UL,
+  }
+  // The member has committed through nine and this candidate through
+  // nothing: standing would install a committed prefix smaller than a
+  // member already holds.
+  assert_eq(
+    @cluster.ClusterNode::record_prepare_ack(
+      candidate,
+      ahead,
+      1UL,
+      2U.to_uint16(),
+    ),
+    Err(@protocol.UncleanElectionRejected),
+  )
+  // Refused means not counted: the quorum did not move.
+  assert_eq(candidate.prepared_count(), 1)
+  assert_eq(candidate.has_prepare_quorum(), false)
+
+  // Once this candidate has committed at least as far, the same answer
+  // is perfectly ordinary.
+  candidate.note_committed(9UL)
+  assert_eq(
+    @cluster.ClusterNode::record_prepare_ack(
+      candidate,
+      ahead,
+      1UL,
+      2U.to_uint16(),
+    ),
+    Ok(()),
+  )
+  assert_eq(candidate.prepared_count(), 2)
+  assert_eq(candidate.has_prepare_quorum(), true)
+}

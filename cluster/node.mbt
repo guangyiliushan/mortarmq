@@ -508,13 +508,30 @@ pub fn ClusterNode::record_prepare_ack(
   if ack.responder_id == config.node_id() || !config.has_peer(ack.responder_id) {
     return Err(@protocol.MalformedPayload)
   }
+  // The member has committed further than this candidate has. Standing
+  // anyway would install a committed prefix smaller than a member
+  // already holds -- an unclean election, which the design leaves to an
+  // operator rather than resolving silently. Choosing a better log and
+  // catching up first is what would make standing legal, and this node
+  // cannot pull from a member, so the promise is refused instead of
+  // counted.
+  if ack.commit_seq > self.commit_seq() {
+    return Err(@protocol.UncleanElectionRejected)
+  }
   if ack.promised_epoch != candidate_epoch {
     return Err(@protocol.StaleLeaderEpoch)
   }
   if ack.last_flushed_seq > ack.last_seq {
     return Err(@protocol.MalformedPayload)
   }
-  self.core.val.promised.push(ack.responder_id)
+  // A member's promise is a set, not a tally. Counting the same member
+  // twice would let one member out of three form a quorum on its own,
+  // which is the whole thing the quorum exists to prevent. A second
+  // answer from the same member is redundant rather than malformed, so
+  // it is accepted and simply does not count again.
+  if !self.core.val.promised.contains(ack.responder_id) {
+    self.core.val.promised.push(ack.responder_id)
+  }
   Ok(())
 }
 
@@ -542,7 +559,11 @@ pub fn ClusterNode::record_install_ack(
   if ack.epoch != epoch {
     return Err(@protocol.StaleLeaderEpoch)
   }
-  self.core.val.installed.push(ack.responder_id)
+  // The same rule as a promise: one member, one install. Two answers
+  // from the same member are one install answered twice.
+  if !self.core.val.installed.contains(ack.responder_id) {
+    self.core.val.installed.push(ack.responder_id)
+  }
   Ok(())
 }
 

@@ -124,3 +124,70 @@ async test "a batch that would leave a gap is refused and the log stands" {
   assert_eq(follower_log.last_appended_seq(), 2UL)
   assert_eq(trace.val.contains(("follower.truncate", 4UL)), false)
 }
+
+///|
+async test "a batch whose cut reaches the committed prefix is refused" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let follower_log = traced_log("follower", trace)
+  let follower_epoch = fresh_epoch()
+  match follower_log.append([b"a", b"b", b"c", b"d"], true) {
+    Err(_) => fail("the fixture log must accept its seed")
+    Ok(_) => ()
+  }
+  assert_eq(follower_log.held(), [1UL, 2UL, 3UL, 4UL])
+
+  // This replica has committed through three. The sender offers a base
+  // of one, so the cut would be sequence zero -- underneath everything
+  // that is already committed.
+  let (outcome, reply) = handwritten_append(
+    1U.to_uint16(),
+    2U.to_uint16(),
+    2U.to_uint16(),
+    follower_log,
+    follower_epoch,
+    claim(2U.to_uint16(), 1UL, 1UL),
+    committed_seq=3UL,
+  )
+  assert_eq(outcome, Err(@protocol.DivergentCommitted))
+  match reply {
+    Some(@cluster.PeerMsg::Reject(code)) =>
+      assert_eq(code.to_uint(), @protocol.DivergentCommitted.to_uint16())
+    _ => fail("the follower must refuse with a Reject frame")
+  }
+  // Refused before the cut, not after it: all four entries are still
+  // there, because a cut at or below the committed prefix is data loss
+  // rather than reconciliation.
+  assert_eq(follower_log.held(), [1UL, 2UL, 3UL, 4UL])
+  assert_eq(trace.val.contains(("follower.truncate", 0UL)), false)
+}
+
+///|
+async test "the same batch is cut when the committed prefix is below it" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let follower_log = traced_log("follower", trace)
+  let follower_epoch = fresh_epoch()
+  match follower_log.append([b"a", b"b", b"c", b"d"], true) {
+    Err(_) => fail("the fixture log must accept its seed")
+    Ok(_) => ()
+  }
+  // Committed only through one, and the sender continues from two: the
+  // cut lands exactly on the committed prefix, which is where it is
+  // allowed to reach.
+  let (outcome, _reply) = handwritten_append(
+    1U.to_uint16(),
+    2U.to_uint16(),
+    2U.to_uint16(),
+    follower_log,
+    follower_epoch,
+    claim(2U.to_uint16(), 1UL, 2UL),
+    committed_seq=1UL,
+  )
+  match outcome {
+    Err(_) => fail("a cut above the committed prefix must be allowed")
+    Ok(ack) => assert_eq(ack.flushed_seq, 2UL)
+  }
+  // Sequence one survives -- it is committed -- sequences two to four
+  // belonged to a history the sender does not share and are gone, and
+  // the batch took the slot the cut opened.
+  assert_eq(follower_log.held(), [1UL, 2UL])
+}

@@ -196,6 +196,10 @@ async fn ClusterNode::ship_batch(
 /// * `CatchupRequired` (0x6007) when `base_seq` is past this replica's
 ///   end. Taking it would punch a hole in the log, and this format
 ///   tolerates none.
+/// * `DivergentCommitted` (0x6009) when the divergent tail reaches down
+///   to or below what this replica has committed. The tail is refused
+///   rather than cut: a cut there would take committed data with it,
+///   and reconciliation is the operator's call, not the protocol's.
 /// * `StaleLeaderEpoch` (0x6005) when the batch carries an older term
 ///   than this replica has already promised. Refused before the log is
 ///   touched, so a stale leader leaves no writes behind.
@@ -261,11 +265,18 @@ pub async fn ClusterNode::serve_append(
   if batch.base_seq < next_sequence {
     // A divergent tail: what this replica holds above the cut belongs to
     // a history the leader does not share. It goes before the batch
-    // lands, so the two never coexist. The cut is always above the
-    // caller's own commit point -- a leader only ever offers a base one
-    // past its own append position, and its commit point cannot be past
-    // that -- so the committed prefix is out of reach by construction.
-    match log.truncate(batch.base_seq - 1UL) {
+    // lands, so the two never coexist.
+    let cut = batch.base_seq - 1UL
+    // The committed prefix is not in reach of that cut. Nothing about
+    // the sender guarantees it: a leader's own append position says
+    // nothing about what this replica has already committed, and a
+    // stale or buggy one can offer a base below it. Truncating there
+    // would destroy committed data, so the divergence is reported as
+    // what it is rather than repaired by writing over it.
+    if cut < self.commit_seq() {
+      return refuse(link.channel(), @protocol.DivergentCommitted)
+    }
+    match log.truncate(cut) {
       Err(code) => return refuse(link.channel(), code)
       Ok(_) => ()
     }
