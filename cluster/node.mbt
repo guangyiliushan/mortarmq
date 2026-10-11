@@ -126,6 +126,13 @@ priv struct NodeCore {
   // is currently held. The two are separate on purpose: a node that has
   // never heard of a leader and a node whose leader lapsed are both
   // leaderless, and only one of them has a moment to report.
+  // The promise this node has made: the term it is for, and the member
+  // it was given to. Both halves are needed. The term alone would let a
+  // second member harvest a promise for a term this node has already
+  // given away; the member alone would let a promise from an older term
+  // answer for a newer one.
+  mut promised_term : UInt64
+  mut promised_to : UInt16?
   mut leader_seen : Bool
   mut lease_expired_at : UInt64?
   // The lease change nobody has read yet, held exactly as the quorum
@@ -189,6 +196,8 @@ pub fn ClusterNode::new(config : ClusterConfig) -> ClusterNode {
       quorum_event: None,
       last_truncation: None,
       election_timeouts: 0,
+      promised_term: 0UL,
+      promised_to: None,
       leader_seen: false,
       lease_expired_at: None,
       lease_event: None,

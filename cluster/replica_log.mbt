@@ -30,7 +30,14 @@
 /// 4. `append(payloads, false)` advances `last_appended_seq` only; the
 ///    gap between the two positions is exactly what a later flush
 ///    closes.
-/// 5. `truncate(to_seq)` removes every sequence above `to_seq` from both
+/// 5. One batch is one durable unit, and a `truncate` and the `append`
+///    that follows it are never observed apart. The pair is what a
+///    divergent tail becomes: the tail goes and the leader's entries
+///    take its place, and a crash between the two would leave a log that
+///    lost one and did not gain the other. That is indistinguishable
+///    from corruption from anywhere outside, so it has to be
+///    impossible -- one write, or one that recovery can finish.
+/// 6. `truncate(to_seq)` removes every sequence above `to_seq` from both
 ///    positions. The bytes go, they are not marked: this format has no
 ///    compaction, so there is no legitimate hole for a removed record to
 ///    stand in for, and a placeholder left behind would be a record

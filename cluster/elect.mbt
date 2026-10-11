@@ -181,9 +181,26 @@ pub async fn ClusterNode::serve_prepare(
   if proposed.candidate_id != link.peer_id() {
     return refuse(link.channel(), @protocol.AuthFailed)
   }
-  match epoch.elect(proposed.candidate_epoch) {
-    Err(code) => return refuse(link.channel(), code)
-    Ok(_) => ()
+  // A promise is idempotent for the member it was given to. The first
+  // answer can be lost -- the link blips, the round gives up on it --
+  // and a candidate that could not ask again would have to abandon an
+  // election it is already halfway through, which is how one dropped
+  // acknowledgement turns into a cluster with no leader. Refusing the
+  // repeat is what this replaces.
+  //
+  // Only for that member. A second member asking for the same term is
+  // refused, because the promise has already been given away: this is
+  // the uniqueness the term carries, and answering twice would spend it
+  // twice.
+  let repeat = proposed.candidate_epoch == self.core.val.promised_term &&
+    self.core.val.promised_to == Some(link.peer_id())
+  if !repeat {
+    match epoch.elect(proposed.candidate_epoch) {
+      Err(code) => return refuse(link.channel(), code)
+      Ok(_) => ()
+    }
+    self.core.val.promised_term = proposed.candidate_epoch
+    self.core.val.promised_to = Some(link.peer_id())
   }
   let ack : PrepareAckMsg = {
     responder_id: config.node_id(),

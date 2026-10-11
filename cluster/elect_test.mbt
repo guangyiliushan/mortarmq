@@ -490,3 +490,158 @@ async test "a member that never answers costs the round, and is counted" {
     }
   }
 }
+
+///|
+/// A promise can be asked for twice by the member it was given to, and
+/// not by anybody else.
+///
+/// The first answer can be lost -- the link blips, the round gives up on
+/// it -- and a candidate that could not ask again would have to abandon
+/// an election it is already halfway through. That is how one dropped
+/// acknowledgement turns into a cluster with no leader, so the repeat is
+/// answered rather than refused.
+///
+/// Only for that member. A second member asking for the same term is
+/// refused, because the promise has already been given away: it is what
+/// makes the term unique, and answering twice would spend it twice.
+async test "a promise can be asked for twice by the member it was given to" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let holder_log = traced_log("holder", trace)
+  let first_log = traced_log("first", trace)
+  let second_log = traced_log("second", trace)
+  let secret = fixture_secret()
+  let server = bind_loopback()
+  let port = server.addr.port()
+  let holder_config = handshake_config(
+    1U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let first_config = handshake_config(
+    2U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let second_config = handshake_config(
+    3U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let holder = @cluster.ClusterNode::new(holder_config)
+  let first = @cluster.ClusterNode::new(first_config)
+  let second = @cluster.ClusterNode::new(second_config)
+  let holder_term = fresh_epoch()
+  let first_term = fresh_epoch()
+  let second_term = fresh_epoch()
+  // Both stand for the same term, which is the whole point: the first to
+  // be promised keeps it.
+  assert_eq(first_term.elect(1UL), Ok(1UL))
+  assert_eq(second_term.elect(1UL), Ok(1UL))
+
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server.close()
+      for _round in 0..<3 {
+        match
+          @async.with_timeout_opt(handshake_budget_ms(), () => server.accept()) {
+          None => ()
+          Some(accepted) => {
+            let concrete : LoopConn = { tcp: accepted.0, }
+            let conn : &@net.Conn = concrete
+            match @cluster.ClusterNode::serve_peer(holder, conn) {
+              Err(_) => ()
+              Ok(link) =>
+                match
+                  @cluster.ClusterNode::serve_prepare(
+                    holder, link, holder_term, holder_log,
+                  ) {
+                  Err(_) => ()
+                  Ok(_) => ()
+                }
+            }
+            @net.Conn::close(conn)
+          }
+        }
+      }
+    }
+
+    // Asked once.
+    match dial_loopback(port) {
+      Err(_) => fail("the listener is bound, so the dial must connect")
+      Ok(conn) => {
+        let expected = match first_config.peer_entry(1U.to_uint16()) {
+          None => fail("node 1 must be in the static table")
+          Some(entry) => entry
+        }
+        match @cluster.ClusterNode::dial_peer(first, conn, expected) {
+          Err(_) =>
+            fail("both sides hold the same secret, so the handshake must pass")
+          Ok(link) => {
+            let asked = @cluster.ClusterNode::send_prepare(
+              first, link, first_log, first_term, 1UL,
+            )
+            match asked {
+              Err(_) => fail("the term nobody holds must be promised")
+              Ok(_) => ()
+            }
+          }
+        }
+        @net.Conn::close(conn)
+      }
+    }
+
+    // Asked again by the same member, because the first answer may have
+    // been lost. A repeat is not a second promise and is not a refusal.
+    match dial_loopback(port) {
+      Err(_) => fail("the listener is bound, so the dial must connect")
+      Ok(conn) => {
+        let expected = match first_config.peer_entry(1U.to_uint16()) {
+          None => fail("node 1 must be in the static table")
+          Some(entry) => entry
+        }
+        match @cluster.ClusterNode::dial_peer(first, conn, expected) {
+          Err(_) =>
+            fail("both sides hold the same secret, so the handshake must pass")
+          Ok(link) => {
+            let asked = @cluster.ClusterNode::send_prepare(
+              first, link, first_log, first_term, 1UL,
+            )
+            match asked {
+              Err(_) =>
+                fail("a retry by the member holding the promise is answered")
+              Ok(ack) => assert_eq(ack.promised_epoch, 1UL)
+            }
+          }
+        }
+        @net.Conn::close(conn)
+      }
+    }
+
+    // Asked by somebody else for the same term: the promise has already
+    // been given away, and giving it again is what would let two
+    // candidates both claim this member.
+    match dial_loopback(port) {
+      Err(_) => fail("the listener is bound, so the dial must connect")
+      Ok(conn) => {
+        let expected = match second_config.peer_entry(1U.to_uint16()) {
+          None => fail("node 1 must be in the static table")
+          Some(entry) => entry
+        }
+        match @cluster.ClusterNode::dial_peer(second, conn, expected) {
+          Err(_) =>
+            fail("both sides hold the same secret, so the handshake must pass")
+          Ok(link) => {
+            let asked = @cluster.ClusterNode::send_prepare(
+              second, link, second_log, second_term, 1UL,
+            )
+            assert_eq(asked, Err(@protocol.StaleLeaderEpoch))
+          }
+        }
+        @net.Conn::close(conn)
+      }
+    }
+  }
+}
