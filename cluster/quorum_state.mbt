@@ -316,3 +316,31 @@ pub fn QuorumState::transition_into(
       }
   }
 }
+
+///|
+/// The tier's wire name: `healthy`, `soft` or `read_only`.
+///
+/// The name `/healthz`, the gauge vocabulary and the CLI column print,
+/// paired with `code` in this one place so no surface can invent a word
+/// of its own. The three words come from the alerting vocabulary the
+/// gauge and the runbook already share.
+pub fn QuorumState::tier_name(self : QuorumState) -> String {
+  match self {
+    Healthy => "healthy"
+    Soft => "soft"
+    ReadOnly(_) => "read_only"
+  }
+}
+
+///|
+/// The row's wire name: `ack_timeout` or `no_follower`.
+///
+/// The two read-only rows stay distinguishable wherever an operator
+/// looks: the runbook sends one to the network and the other to the
+/// follower. Snake case, the key convention of every wire surface.
+pub fn ReadOnlyReason::reason_name(self : ReadOnlyReason) -> String {
+  match self {
+    AckTimeout => "ack_timeout"
+    NoFollower => "no_follower"
+  }
+}

@@ -1,0 +1,15 @@
+// The admin HTTP faces: the health report and, as they land, the
+// metrics and stats endpoints. Targets match cluster: the consumers of
+// this face are the admin HTTP listeners, which are bounded by the
+// same async socket surface the peer channel is.
+supported_targets = "+native+wasm"
+
+import {
+  "guangyiliushan/mortarmq/cluster",
+  "guangyiliushan/mortarmq/metrics",
+  "moonbitlang/core/debug",
+}
+
+import {
+  "guangyiliushan/mortarmq/protocol",
+} for "test"

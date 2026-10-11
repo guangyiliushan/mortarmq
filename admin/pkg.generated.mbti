@@ -1,0 +1,32 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/admin"
+
+import {
+  "guangyiliushan/mortarmq/cluster",
+  "guangyiliushan/mortarmq/metrics",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub const HEALTHZ_CONTENT_TYPE : String = "application/json; charset=utf-8"
+
+pub fn healthz_response(@cluster.QuorumState, UInt64) -> HealthzResponse
+
+pub fn leader_epoch_sample(UInt64) -> @metrics.MetricSample
+
+pub fn quorum_state_sample(@cluster.QuorumState) -> @metrics.MetricSample
+
+// Errors
+
+// Types and methods
+pub(all) struct HealthzResponse {
+  status_code : UInt
+  body : String
+} derive(Eq, @debug.Debug)
+pub fn HealthzResponse::equal(Self, Self) -> Bool
+pub fn HealthzResponse::not_equal(Self, Self) -> Bool
+pub fn HealthzResponse::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits
