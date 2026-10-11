@@ -10,20 +10,20 @@
 /// single comparison point in the repo. It folds every byte pair into one
 /// accumulator before any decision and never short-circuits, so timing is a
 /// function of the fixed 32-byte length only. The one comparison that
-/// extracts the final verdict runs on that accumulator — a single fixed
+/// extracts the final verdict runs on that accumulator -- a single fixed
 /// instruction whose outcome is the answer the caller is about to receive
-/// anyway — and never on partial content.
+/// anyway -- and never on partial content.
 ///
-/// Failure discipline: every failure — unknown token, empty
-/// store, malformed input — leaves through one exit that pauses 100ms and
+/// Failure discipline: every failure -- unknown token, empty
+/// store, malformed input -- leaves through one exit that pauses 100ms and
 /// returns the same generic `Rejected` verdict. Failure timing and value
 /// carry no reason. Hashing the presented token is deliberately not
 /// constant time (an explicit threat-model non-goal), and a leaked tokens file is
-/// only as strong as token entropy (ops: ≥128-bit random tokens).
+/// only as strong as token entropy (ops: >=128-bit random tokens).
 ///
 /// Cost model: the pause is pure failure-path latency. A success adds no
-/// delay; a failure adds exactly one fixed 100ms pause — never twice, never
-/// more — plus microsecond-scale compute (one SHA-256 pass over the token
+/// delay; a failure adds exactly one fixed 100ms pause -- never twice, never
+/// more -- plus microsecond-scale compute (one SHA-256 pass over the token
 /// and one 32-byte accumulate) and holds only the failing connection's own
 /// state plus one timer. The pause is delegated to the injected `Delay`
 /// timer, so this module itself burns no CPU while it waits and never
@@ -39,7 +39,7 @@
 /// connection after a failure verdict, so one connection yields at most
 /// one pause per attempt. With `F` concurrent
 /// failing connections the fixed cost is `F` timers, `F` times
-/// microsecond-scale compute, and O(F) connection state — the 100ms
+/// microsecond-scale compute, and O(F) connection state -- the 100ms
 /// multiplies no shared resource and amplifies nothing but the attacker's
 /// own dwell time.
 
@@ -102,7 +102,7 @@ async fn[D : Delay] reject(delay : D) -> Result[Bytes, AuthFail] {
 /// Verify `token` against the tokens-file `store`, returning its role.
 ///
 /// The presented token is hashed with the shared SHA-256 and compared
-/// against every stored digest with `tag_eq` — the loop runs the same
+/// against every stored digest with `tag_eq` -- the loop runs the same
 /// fixed work for every entry and never exits early on a match. On any
 /// failure the result is the generic `Rejected` after exactly one
 /// `AUTH_FAILURE_DELAY_MS` pause; on success the role is returned with no

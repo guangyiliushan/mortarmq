@@ -2,8 +2,8 @@
 ///
 /// `authenticate` is the security module's whole verdict surface:
 /// CONNECT calls it and maps the result onto 0x0006 AUTH_FAILED. Contract:
-/// a known token yields its role with no pause; every failure — unknown
-/// token, empty store, near-miss digest — is the same generic verdict after
+/// a known token yields its role with no pause; every failure -- unknown
+/// token, empty store, near-miss digest -- is the same generic verdict after
 /// exactly one 100ms pause through the injected Delay, so failure reasons
 /// are indistinguishable in both value and timing shape.
 

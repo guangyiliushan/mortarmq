@@ -13,14 +13,14 @@
 /// (chunked-update equivalence).
 
 ///|
-/// Initial hash value H(0) (FIPS 180-4 §5.3.3).
+/// Initial hash value H(0) (FIPS 180-4 section 5.3.3).
 let iv : Array[UInt] = [
   0x6a09e667U, 0xbb67ae85U, 0x3c6ef372U, 0xa54ff53aU, 0x510e527fU, 0x9b05688cU, 0x1f83d9abU,
   0x5be0cd19U,
 ]
 
 ///|
-/// Round constants K(0..63) (FIPS 180-4 §4.2.2).
+/// Round constants K(0..63) (FIPS 180-4 section 4.2.2).
 let k_round : Array[UInt] = [
   0x428a2f98U, 0x71374491U, 0xb5c0fbcfU, 0xe9b5dba5U, 0x3956c25bU, 0x59f111f1U, 0x923f82a4U,
   0xab1c5ed5U, 0xd807aa98U, 0x12835b01U, 0x243185beU, 0x550c7dc3U, 0x72be5d74U, 0x80deb1feU,
@@ -161,7 +161,7 @@ fn Sha256::digest(self : Sha256) -> Bytes {
   }
   snap.block_len = self.block_len
   snap.total_len = self.total_len
-  // FIPS 180-4 §5.1 padding: 0x80, zeros, then the 64-bit big-endian
+  // FIPS 180-4 section 5.1 padding: 0x80, zeros, then the 64-bit big-endian
   // message length in bits.
   snap.block[snap.block_len] = b'\x80'
   snap.block_len = snap.block_len + 1

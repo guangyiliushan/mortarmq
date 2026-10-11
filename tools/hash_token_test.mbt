@@ -3,8 +3,8 @@
 /// The tool is the generation half of the tokens-file path: it renders
 /// `digest<TAB>role` for a token so the plaintext never reaches the file,
 /// and the verifier recomputes the same digest through the same shared
-/// SHA-256 implementation. "生成路径可复制" is pinned by the exact-output
-/// test below.
+/// SHA-256 implementation. The reproducible generation path is pinned by
+/// the exact-output test below.
 
 ///|
 /// Whether `needle` occurs in `haystack`.

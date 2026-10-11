@@ -1,7 +1,7 @@
 /// Known-answer tests for the shared SHA-256 one-shot digest (FIPS 180-4).
 ///
 /// Vector provenance: the RFC 6234 `hashes` table SHA256 rows whose
-/// `extrabits` is zero — the byte-oriented cases of the reference driver —
+/// `extrabits` is zero -- the byte-oriented cases of the reference driver --
 /// plus padding-boundary lengths cross-checked against an independent
 /// oracle (Python hashlib) at development time. The extrabits rows (5/7/9)
 /// exercise a bit-padding API this package deliberately does not expose and

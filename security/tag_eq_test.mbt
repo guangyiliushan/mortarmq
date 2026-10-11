@@ -5,7 +5,7 @@
 /// HMAC-SHA256 peer tags and token digests both verify through it. Its
 /// contract: equal operands decide true, any content difference decides
 /// false, and the decision happens only after every byte pair has been
-/// folded into one accumulator — the Go crypto/subtle form. Length is not
+/// folded into one accumulator -- the Go crypto/subtle form. Length is not
 /// secret and is checked first; the content loop never exits early.
 
 ///|
