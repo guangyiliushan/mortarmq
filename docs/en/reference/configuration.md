@@ -2,15 +2,15 @@
 
 How operators write and validate broker configuration — every key of the allowlisted set.
 
-> **Source of truth:** the 18-key allowlist is **frozen design**, not implementation status — a key appears here because a reason for it was written down first ("no rationale, no key"), not because a broker already reads it.
+> **Source of truth:** the 19-key allowlist is **frozen design**, not implementation status — a key appears here because a reason for it was written down first ("no rationale, no key"), not because a broker already reads it.
 
 ## Frozen Decisions
 
 - Format: **JSON** (straight to `moonbitlang/core` json); a `_comment` key array at the top of the file carries human notes.
 - Parsing is fail-fast: **unknown keys are rejected** (any key outside the allowlist fails CI); no hot reload (v0 boundary).
-- **All 18 keys are `update_mode = read-only`** — a placeholder for a three-tier update taxonomy (read-only / hot-reload / dynamic); no key can change without a restart in v0.
+- **All 19 keys are `update_mode = read-only`** — a placeholder for a three-tier update taxonomy (read-only / hot-reload / dynamic); no key can change without a restart in v0.
 
-## The Allowlist (18 keys)
+## The Allowlist (19 keys)
 
 | # | Key | Type | Default | Why it must exist | update_mode |
 |---:|---|---|---|---|---|
@@ -32,6 +32,7 @@ How operators write and validate broker configuration — every key of the allow
 | 16 | `listen_ws` | `addr` | **disabled** (optional) | The browser demo needs a WebSocket listener; off by default, and `wss` is a reserved slot | read-only |
 | 17 | `listen_admin` | `addr` | `127.0.0.1:7190` | Admin HTTP entry (`/metrics` `/healthz` `/stats` + CLI read paths), bound to localhost by default | read-only |
 | 18 | `ws_origins` | `[str]` | `localhost` / `127.0.0.1` allowlist | WebSocket Origin allowlist (an empty list rejects everything); blocks cross-site WebSocket hijacking | read-only |
+| 19 | `peer_secret` | `secret` | empty — the peer handshake refuses to open a link (the T041 behavior) | Carries the node-to-node shared secret (REQ-SEC-003); pairs with key 2 `peers`, the address table it authenticates | read-only |
 
 ### Naming note
 
@@ -52,5 +53,5 @@ How operators write and validate broker configuration — every key of the allow
 → startup rejected: `unknown key: listen_https` (outside the allowlist).
 
 ::: warning Without code yet
-No broker reads this file today. Every default above is a **frozen design value**; when the config parser lands, these 18 keys are the acceptance bar — a key outside this table must fail startup, and a key in this table that the parser does not know is a defect in the parser.
+No broker reads this file today. Every default above is a **frozen design value**; when the config parser lands, these 19 keys are the acceptance bar — a key outside this table must fail startup, and a key in this table that the parser does not know is a defect in the parser.
 :::
