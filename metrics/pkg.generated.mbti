@@ -21,6 +21,18 @@ pub fn sanitize_label_value(String) -> String
 // Errors
 
 // Types and methods
+pub(all) struct Estimator {
+  streams : Array[Array[UInt64]]
+  mut current_index : Int
+  mut last_move_ms : UInt64
+  move_window_ms : UInt64
+}
+pub fn Estimator::insert(Self, UInt64, UInt64) -> Unit
+pub fn Estimator::merge(Self, Self, UInt64) -> Unit
+pub fn Estimator::new(UInt64, UInt64) -> Self
+pub fn Estimator::query(Self, Double, UInt64) -> UInt64?
+pub fn Estimator::sample_count(Self) -> Int
+
 pub(all) enum MetricError {
   UnknownMetric
   LabelMismatch
@@ -49,6 +61,16 @@ pub(all) struct MetricSpec {
   label_keys : Array[String]
   help : String
 }
+
+pub(all) struct Quantiles {
+  enabled : Bool
+  est : Estimator?
+}
+pub fn Quantiles::disabled() -> Self
+pub fn Quantiles::merge(Self, Self, UInt64) -> Unit
+pub fn Quantiles::opt_in(UInt64, UInt64) -> Self
+pub fn Quantiles::query(Self, Double, UInt64) -> UInt64?
+pub fn Quantiles::record(Self, UInt64, UInt64) -> Unit
 
 // Type aliases
 
