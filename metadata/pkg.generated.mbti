@@ -52,6 +52,13 @@ pub fn MetadataFault::to_err_code(Self) -> @protocol.ErrCode
 pub fn MetadataFault::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+pub(all) struct DeclareAck {
+  created : Bool
+} derive(Eq, @debug.Debug)
+pub fn DeclareAck::equal(Self, Self) -> Bool
+pub fn DeclareAck::not_equal(Self, Self) -> Bool
+pub fn DeclareAck::to_repr(Self) -> @debug.Repr
+
 pub(all) enum DeclareBody {
   Create(String, UInt)
   Delete(String)
@@ -82,6 +89,7 @@ pub(all) enum DeclareOutcome {
 } derive(Eq, @debug.Debug)
 pub fn DeclareOutcome::equal(Self, Self) -> Bool
 pub fn DeclareOutcome::not_equal(Self, Self) -> Bool
+pub fn DeclareOutcome::to_protocol(Self) -> Result[DeclareAck, @protocol.ErrCode]
 pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
 
 pub(all) struct MetadataGuard {
@@ -109,6 +117,7 @@ pub(all) struct MetadataService {
   mut machine : DeclareMachine
   mut gate : MetadataGuard
 }
+pub fn MetadataService::mediate_mutation(Self, UInt64, UInt64, Array[DeclareBody]) -> Result[Array[DeclareAck], @protocol.ErrCode]
 pub fn MetadataService::new() -> Self
 pub fn MetadataService::partition_count(Self, String) -> UInt?
 pub fn MetadataService::quarantine_entries(Self) -> Array[QuarantineEntry]
