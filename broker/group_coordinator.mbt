@@ -608,7 +608,13 @@ pub fn GroupCoordinator::owner_of(
 }
 
 ///|
-/// Read the current ownership epoch of one partition, if assigned.
+/// Read the current assignment epoch (the target-assignment version).
+pub fn GroupCoordinator::assignment_epoch(self : GroupCoordinator) -> UInt {
+  self.assignment_epoch
+}
+
+///|
+/// Read the ownership epoch of one partition, if assigned.
 pub fn GroupCoordinator::ownership_epoch_of(
   self : GroupCoordinator,
   topic_id : UInt16,

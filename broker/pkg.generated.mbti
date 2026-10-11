@@ -151,6 +151,7 @@ pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
 pub struct GroupCoordinator {
   // private fields
 }
+pub fn GroupCoordinator::assignment_epoch(Self) -> UInt
 pub fn GroupCoordinator::bump_wholesale(Self, UInt64, UInt16) -> Unit
 pub fn GroupCoordinator::installed_assignment_epoch_of(Self, UInt64) -> UInt?
 pub fn GroupCoordinator::join(Self, UInt64, UInt16, UInt16) -> Result[JoinResult, @protocol.ErrCode]

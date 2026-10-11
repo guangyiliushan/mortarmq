@@ -9,4 +9,6 @@ import {
 import {
   "guangyiliushan/mortarmq/harness",
   "moonbitlang/async",
+  "moonbitlang/core/quickcheck",
+  "moonbitlang/core/env",
 } for "test"
