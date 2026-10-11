@@ -370,6 +370,7 @@ fn is_ledger_path(path : Bytes) -> Bool {
 pub(all) struct LedgerWriter {
   priv path : Bytes
   priv mut unflushed_events : Int
+  priv mut torn_at : Int?
 }
 
 ///|
@@ -377,7 +378,7 @@ pub fn LedgerWriter::new(path : Bytes) -> Result[LedgerWriter, LedgerFault] {
   if !is_ledger_path(path) {
     return Err(Malformed)
   }
-  Ok({ path, unflushed_events: 0, })
+  Ok({ path, unflushed_events: 0, torn_at: None, })
 }
 
 ///|
@@ -388,6 +389,15 @@ pub fn LedgerWriter::path(self : LedgerWriter) -> Bytes {
 ///|
 pub fn LedgerWriter::unflushed_events(self : LedgerWriter) -> Int {
   self.unflushed_events
+}
+
+///|
+/// Report the byte offset of the most recently healed torn tail, if the
+/// writer ever had to cut one. The tear is a storage fact, not an
+/// executor bug: the tail is truncated to the last valid boundary and
+/// writing continues, but the damage stays queryable.
+pub fn LedgerWriter::torn_at(self : LedgerWriter) -> Int? {
+  self.torn_at
 }
 
 ///|
@@ -410,13 +420,36 @@ pub async fn[D : @harness.Disk] LedgerWriter::append(
       }
     None => ()
   }
-  let existing = match disk.read(self.path) {
+  let raw = match disk.read(self.path) {
     Ok(data) => data
     Err(@harness.PathMissing) => b""
     Err(other) => return Err(DiskFault(other))
   }
-  if existing.length() % LEDGER_EVENT_BYTES != 0 {
-    return Err(Malformed)
+  // Torn tails heal: cut to the last valid boundary and remember where.
+  // Damage with valid events after it is mid-stream corruption and the
+  // append refuses it until recovery repairs the log.
+  let mut first_invalid : Int? = None
+  let mut valid_after_damage = false
+  let mut offset = 0
+  while offset + LEDGER_EVENT_BYTES <= raw.length() {
+    match decode_ledger_event(raw[offset:offset + LEDGER_EVENT_BYTES]) {
+      Ok(_) => if first_invalid is Some(_) { valid_after_damage = true }
+      Err(_) => if first_invalid is None { first_invalid = Some(offset) }
+    }
+    offset = offset + LEDGER_EVENT_BYTES
+  }
+  if offset < raw.length() && first_invalid is None {
+    first_invalid = Some(offset)
+  }
+  let existing = match first_invalid {
+    None => raw
+    Some(boundary) =>
+      if valid_after_damage {
+        return Err(Malformed)
+      } else {
+        self.torn_at = Some(boundary)
+        raw[0:boundary].to_owned()
+      }
   }
   let next = existing + encode_ledger_event(event)
   match disk.write(self.path, next) {

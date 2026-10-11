@@ -202,6 +202,7 @@ pub async fn[D : @harness.Disk] LedgerWriter::append(Self, D, LedgerEvent, @stor
 pub fn LedgerWriter::new(Bytes) -> Result[Self, LedgerFault]
 pub fn LedgerWriter::path(Self) -> Bytes
 pub async fn[D : @harness.Disk] LedgerWriter::sync(Self, D) -> Result[Unit, LedgerFault]
+pub fn LedgerWriter::torn_at(Self) -> Int?
 pub fn LedgerWriter::unflushed_events(Self) -> Int
 
 pub(all) struct MmdlEnvelope {

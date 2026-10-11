@@ -421,3 +421,92 @@ async test "a clean ledger scan reports no gap" {
     Err(_) => fail("ledger scan failed")
   }
 }
+
+///|
+async test "a torn tail heals on append and stays queryable" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let writer = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  let first = sample_event(@delivery.Deliver)
+  let second = sample_event(@delivery.Ack)
+  match writer.append(disk, first, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  match writer.append(disk, second, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  let third = sample_event(@delivery.Fenced)
+  let torn = @delivery.encode_ledger_event(third)
+  let raw = match disk.read(path) {
+    Ok(data) => data
+    Err(_) => fail("ledger read failed")
+  }
+  match disk.write(path, raw + torn[:20].to_owned()) {
+    Ok(_) => ()
+    Err(_) => fail("torn tail write failed")
+  }
+  // The writer heals the tail instead of bricking: the tear is a storage
+  // fact, not an executor bug.
+  assert_eq(writer.torn_at(), None)
+  match writer.append(disk, third, None) {
+    Ok(_) => ()
+    Err(_) => fail("append after the tear should heal and proceed")
+  }
+  assert_eq(writer.torn_at(), Some(104))
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      assert_eq(scan.first_invalid, None)
+      assert_eq(scan.events.length(), 3)
+      assert_eq(scan.events[0], first)
+      assert_eq(scan.events[1], second)
+      assert_eq(scan.events[2], third)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+}
+
+///|
+async test "mid-stream damage refuses the append until recovery repairs it" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let writer = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  let first = sample_event(@delivery.Deliver)
+  let second = sample_event(@delivery.Ack)
+  let third = sample_event(@delivery.Fenced)
+  match writer.append(disk, first, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  match writer.append(disk, second, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  match writer.append(disk, third, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  let raw = match disk.read(path) {
+    Ok(data) => data
+    Err(_) => fail("ledger read failed")
+  }
+  let flipped = raw[:60].to_owned() + b"\xff" + raw[61:].to_owned()
+  match disk.write(path, flipped) {
+    Ok(_) => ()
+    Err(_) => fail("corruption write failed")
+  }
+  // A hole with good events behind it is real corruption: the append
+  // refuses rather than silently cut live history away.
+  match writer.append(disk, sample_event(@delivery.Deliver), None) {
+    Err(@delivery.LedgerFault::Malformed) => assert_eq(true, true)
+    _ => fail("expected the mid-stream refusal")
+  }
+  assert_eq(writer.torn_at(), None)
+}
