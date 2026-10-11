@@ -47,8 +47,16 @@
 ///
 /// * `MalformedPayload` (0x0003) for a proposal of term zero, or for a
 ///   reply that is not an acknowledgement to the round in flight.
-/// * `StaleLeaderEpoch` (0x6005) when the member promised a different
-///   term -- somebody is already further along than this candidate.
+/// * `StaleLeaderEpoch` (0x6005) when this node is not holding the term
+///   it is standing for -- a proposal has to name one this node has
+///   already written down, or every promise it collects would be for
+///   something a crash erases -- or when the member promised a
+///   different term, which means somebody is already further along than
+///   this candidate.
+/// * `ElectionTimeout` (0x600C) when the member does not answer inside
+///   the round's own deadline. The round is over rather than the
+///   connection: nothing more is written and nothing is closed, because
+///   the caller can run the round again.
 /// * `UncleanElectionRejected` (0x600B) when a member has committed
 ///   further than this candidate has.
 /// * `AuthFailed` (0x0006) when the answer comes from outside the
@@ -64,6 +72,14 @@ pub async fn ClusterNode::send_prepare(
   if candidate_epoch == 0UL {
     return Err(@protocol.MalformedPayload)
   }
+  // The candidate stands for a term it already holds. Writing it down
+  // first is what makes the promises it collects worth anything: a
+  // proposal for a term this node never recorded would have every
+  // member that answered give up its right to answer a lower one, and
+  // a crash would take the term with it.
+  if epoch.current() != candidate_epoch {
+    return Err(@protocol.StaleLeaderEpoch)
+  }
   let request : PeerMsg = Prepare({
     candidate_id: self.node_id(),
     candidate_epoch,
@@ -75,9 +91,21 @@ pub async fn ClusterNode::send_prepare(
     Err(code) => return Err(code)
     Ok(_) => ()
   }
-  let reply = match read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS) {
-    Err(code) => return Err(code)
-    Ok(msg) => msg
+  let reply = match
+    @async.with_timeout_opt(PREPARE_TIMEOUT_MS, () => {
+      read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS)
+    }) {
+    // The member did not answer in time. This is the round ending, not
+    // the connection: a silent member is more often slow than gone, and
+    // the caller can run the round again on the next tick. It is
+    // counted so rounds that keep ending this way are visible as that
+    // rather than as one more failure among others.
+    None => {
+      self.note_election_timeout()
+      return Err(@protocol.ElectionTimeout)
+    }
+    Some(Err(code)) => return Err(code)
+    Some(Ok(msg)) => msg
   }
   match refusal(reply) {
     Some(code) => return Err(code)
@@ -167,18 +195,27 @@ pub async fn ClusterNode::serve_prepare(
 ///
 /// * `MalformedPayload` (0x0003) for a reply that is not an
 ///   acknowledgement to this round.
-/// * `StaleLeaderEpoch` (0x6005) when the member installed a different
-///   term -- it is answering somebody else's round.
+/// * `StaleLeaderEpoch` (0x6005) when this node is not holding the term
+///   it is installing -- the same rule as the prepare that preceded it,
+///   checked on this side too because the two can be called apart --
+///   or when the member installed a different term, which means it is
+///   answering somebody else's round.
+/// * `ElectionTimeout` (0x600C) when the member does not answer inside
+///   the round's own deadline.
 /// * `AuthFailed` (0x0006) when the answer comes from outside the
 ///   static table.
 pub async fn ClusterNode::send_install(
   self : ClusterNode,
   link : PeerLink,
+  epoch : LeaderEpoch,
   candidate_epoch : UInt64,
   commit_seq : UInt64,
 ) -> Result[InstallAckMsg, @protocol.ErrCode] {
   if candidate_epoch == 0UL {
     return Err(@protocol.MalformedPayload)
+  }
+  if epoch.current() != candidate_epoch {
+    return Err(@protocol.StaleLeaderEpoch)
   }
   let request : PeerMsg = Install({
     leader_id: self.node_id(),
@@ -189,9 +226,16 @@ pub async fn ClusterNode::send_install(
     Err(code) => return Err(code)
     Ok(_) => ()
   }
-  let reply = match read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS) {
-    Err(code) => return Err(code)
-    Ok(msg) => msg
+  let reply = match
+    @async.with_timeout_opt(PREPARE_TIMEOUT_MS, () => {
+      read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS)
+    }) {
+    None => {
+      self.note_election_timeout()
+      return Err(@protocol.ElectionTimeout)
+    }
+    Some(Err(code)) => return Err(code)
+    Some(Ok(msg)) => msg
   }
   match refusal(reply) {
     Some(code) => return Err(code)

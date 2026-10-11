@@ -104,7 +104,7 @@ async fn election_round(
               candidate, link, candidate_log, candidate_epoch_state, candidate_epoch,
             )
             candidate_install.val = @cluster.ClusterNode::send_install(
-              candidate, link, candidate_epoch, commit_seq,
+              candidate, link, candidate_epoch_state, candidate_epoch, commit_seq,
             )
           }
         }
@@ -298,4 +298,176 @@ test "a member that has committed further than this candidate is not counted" {
   )
   assert_eq(candidate.prepared_count(), 2)
   assert_eq(candidate.has_prepare_quorum(), true)
+}
+
+///|
+/// A candidate may only stand for a term it already holds.
+///
+/// Writing the term down first is what makes the promises worth
+/// anything: a proposal for one this node never recorded would have
+/// every member that answered give up its right to answer a lower term,
+/// and a crash would take the term with it. The member side already
+/// refuses a term at or below what it holds -- this is the other half,
+/// on the side that is asking.
+async test "a candidate may only stand for a term it already holds" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let candidate_log = traced_log("candidate", trace)
+  let secret = fixture_secret()
+  let server = bind_loopback()
+  let port = server.addr.port()
+  let peer_config = handshake_config(
+    1U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let candidate_config = handshake_config(
+    2U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let peer_node = @cluster.ClusterNode::new(peer_config)
+  let candidate = @cluster.ClusterNode::new(candidate_config)
+  // The candidate holds one and is standing for two: a term it never
+  // wrote down.
+  let candidate_term = fresh_epoch()
+  assert_eq(candidate_term.elect(1UL), Ok(1UL))
+
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server.close()
+      match
+        @async.with_timeout_opt(handshake_budget_ms(), () => server.accept()) {
+        None => ()
+        Some(accepted) => {
+          let concrete : LoopConn = { tcp: accepted.0, }
+          let conn : &@net.Conn = concrete
+          // Handshake and nothing else: the round is refused before it
+          // writes, so there is nothing on this side to answer.
+          match @cluster.ClusterNode::serve_peer(peer_node, conn) {
+            Err(_) => ()
+            Ok(_) => ()
+          }
+          @net.Conn::close(conn)
+        }
+      }
+    }
+    match dial_loopback(port) {
+      Err(_) => fail("the listener is bound, so the dial must connect")
+      Ok(conn) => {
+        let expected = match candidate_config.peer_entry(1U.to_uint16()) {
+          None => fail("the member must be in the static table")
+          Some(entry) => entry
+        }
+        match @cluster.ClusterNode::dial_peer(candidate, conn, expected) {
+          Err(_) =>
+            fail("both sides hold the same secret, so the handshake must pass")
+          Ok(link) => {
+            let prepare = @cluster.ClusterNode::send_prepare(
+              candidate, link, candidate_log, candidate_term, 2UL,
+            )
+            assert_eq(prepare, Err(@protocol.StaleLeaderEpoch))
+            let install = @cluster.ClusterNode::send_install(
+              candidate, link, candidate_term, 2UL, 0UL,
+            )
+            assert_eq(install, Err(@protocol.StaleLeaderEpoch))
+            // Refused before the first write: the member heard of no
+            // round, so no promise or install is recorded on this side.
+            assert_eq(candidate.prepared_count(), 1)
+            assert_eq(candidate.installed_count(), 1)
+          }
+        }
+        @net.Conn::close(conn)
+      }
+    }
+  }
+}
+
+///|
+/// A member that goes quiet costs one round, and is counted.
+///
+/// The round has its own deadline, well inside the frame's. Waiting the
+/// full frame timeout for an answer that is not coming would hold up an
+/// election that can be run again on the next tick, and the answer to a
+/// silent member is a round to repeat rather than a connection to tear
+/// down -- so the deadline fires, nothing is closed, and the count is
+/// where the difference between one slow member and rounds that keep
+/// ending this way shows up.
+async test "a member that never answers costs the round, and is counted" {
+  let trace : Ref[Array[(String, UInt64)]] = Ref::Ref([])
+  let candidate_log = traced_log("candidate", trace)
+  let secret = fixture_secret()
+  let server = bind_loopback()
+  let port = server.addr.port()
+  let peer_config = handshake_config(
+    1U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let candidate_config = handshake_config(
+    2U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  let peer_node = @cluster.ClusterNode::new(peer_config)
+  let candidate = @cluster.ClusterNode::new(candidate_config)
+  let candidate_term = fresh_epoch()
+  assert_eq(candidate_term.elect(1UL), Ok(1UL))
+  assert_eq(candidate.election_timeouts(), 0)
+
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server.close()
+      match
+        @async.with_timeout_opt(handshake_budget_ms(), () => server.accept()) {
+        None => ()
+        Some(accepted) => {
+          let concrete : LoopConn = { tcp: accepted.0, }
+          let conn : &@net.Conn = concrete
+          match @cluster.ClusterNode::serve_peer(peer_node, conn) {
+            Err(_) => ()
+            Ok(_) => ()
+          }
+          // Hold the connection open without answering, so the round is
+          // what ends -- a closed socket would end the read instead, and
+          // that is a different failure.
+          @async.sleep(2500)
+          @net.Conn::close(conn)
+        }
+      }
+    }
+    match dial_loopback(port) {
+      Err(_) => fail("the listener is bound, so the dial must connect")
+      Ok(conn) => {
+        let expected = match candidate_config.peer_entry(1U.to_uint16()) {
+          None => fail("the member must be in the static table")
+          Some(entry) => entry
+        }
+        match @cluster.ClusterNode::dial_peer(candidate, conn, expected) {
+          Err(_) =>
+            fail("both sides hold the same secret, so the handshake must pass")
+          Ok(link) => {
+            let prepare = @cluster.ClusterNode::send_prepare(
+              candidate, link, candidate_log, candidate_term, 1UL,
+            )
+            assert_eq(prepare, Err(@protocol.ElectionTimeout))
+            assert_eq(candidate.election_timeouts(), 1)
+            // The link is still open and nothing was recorded: one round
+            // ended, and the next one is still worth running on it.
+            let install = @cluster.ClusterNode::send_install(
+              candidate, link, candidate_term, 1UL, 0UL,
+            )
+            assert_eq(install, Err(@protocol.ElectionTimeout))
+            assert_eq(candidate.election_timeouts(), 2)
+            assert_eq(candidate.prepared_count(), 1)
+            assert_eq(candidate.installed_count(), 1)
+          }
+        }
+        @net.Conn::close(conn)
+      }
+    }
+  }
 }

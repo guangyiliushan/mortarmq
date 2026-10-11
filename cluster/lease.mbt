@@ -42,7 +42,13 @@ pub const FOLLOWER_LEASE_MS : UInt64 = 2000
 ///
 /// From the same table (`prepare_timeout_ms`, default 1000, range
 /// 100..5000).
-pub const PREPARE_TIMEOUT_MS : UInt64 = 1000
+///
+/// Milliseconds, as `Int`, because it is the deadline handed to the
+/// same timeout every peer read is wrapped in. A member that goes quiet
+/// inside it costs one round and is answered with `ElectionTimeout`:
+/// the round can be run again, so the connection stays open and
+/// nothing is written to it afterwards.
+pub const PREPARE_TIMEOUT_MS : Int = 1000
 
 ///|
 /// One follower's belief that its leader is still alive.

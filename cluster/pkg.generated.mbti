@@ -28,7 +28,7 @@ pub const PEER_SECRET_MIN_BYTES : Int = 16
 
 pub const PEER_TAG_BYTES : Int = 32
 
-pub const PREPARE_TIMEOUT_MS : UInt64 = 1000
+pub const PREPARE_TIMEOUT_MS : Int = 1000
 
 pub const QUORUM_ACK_TIMEOUT_MS : Int = 50
 
@@ -111,6 +111,7 @@ pub fn ClusterNode::commit_horizon(Self, UInt64) -> UInt64
 pub fn ClusterNode::commit_seq(Self) -> UInt64
 pub fn ClusterNode::config(Self) -> ClusterConfig
 pub async fn ClusterNode::dial_peer(Self, &@net.Conn, PeerEntry) -> Result[PeerLink, @protocol.ErrCode]
+pub fn ClusterNode::election_timeouts(Self) -> Int
 pub fn ClusterNode::follower_positions(Self) -> Array[FollowerProgress]
 pub fn ClusterNode::follower_progress(Self, UInt16) -> FollowerProgress?
 pub fn ClusterNode::has_install_quorum(Self) -> Bool
@@ -132,7 +133,7 @@ pub fn ClusterNode::record_append_ack(Self, AppendAck, UInt16) -> Result[Unit, @
 pub fn ClusterNode::record_install_ack(Self, InstallAckMsg, UInt64, UInt16) -> Result[Unit, @protocol.ErrCode]
 pub fn ClusterNode::record_prepare_ack(Self, PrepareAckMsg, UInt64, UInt16) -> Result[Unit, @protocol.ErrCode]
 pub async fn ClusterNode::send_append(Self, PeerLink, &ReplicaLog, UInt64, Array[Bytes], Bool, Int) -> Result[AppendAck, @protocol.ErrCode]
-pub async fn ClusterNode::send_install(Self, PeerLink, UInt64, UInt64) -> Result[InstallAckMsg, @protocol.ErrCode]
+pub async fn ClusterNode::send_install(Self, PeerLink, LeaderEpoch, UInt64, UInt64) -> Result[InstallAckMsg, @protocol.ErrCode]
 pub async fn ClusterNode::send_prepare(Self, PeerLink, &ReplicaLog, LeaderEpoch, UInt64) -> Result[PrepareAckMsg, @protocol.ErrCode]
 pub async fn ClusterNode::serve_append(Self, PeerLink, &ReplicaLog, LeaderEpoch) -> Result[AppendAck, @protocol.ErrCode]
 pub async fn ClusterNode::serve_install(Self, PeerLink, LeaderEpoch, &ReplicaLog) -> Result[InstallAckMsg, @protocol.ErrCode]

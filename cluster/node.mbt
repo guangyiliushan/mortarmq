@@ -119,6 +119,9 @@ priv struct NodeCore {
   // Where the divergent tail was last cut back to, or nothing if this
   // replica has never truncated.
   mut last_truncation : UInt64?
+  // How many election rounds have ended by running out the clock rather
+  // than by an answer.
+  mut election_timeouts : Int
 }
 
 ///|
@@ -176,6 +179,7 @@ pub fn ClusterNode::new(config : ClusterConfig) -> ClusterNode {
       commit_seq: 0UL,
       quorum_event: None,
       last_truncation: None,
+      election_timeouts: 0,
     }),
   }
 }
@@ -529,6 +533,26 @@ pub fn ClusterNode::note_committed(
 /// base sequence is one takes an entire log with it.
 pub fn ClusterNode::last_truncation(self : ClusterNode) -> UInt64? {
   self.core.val.last_truncation
+}
+
+///|
+/// How many election rounds have ended by running out the clock rather
+/// than by an answer.
+///
+/// A count rather than a last-event flag, because what decides whether
+/// a cluster has a problem is the shape of the failures: one member that
+/// missed one deadline is a slow network, while rounds that keep ending
+/// this way are a cluster that cannot find a leader at all. Either way
+/// the round is over rather than the connection, so the number is the
+/// only place the difference shows up.
+pub fn ClusterNode::election_timeouts(self : ClusterNode) -> Int {
+  self.core.val.election_timeouts
+}
+
+///|
+/// Count one election round that ended on its deadline.
+fn ClusterNode::note_election_timeout(self : ClusterNode) -> Unit {
+  self.core.val.election_timeouts = self.core.val.election_timeouts + 1
 }
 
 ///|
