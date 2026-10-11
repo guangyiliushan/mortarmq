@@ -220,9 +220,13 @@ pub extend AppendAck with @moonbitlang/core/debug.Debug::{to_repr}
 ///
 /// The candidate reports where its own log stands alongside the term it
 /// proposes, so a member can see what it would be joining. The member
-/// answers with its own positions, and the candidate picks the log to
-/// lead from among them -- never its own by default, because the point
-/// of asking is that somebody may be further along.
+/// answers with its own positions, and the candidate compares them with
+/// its own rather than taking over one: a member that has committed
+/// further than this candidate has makes standing an unclean election,
+/// so the promise is refused and counted as nothing. Choosing a better
+/// log and catching up to it first would make standing legal, and this
+/// node cannot pull from a member yet, so the choice of consistency over
+/// availability is left where the design puts it -- with an operator.
 pub(all) struct PrepareMsg {
   candidate_id : UInt16
   candidate_epoch : UInt64

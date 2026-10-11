@@ -122,6 +122,15 @@ priv struct NodeCore {
   // How many election rounds have ended by running out the clock rather
   // than by an answer.
   mut election_timeouts : Int
+  // Whether a leader has ever been observed here, and whether its lease
+  // is currently held. The two are separate on purpose: a node that has
+  // never heard of a leader and a node whose leader lapsed are both
+  // leaderless, and only one of them has a moment to report.
+  mut leader_seen : Bool
+  mut lease_expired_at : UInt64?
+  // The lease change nobody has read yet, held exactly as the quorum
+  // one is so the two observability surfaces behave the same way.
+  mut lease_event : @protocol.ErrCode?
 }
 
 ///|
@@ -180,6 +189,9 @@ pub fn ClusterNode::new(config : ClusterConfig) -> ClusterNode {
       quorum_event: None,
       last_truncation: None,
       election_timeouts: 0,
+      leader_seen: false,
+      lease_expired_at: None,
+      lease_event: None,
     }),
   }
 }
@@ -553,6 +565,75 @@ pub fn ClusterNode::election_timeouts(self : ClusterNode) -> Int {
 /// Count one election round that ended on its deadline.
 fn ClusterNode::note_election_timeout(self : ClusterNode) -> Unit {
   self.core.val.election_timeouts = self.core.val.election_timeouts + 1
+}
+
+///|
+/// Whether this node currently believes it has a leader.
+///
+/// False from the moment the node is built until one is observed, which
+/// is the distinction a fresh node and a healthy one would otherwise
+/// hide: both would say they accept writes, and only one of them has
+/// anybody to replicate them to. False again once the lease lapses, so
+/// the answer is about now rather than about ever.
+pub fn ClusterNode::has_leader(self : ClusterNode) -> Bool {
+  self.core.val.leader_seen && self.core.val.lease_expired_at is None
+}
+
+///|
+/// The tick at which the leader's lease ran out, or nothing while it is
+/// held or was never held at all.
+///
+/// Kept from the first moment of the lapse rather than from the last
+/// check of it, so a lease that stays expired reports when it went --
+/// the question an operator asks is how long the cluster has been
+/// without a leader, not how often somebody looked.
+pub fn ClusterNode::lease_expired_at(self : ClusterNode) -> UInt64? {
+  self.core.val.lease_expired_at
+}
+
+///|
+/// The lease change this node has not reported yet, consumed by reading.
+///
+/// `0x6006 LEASE_EXPIRED` on the transition into a lapsed lease, once:
+/// a lease that stays expired is one event, not one per tick it is
+/// checked on. Reading clears it, and a later lapse replaces one that
+/// was never read, since the later one is the one describing where the
+/// cluster is now. The same shape as `take_quorum_event`, so a consumer
+/// that handles one can handle the other.
+pub fn ClusterNode::take_lease_event(self : ClusterNode) -> @protocol.ErrCode? {
+  let seen = self.core.val.lease_event
+  self.core.val.lease_event = None
+  seen
+}
+
+///|
+/// Record that the leader's lease has run out, at `now_ms`.
+///
+/// Only the first transition counts: a lease already expired is left
+/// reporting the moment it went rather than the moment somebody
+/// noticed, and no second event is raised for a cluster that has not
+/// changed. `has_leader` goes false either way.
+pub fn ClusterNode::note_lease_expired(
+  self : ClusterNode,
+  now_ms : UInt64,
+) -> Unit {
+  self.core.val.leader_seen = true
+  if self.core.val.lease_expired_at is None {
+    self.core.val.lease_expired_at = Some(now_ms)
+    self.core.val.lease_event = Some(@protocol.LeaseExpired)
+  }
+}
+
+///|
+/// Record that a leader is believed in again.
+///
+/// A lease that is refreshed, or a leader that is installed, both land
+/// here: what they share is that this node has somebody to follow again.
+/// The lapse is forgotten so the next one is a new event rather than a
+/// continuation of the last.
+pub fn ClusterNode::note_lease_refreshed(self : ClusterNode) -> Unit {
+  self.core.val.leader_seen = true
+  self.core.val.lease_expired_at = None
 }
 
 ///|

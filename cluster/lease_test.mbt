@@ -102,3 +102,49 @@ test "the failed leader is never its own successor" {
   let reordered = leader_preference([3U, 1U, 2U].map(id => id.to_uint16()))
   assert_eq(reordered.candidate_after(3U.to_uint16()), Some(1U.to_uint16()))
 }
+
+///|
+/// A node knows whether it has a leader, and when it lost one.
+///
+/// Both halves matter and they are not the same statement. A node built
+/// a moment ago has no leader at all, which is not the same as one whose
+/// leader lapsed -- and neither is the same as one that is fine. Reading
+/// the first as healthy is the same kind of fake health as a node that
+/// says it is connected because a link once opened.
+test "a node knows whether it has a leader, and when it lost one" {
+  let node = tracked_node()
+  // Freshly built: nothing has been observed, so there is nothing to
+  // report as healthy and nothing to report as a lapse.
+  assert_eq(node.has_leader(), false)
+  assert_eq(node.lease_expired_at(), None)
+  assert_eq(node.take_lease_event(), None)
+
+  // Somebody is followed again.
+  node.note_lease_refreshed()
+  assert_eq(node.has_leader(), true)
+  assert_eq(node.lease_expired_at(), None)
+
+  // The lease runs out: the moment it went is recorded, and the
+  // transition is signalled once.
+  node.note_lease_expired(42UL)
+  assert_eq(node.has_leader(), false)
+  assert_eq(node.lease_expired_at(), Some(42UL))
+  assert_eq(node.take_lease_event(), Some(@protocol.LeaseExpired))
+  assert_eq(node.take_lease_event(), None)
+
+  // A lease still expired on the next check is not a second event, and
+  // what is reported is the moment it went rather than the moment
+  // somebody noticed.
+  node.note_lease_expired(99UL)
+  assert_eq(node.lease_expired_at(), Some(42UL))
+  assert_eq(node.take_lease_event(), None)
+
+  // A leader again resets the clock, so the next lapse is a new event
+  // rather than a continuation of the last.
+  node.note_lease_refreshed()
+  assert_eq(node.has_leader(), true)
+  assert_eq(node.lease_expired_at(), None)
+  node.note_lease_expired(7UL)
+  assert_eq(node.lease_expired_at(), Some(7UL))
+  assert_eq(node.take_lease_event(), Some(@protocol.LeaseExpired))
+}

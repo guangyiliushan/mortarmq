@@ -26,6 +26,23 @@
 /// promise each member persists is what decides safety. Two candidates
 /// racing the same followers resolve in `serve_prepare`, where a term
 /// already promised is refused as stale, not here.
+///
+/// # Who runs it
+///
+/// Nothing in this package schedules a round. The tests are the
+/// reference driver and describe the contract a real one has to meet:
+/// when the lease runs out, the node is told so (`note_lease_expired`),
+/// a round is opened (`begin_election`), and one round is run per member
+/// -- `send_prepare` until a majority has promised, then `send_install`
+/// until a majority has made the term durable. A round that ends on its
+/// deadline is one to run again on the next tick rather than a
+/// connection to tear down, so the driver keeps the link and retries.
+///
+/// The same driver is what heals a cluster that has gone read-only: a
+/// new payload is refused while the majority is not durable, but
+/// re-sending what is already written is not, so `catch_up` is what the
+/// driver calls to bring a member back and let the tier leave read-only
+/// on its own.
 
 ///|
 /// Ask one member to promise `candidate_epoch`.
