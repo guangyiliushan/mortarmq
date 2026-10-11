@@ -1,12 +1,11 @@
 /// Move a damaged sealed segment aside so the series can keep serving.
 ///
-/// Dual-layer isolation (REQ-STO-005, evidence anchor: Kafka log corruption
-/// semantics): the active segment truncates to its last valid record, while a
-/// damaged sealed segment is moved out of the replay path as a whole. The
-/// move is a rename to `segment_path || ".quarantined"` plus a sidecar note at
-/// `segment_path || ".quarantine"` recording the first bad offset and the
-/// reason, so a damaged region is locatable (T024) and clearable: the
-/// quarantined file stays an ordinary file that `delete_before` (T025) can
+/// Dual-layer isolation: the active segment truncates to its last valid
+/// record, while a damaged sealed segment is moved out of the replay path
+/// as a whole. The move is a rename to `segment_path || ".quarantined"` plus
+/// a sidecar note at `segment_path || ".quarantine"` recording the first bad
+/// offset and the reason, so a damaged region is locatable and clearable:
+/// the quarantined file stays an ordinary file that `delete_before` can
 /// remove like any sealed segment. Replay never silently skips a damaged
 /// region -- the gap the missing records leave is surfaced by
 /// `recover_series` as a visible `GapDetected` marker.

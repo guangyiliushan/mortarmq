@@ -1,6 +1,6 @@
 /// Delete whole sealed segments below a sequence watermark.
 ///
-/// # Growth boundary (gap A-3 declaration)
+/// # Growth boundary
 ///
 /// v0 does not truncate, compact, or reclaim the series on its own:
 /// append-only growth is unbounded within the volume, by honest design.
@@ -10,7 +10,7 @@
 /// policy executor and no configuration. Automatic retention or
 /// truncation is v1 work.
 ///
-/// Mechanism only, policy nowhere (gap B-1 arbitration, REQ-STO-009):
+/// This module is the deletion mechanism only:
 /// `delete_before` removes sealed segments whose highest readable sequence
 /// lies entirely below the caller's watermark, plus any quarantine twin and
 /// sidecar note those segments left behind. There is no automatic retention

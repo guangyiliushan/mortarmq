@@ -32,7 +32,7 @@ pub extend SegmentScan with @moonbitlang/core/debug.Debug::{to_repr}
 pub(all) struct IntactScan {
   /// Every complete valid record, in file order.
   records : Array[RecoveredRecord]
-  /// Byte offset just past the last complete record.
+  /// Byte offset past the last complete record.
   end_offset : Int
   /// True when the walk stopped at an incomplete trailing record. A
   /// normal crash tail on the active segment; damage on a sealed one.
@@ -62,8 +62,8 @@ pub extend DamagedScan with Eq::{not_equal, equal}
 pub extend DamagedScan with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-/// One visible hole in the recovered series (REQ-STO-003/005: a sequence gap
-/// is corruption and is never skipped silently).
+/// One visible hole in the recovered series: a sequence gap is corruption
+/// and is never skipped silently.
 pub(all) struct GapDetected {
   segment_index : Int
   file_offset : Int

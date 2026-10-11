@@ -168,7 +168,7 @@ async test "a sealed segment stays readable at its original path after rotation"
     Ok(bytes) => bytes
     Err(_) => fail("sealed segment unreadable")
   }
-  // Exit L1: the startup replay path reads the sealed segment at its
+  // The startup replay path reads the sealed segment at its
   // original path and recovers every record it holds.
   assert_eq(
     @storage.recover_segment(disk, b"part-0.segment.0", SEG_CHECKPOINT),

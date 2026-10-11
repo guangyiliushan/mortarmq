@@ -1,6 +1,6 @@
 /// Exercise the storage high watermark: the 70/85/95 tier table, the
 /// pre-write capacity gate shared by segment and ledger writers, and the
-/// explicit-refusal contract behind the F07 disk-full injection (never an
+/// explicit-refusal contract behind a disk-full injection (never an
 /// OOM, never a silent drop).
 
 ///|
@@ -126,7 +126,7 @@ async test "gated segment appends stop at the watermark and resume when capacity
 }
 
 ///|
-async test "F07 disk-full injection rejects explicitly without OOM or silent loss" {
+async test "disk-full injection rejects explicitly without OOM or silent loss" {
   // The ledger-style flow the delivery writer uses: gate, write, fsync --
   // every attempt ends in an explicit outcome, accepted bytes are durable
   // and readable, and refusals never accumulate hidden state.
@@ -176,11 +176,11 @@ async test "F07 disk-full injection rejects explicitly without OOM or silent los
 
 ///|
 async test "long-run append pressure hits the watermark backstop without loss" {
-  // Exit L4 (gap A-3 closure): a long-running writer meets the unbounded
-  // growth of v0 head-on -- every append is either accepted or explicitly
-  // refused, every accepted record survives recovery in order with no
-  // sequence gap, memory stays bounded by one active segment, and the
-  // delete_before relief reopens the gate for the run to continue.
+  // Long-run pressure: a writer meets the unbounded growth of v0 head-on --
+  // every append is either accepted or explicitly refused, every accepted
+  // record survives recovery in order with no sequence gap, memory stays
+  // bounded by one active segment, and the delete_before relief reopens the
+  // gate for the run to continue.
   let disk = @harness.FakeDisk::new()
   disk.set_capacity(20000UL)
   let gate = @storage.Watermark::new(disk)

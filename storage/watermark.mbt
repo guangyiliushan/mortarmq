@@ -1,17 +1,18 @@
 /// Hold the durable-storage high watermark and gate appends before they run.
 ///
 /// The gate is the shared pre-write check of the volume's writers (segment
-/// appends and the delivery ledger alike): usage is volume-level ("卷级",
-/// segments and ledger bytes counted together, no per-file-type split), and
-/// the check runs before any disk operation so a refusal never leaves half
-/// a record behind. Tier policy is the A07 frozen table: under 70% normal,
+/// appends and the delivery ledger alike): usage is volume-level, with
+/// segments and ledger bytes counted together and no per-file-type split,
+/// and the check runs before any disk operation so a refusal never leaves
+/// half a record behind. Tier policy is fixed at three thresholds: under
+/// 70% normal,
 /// 70--85% warning (writes still land), 85--95% producer writes are
 /// rejected with `AppendFault::Capacity`, and at 95% and above the volume is
 /// read-only -- only recovery and retention work may still run, which the
 /// layers above enforce. The wire mapping of a refusal to 0x4004
 /// STORAGE_HIGH_WATERMARK belongs to the protocol/delivery layer; this
 /// module never produces wire codes. The gate is the backstop for v0's
-/// unbounded append-only growth (gap A-3 declaration in
+/// unbounded append-only growth (the boundary is stated in
 /// `storage/retention`): explicit refusals, never an OOM, never a silent
 /// drop.
 ///
@@ -52,7 +53,7 @@ pub(all) struct Watermark {
 }
 
 ///|
-/// Build a gate over a usage source with the A07 default thresholds
+/// Build a gate over a usage source with the default thresholds
 /// 70/85/95.
 pub fn Watermark::new(
   usage : &@harness.DiskUsage,

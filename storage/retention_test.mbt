@@ -1,6 +1,6 @@
-/// Exercise delete_before: the mechanism-only retention relief of
-/// REQ-STO-009 (gap B-1: mechanism in, policy out). Sealed segments
-/// entirely below a sequence watermark are reclaimed with their quarantine
+/// Exercise delete_before: the mechanism-only retention relief. Sealed
+/// segments entirely below a sequence watermark are reclaimed with their
+/// quarantine
 /// twins and sidecar notes, the active segment is never deleted, and the
 /// freed bytes reopen the storage watermark.
 

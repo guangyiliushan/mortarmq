@@ -209,7 +209,7 @@ async test "a corrupt sealed segment is quarantined while the rest of the series
     @harness.Disk::read(disk, b"sr-part.segment.1.quarantine"),
     Ok(sr_note(sr_len(b"v2"), b"corrupt_record")),
   )
-  // Exit L4: the write path is unaffected by the quarantine.
+  // The write path is unaffected by the quarantine.
   if @storage.SegmentWriter::append(writer, disk, b"", b"v6") is Err(_) {
     fail("append after quarantine failed")
   }
@@ -380,7 +380,7 @@ async test "series recovery re-converges after a crash between rename and sideca
 
 ///|
 async test "every kill point leaves a recoverable series and the writer keeps writing" {
-  // Exit L4 (F03 injection): sweep the kill point across the quarantine and
+  // Process-death sweep: arm the kill point across the quarantine and
   // follow-up append phase. Whatever the armed op is, after process death
   // (disarm) the series re-converges without silently losing a good record,
   // the damaged segment ends up quarantined, and appends keep working.
@@ -462,8 +462,8 @@ fn sr_flip_bit(bytes : Bytes, byte_index : Int, bit : Int) -> Bytes {
 }
 
 ///|
-async test "F08 bit-flip sweep quarantines every flip at the record that holds it" {
-  // Exit L4 (F08 injection): every single-bit flip anywhere in a sealed
+async test "bit-flip sweep quarantines every flip at the record that holds it" {
+  // Bit-flip injection sweep: every single-bit flip anywhere in a sealed
   // segment is caught and quarantined, and the sidecar note points at the
   // record that holds the flipped bit.
   let record_size = sr_len(b"v2")
