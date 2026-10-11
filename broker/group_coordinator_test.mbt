@@ -259,7 +259,7 @@ test "a leave releases only the leaver partitions and revokes nothing" {
   assert_eq(@broker.GroupCoordinator::owner_of(coordinator, 1, 4), Some(3UL))
   assert_eq(@broker.GroupCoordinator::owner_of(coordinator, 1, 6), Some(2UL))
   assert_eq(@broker.GroupCoordinator::owner_of(coordinator, 1, 11), Some(3UL))
-  // The untouched partitions kept their ownership epoch (CB3 shape).
+  // The untouched partitions kept their ownership epoch.
   assert_eq(
     @broker.GroupCoordinator::ownership_epoch_of(coordinator, 1, 6),
     Some(2UL),
