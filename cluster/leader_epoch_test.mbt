@@ -58,6 +58,15 @@ fn fresh_epoch() -> @cluster.LeaderEpoch {
 }
 
 ///|
+/// An epoch opened at a term recovered from elsewhere, rather than at
+/// the zero a fresh node starts with.
+fn epoch_sink_for(recovered : UInt64) -> @cluster.LeaderEpoch {
+  let log = recording_log()
+  let sink : &@cluster.MetadataLog = log
+  @cluster.LeaderEpoch::restore(sink, recovered)
+}
+
+///|
 /// Decode one recorded byte string back through the metadata codec.
 fn recorded(log : RecordingLog, index : Int) -> @metadata.MmmlRecord raise {
   match @metadata.decode_mmml_record(log.records.val[index][:]) {

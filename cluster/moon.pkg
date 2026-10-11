@@ -23,6 +23,7 @@ import {
 }
 
 import {
+  "guangyiliushan/mortarmq/harness",
   "moonbitlang/async/io",
   "moonbitlang/async/socket",
   "moonbitlang/core/env",

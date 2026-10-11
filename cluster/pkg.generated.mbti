@@ -172,6 +172,7 @@ pub fn LeaderEpoch::current(Self) -> UInt64
 pub async fn LeaderEpoch::elect(Self, UInt64) -> Result[UInt64, @protocol.ErrCode]
 pub async fn LeaderEpoch::install(Self, UInt64) -> Result[UInt64, @protocol.ErrCode]
 pub fn LeaderEpoch::new(&MetadataLog) -> Self
+pub fn LeaderEpoch::restore(&MetadataLog, UInt64) -> Self
 
 pub struct Lease {
   mut deadline_ms : UInt64

@@ -74,6 +74,34 @@ pub fn LeaderEpoch::new(log : &MetadataLog) -> LeaderEpoch {
 }
 
 ///|
+/// Open an epoch at the term this replica recorded before it stopped.
+///
+/// The difference from `new` is the whole point: a fresh node has held
+/// no term and starts at zero, while a node that restarts has already
+/// promised terms it must not forget. Opening at zero again would leave
+/// `serve_append` with a fence that rejects nothing -- every historical
+/// term is at or above zero -- so a returning leader that still calls
+/// itself term one would walk straight in. The record this value came
+/// from is already durable; this only puts it back where it was.
+///
+/// Passing zero is legal and means what it always has: the snapshot
+/// says no term has been held, which is the first-boot case.
+///
+/// # Example
+///
+/// ```mbt nocheck
+/// // The value comes from a decoded snapshot, so the runnable coverage
+/// // is cluster/restart_test.mbt rather than a checked example.
+/// let epoch = @cluster.LeaderEpoch::restore(the_log, recovered_epoch)
+/// ```
+pub fn LeaderEpoch::restore(
+  log : &MetadataLog,
+  recovered : UInt64,
+) -> LeaderEpoch {
+  { log, core: Ref::Ref({ current: recovered, }), }
+}
+
+///|
 /// The epoch this replica currently recognises; zero until the first
 /// election is recorded.
 pub fn LeaderEpoch::current(self : LeaderEpoch) -> UInt64 {
