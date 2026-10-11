@@ -1,4 +1,4 @@
-/// Exercise metadata-side quarantine and read-only degradation (T058).
+/// Exercise metadata-side quarantine and read-only degradation.
 
 ///|
 test "gate starts healthy with an open write path" {

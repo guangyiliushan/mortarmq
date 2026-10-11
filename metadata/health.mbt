@@ -1,10 +1,10 @@
 /// Metadata-side corruption handling: quarantine and read-only
-/// degradation (REQ-STO-008, REQ-STO-005 R2).
+/// degradation.
 ///
 /// Record damage (a CRC failure or a gap in the metadata log) MUST enter
 /// quarantine and MUST never be silently skipped: recovery aborts at the
 /// damaged record (see `recover_snapshot`) and the guard records the
-/// refused region so the operator runbook (RB-2) can act on it. The
+/// refused region so the operator runbook can act on it. The
 /// system degrades to read-only on any anomaly and may escalate to
 /// quarantined; the write path is then refused with the registered
 /// protocol codes 0x2003 (METADATA_READ_ONLY, retry later) or 0x2004
@@ -23,7 +23,7 @@ pub(all) enum MetadataMode {
   /// An anomaly degraded the metadata to read-only; writes are refused
   /// with the registered `MetadataReadOnly` code and can be retried later.
   ReadOnly
-  /// Damage was escalated for human intervention (RB-2); writes are
+  /// Damage was escalated for human intervention; writes are
   /// refused with the registered `MetadataQuarantined` code.
   Quarantined
 } derive(Eq, Debug)
@@ -74,7 +74,7 @@ pub fn MetadataGuard::note_log_corruption(
 
 ///|
 /// Escalate to quarantined: writes stay refused and the state now asks
-/// for human intervention (RB-2) instead of a retry.
+/// for human intervention instead of a retry.
 pub fn MetadataGuard::escalate_to_quarantine(self : MetadataGuard) -> Unit {
   self.mode = Quarantined
 }
@@ -101,8 +101,8 @@ pub fn MetadataGuard::entries(self : MetadataGuard) -> Array[QuarantineEntry] {
 /// The registered write-path refusal code for the current mode, or
 /// `None` while the write path is open.
 ///
-/// Both targets are constructors of the 49-code registry
-/// (REQ-PRO-004); this module never emits raw numeric codes.
+/// Both targets are constructors of the 49-code registry;
+/// this module never emits raw numeric codes.
 pub fn MetadataGuard::write_refusal(self : MetadataGuard) -> @protocol.ErrCode? {
   match self.mode {
     Healthy => None

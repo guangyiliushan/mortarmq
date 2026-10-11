@@ -1,6 +1,6 @@
 /// Mirror the metadata goldens as literal byte vectors, independent of
-/// any encoder (Tier-1 D; T006 discipline, tasks.md WP-01.05: literal
-/// byte arrays, implementation-neutral, never self-attested by encode).
+/// any encoder: literal byte arrays, implementation-neutral, never
+/// self-attested by encode.
 ///
 /// Each golden asserts both directions: the literal decodes to the
 /// expected record, and the encoder reproduces the literal exactly.

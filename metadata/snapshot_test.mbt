@@ -1,4 +1,4 @@
-/// Exercise metadata snapshot publication and recovery (T057).
+/// Exercise metadata snapshot publication and recovery.
 
 ///|
 fn mutation_record(

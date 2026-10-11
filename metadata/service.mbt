@@ -1,9 +1,8 @@
-/// Wire the metadata gate into the real entry points (Tier-1 A,
-/// REQ-STO-008).
+/// Wire the metadata gate into the real entry points.
 ///
-/// REQ-STO-008 requires that a metadata anomaly degrades the system to
+/// A metadata anomaly degrades the system to
 /// read-only (0x2003, retry later) and can escalate to quarantine
-/// (0x2004, human intervention, RB-2), that the write path returns
+/// (0x2004, human intervention), that the write path returns
 /// those registered codes, and that the state is shown honestly. The
 /// gate on its own was only a state machine; this service is the
 /// single metadata entry that makes it load-bearing: every mutation
@@ -28,14 +27,14 @@ pub fn MetadataService::new() -> MetadataService {
 }
 
 ///|
-/// The mode a health endpoint must display (REQ-STO-008 scenario:
-/// the state is shown honestly).
+/// The mode a health endpoint must display: the state is shown
+/// honestly.
 pub fn MetadataService::read_face(self : MetadataService) -> MetadataMode {
   self.gate.mode()
 }
 
 ///|
-/// The quarantined regions on record for the operator (RB-2).
+/// The quarantined regions on record for the operator.
 pub fn MetadataService::quarantine_entries(
   self : MetadataService,
 ) -> Array[QuarantineEntry] {
@@ -50,7 +49,7 @@ pub fn MetadataService::quarantine_entries(
 /// * `MetadataReadOnly` (0x2003) while the gate is degraded;
 ///   retry later.
 /// * `MetadataQuarantined` (0x2004) after escalation; human
-///   intervention (RB-2).
+///   intervention.
 pub fn MetadataService::submit_mutation(
   self : MetadataService,
   mutation_id : UInt64,
@@ -99,7 +98,7 @@ pub async fn MetadataService::save(
 /// # Errors
 ///
 /// * `MetadataReadOnly` (0x2003) when recovery met record damage; the
-///   damaged region is recorded for RB-2 and later writes are refused
+///   damaged region is recorded for the operator and later writes are
 ///   until a rebuild clears the gate.
 /// * `Internal` (0x000A) for a disk fault during recovery.
 pub async fn MetadataService::recover(
@@ -124,7 +123,7 @@ pub async fn MetadataService::recover(
 
 ///|
 /// The read path: trusted state stays readable in read-only mode
-/// (REQ-STO-008 degrades writes, not reads).
+/// (read-only degrades writes, not reads).
 pub fn MetadataService::partition_count(
   self : MetadataService,
   name : String,

@@ -1,4 +1,4 @@
-/// Exercise the idempotent DECLARE state machine (REQ-STO-007, R5):
+/// Exercise the idempotent DECLARE state machine:
 /// per-key accepted-mutation table, rejected mutations never recorded.
 
 ///|
@@ -207,7 +207,7 @@ fn count_idempotent(outcomes : Array[@metadata.DeclareOutcome]) -> Int {
 }
 
 ///|
-test "R5 concurrent identical declares are exactly once in every order" {
+test "concurrent identical declares are exactly once in every order" {
   let a = (1UL, @metadata.DeclareBody::Create("orders", 3))
   let b = (2UL, @metadata.DeclareBody::Create("orders", 3))
   let c = (3UL, @metadata.DeclareBody::Create("orders", 3))
@@ -229,7 +229,7 @@ test "R5 concurrent identical declares are exactly once in every order" {
 }
 
 ///|
-test "R5 concurrent distinct declares create each topic exactly once" {
+test "concurrent distinct declares create each topic exactly once" {
   let a = (1UL, @metadata.DeclareBody::Create("orders", 3))
   let b = (2UL, @metadata.DeclareBody::Create("payments", 1))
   for order in [[a, b], [b, a]] {
@@ -281,7 +281,7 @@ test "a fenced mutation leaves no trace in the accepted table" {
 }
 
 ///|
-test "R11 packed pair applies as one mutation" {
+test "a packed pair applies as one mutation" {
   let machine = @metadata.DeclareMachine::new()
   let outcomes = machine.submit_set(1UL, 7UL, [
     @metadata.DeclareBody::Create("orders", 3),

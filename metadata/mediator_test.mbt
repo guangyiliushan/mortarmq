@@ -1,6 +1,6 @@
-/// Prove the mediation seam keeps S1 on the protocol face (Tier-1 C:
-/// internal outcomes never cross the boundary; refusals arrive only as
-/// registered codes).
+/// Prove the mediation seam keeps S1 on the protocol face: internal
+/// outcomes never cross the boundary; refusals arrive only as registered
+/// codes.
 
 ///|
 test "internal outcomes mediate to the protocol face" {

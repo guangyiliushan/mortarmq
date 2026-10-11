@@ -1,5 +1,5 @@
 /// Prove the metadata mapping surface lands every refusal in the
-/// registered code table (REQ-PRO-004), that the pairing is total and
+/// registered code table, that the pairing is total and
 /// injective, and that no module emits a raw numeric code.
 
 ///|
@@ -26,7 +26,7 @@ test "every metadata fault maps to a registered wire code" {
 
 ///|
 test "metadata faults land in the registered 0x0xxx and 0x2xxx families" {
-  // REQ-PRO-004 segments: 0x0xxx protocol/session, 0x2xxx metadata.
+  // Registry segments: 0x0xxx protocol/session, 0x2xxx metadata.
   assert_eq(@metadata.Malformed.to_err_code(), @protocol.MalformedPayload)
   assert_eq(@metadata.Malformed.to_err_code().to_uint16(), 0x0003U)
   assert_eq(@metadata.Corruption(0U).to_err_code(), @protocol.MetadataReadOnly)

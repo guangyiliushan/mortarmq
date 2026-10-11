@@ -1,16 +1,16 @@
 /// Metadata snapshot: a regenerable cache over the MMML log.
 ///
-/// The log is the single source of truth (ruling Q9-B); a snapshot never
+/// The log is the single source of truth; a snapshot never
 /// truncates it and is never load-bearing: every snapshot can be dropped
 /// and the machine rebuilt by replaying the full log. The snapshot file
 /// is a sequence of complete MMML records, so every record carries its
-/// own CRC32C (ruling: per-record CRC). A SnapshotHeader record opens
+/// own CRC32C. A SnapshotHeader record opens
 /// the file and a SnapshotFooter record closes it; a file whose footer
 /// is missing or that carries trailing bytes is incomplete and refused
 /// (KIP-630 control-record convention). All snapshot-file records use
 /// the SnapshotHint type (0x0050, non-mutation): their mutation_id must
 /// be 0, and SnapshotHint records in the log are skipped by replay and
-/// never enter the DECLARE machine (ruling Q10-B).
+/// never enter the DECLARE machine.
 ///
 /// Atomic publication follows the storage checkpoint convention: the
 /// bytes land in a `.part` sibling first, are fsynced there, and only
@@ -18,7 +18,7 @@
 /// so a slot holds either the complete previous generation or the
 /// complete new one at every instant, including when a step fails or the
 /// process dies between steps. Two rolling slots keep two generations
-/// live at all times (ruling: keep >= 2 generations); the fallback chain
+/// live at all times (at least two generations); the fallback chain
 /// is corrupt newest -> previous generation + replay -> full replay.
 /// Slots are fixed names because the disk seam has no directory
 /// enumeration; the generation identity (end offset) lives in the header
@@ -390,20 +390,20 @@ pub async fn load_snapshot(
 /// Rebuild machine state: prefer the newest valid snapshot generation,
 /// fall back to the previous generation when the newest is corrupt, or
 /// to full replay when both are, then replay every log record past the
-/// end offset of the snapshot. The log is never modified (ruling Q9-B).
+/// end offset of the snapshot. The log is never modified.
 ///
 /// Replay applies TopicCreate and TopicDelete mutations through the
 /// DECLARE machine and skips SnapshotHint and other record types. A
 /// snapshot whose end offset lies past the log end is refused like a
 /// corrupt one (the pair is inconsistent), and replay enforces the
-/// non-decreasing leader_epoch chain from REQ-STO-006. A log record
+/// non-decreasing leader_epoch chain the log must carry. A log record
 /// that fails validation aborts recovery with its offset so the
 /// quarantine path can act on the exact record; nothing is skipped.
 /// The one exception is a torn tail: a final record whose declared
 /// length runs past the log end is an unfinished append from a crash,
 /// never an acknowledged mutation, and is discarded by stopping at its
-/// first byte (Kafka log-recovery convention; REQ-STO-005 clause 1).
-/// R11 packed mutations ride one record, so a crash mid-append can
+/// first byte (the Kafka log-recovery convention).
+/// A packed mutation rides one record, so a crash mid-append can
 /// never leave half a source/twin pair.
 ///
 /// # Errors

@@ -1,5 +1,5 @@
 /// Prove the guard is load-bearing on the real metadata entry points
-/// (REQ-STO-008 negative cases: injected damage refuses later writes
+/// (negative cases: injected damage refuses later writes
 /// and the read face shows the degradation honestly).
 
 ///|

@@ -1,5 +1,5 @@
 /// Idempotent DECLARE state machine over the per-key accepted-mutation
-/// table (REQ-STO-007, ruling Q11-A).
+/// table.
 ///
 /// A mutation is identified by the client-supplied 8-byte `mutation_id`
 /// scoped to its topic name (per-key). The accepted table maps each key to
@@ -11,7 +11,7 @@
 /// Rejected mutations never enter the table, so a rejection replays as the
 /// same rejection instead of drifting into a fence.
 ///
-/// Outcome order is part of the contract (ruling: 0x2006 before 0x2001):
+/// Outcome order is part of the contract (0x2006 precedes 0x2001):
 /// a known mutation_id with a different body is `MutationFenced` (maps to
 /// 0x2006 MUTATION_FENCED, re-initiate) before any name/count check runs;
 /// only a new mutation_id can reach `NameCountMismatch` (maps to 0x2001
@@ -59,7 +59,7 @@ pub extend DeclareOutcome with @moonbitlang/core/debug.Debug::{to_repr}
 /// but the MMML log and its snapshots.
 ///
 /// The accepted table maps each topic-name key to the op-set every
-/// accepted mutation id was applied with (R11 packed mutations span two
+/// accepted mutation id was applied with (a packed mutation spans two
 /// keys with one shared mutation_id). Storing the whole set is what
 /// makes the fence total: a resubmission of the same id with a narrower,
 /// wider, or different body-set is `MutationFenced` under every key it
@@ -134,9 +134,9 @@ pub fn DeclareMachine::submit(
 /// Submit one DECLARE mutation carrying one or two ops and return one
 /// outcome per op, in op order.
 ///
-/// Outcome order is the contract (ruling: 0x2006 before 0x2001): a known
+/// Outcome order is the contract (0x2006 precedes 0x2001): a known
 /// mutation_id whose recorded op-set equals the incoming set replays as
-/// `IdempotentOk` per op unconditionally (REQ-STO-007 is
+/// `IdempotentOk` per op unconditionally (the replay contract is
 /// epoch-independent); a known mutation_id with a different op-set is
 /// `MutationFenced` per op (0x2006, re-initiate); a new mutation_id from
 /// a stale leader_epoch is `MutationFenced` the same way (0x2006 also
@@ -144,7 +144,7 @@ pub fn DeclareMachine::submit(
 /// check run,
 /// where `NameCountMismatch` (0x2001) stays the S1 registry layer
 /// verdict. Refusals are whole-set: a mismatched name/count rejects the
-/// packed mutation atomically (R11: never half a pair). Rejected
+/// packed mutation atomically (never half a pair). Rejected
 /// mutations never enter the table and never advance `max_epoch`.
 ///
 /// # Errors
@@ -310,7 +310,7 @@ pub fn decode_declare_body(
 ///|
 /// Encode the payload of a one-or-two-op mutation. The single-op bytes
 /// are exactly the v0 form (self-delimiting name length, name, and for
-/// creates a 4-byte partition count); the two-op packed form (R11 source
+/// creates a 4-byte partition count); the two-op packed form (source
 /// plus `.dlq` twin) is the two single-op payloads concatenated, so a
 /// decoder reads ops until the bytes are exhausted and refuses anything
 /// past the second.

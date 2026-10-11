@@ -1,5 +1,5 @@
 /// Thin mediation between the metadata domain and the protocol face
-/// (Tier-1 C; CONTRIBUTING section 5: "Module dependencies are
+/// (CONTRIBUTING section 5: "Module dependencies are
 /// architecture: protocol <- storage / broker / cluster / client, one
 /// direction only; cross-cutting abstractions go through traits").
 ///
