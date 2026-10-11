@@ -17,6 +17,10 @@ pub const MAX_ATTEMPTS : UInt16 = 5
 
 pub const MAX_BACKOFF_MS : UInt = 30000
 
+pub const PRODUCER_GAP_TIMEOUT_MS : UInt64 = 5000
+
+pub const PRODUCER_WINDOW : UInt64 = 1024
+
 pub const RETRY_BACKOFF_BASE_MS : UInt = 1000
 
 pub fn counts_of_events(Array[LedgerEvent], UInt16, Int) -> DeliveryCounts
@@ -31,7 +35,11 @@ pub fn encode_mmdl(MmdlEnvelope) -> Result[Bytes, DeliveryError]
 
 pub fn is_mmdl(BytesView) -> Bool
 
+pub fn is_non_idempotent(UInt64, UInt64) -> Bool
+
 pub async fn[D : @harness.Disk] scan_ledger(D, Bytes) -> Result[LedgerScan, LedgerFault]
+
+pub fn validate_producer_fields(UInt64, UInt64) -> Result[Unit, ProducerError]
 
 // Errors
 pub(all) suberror DeliveryError {
@@ -59,6 +67,17 @@ pub(all) suberror LedgerFault {
 pub fn LedgerFault::equal(Self, Self) -> Bool
 pub fn LedgerFault::not_equal(Self, Self) -> Bool
 pub fn LedgerFault::to_repr(Self) -> @debug.Repr
+
+pub(all) suberror ProducerError {
+  SeqInvalid
+  SeqGap
+  SeqExpired
+  EpochStale
+} derive(Eq, @debug.Debug)
+pub fn ProducerError::equal(Self, Self) -> Bool
+pub fn ProducerError::not_equal(Self, Self) -> Bool
+pub fn ProducerError::to_err_code(Self) -> @protocol.ErrCode
+pub fn ProducerError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) enum AckResult {
@@ -183,6 +202,16 @@ pub fn DlqHop::new(topic_id~ : UInt16, partition~ : UInt16, group_id~ : UInt16) 
 pub fn DlqHop::not_equal(Self, Self) -> Bool
 pub fn DlqHop::to_repr(Self) -> @debug.Repr
 
+pub(all) struct GapTimeout {
+  topic_id : UInt16
+  partition : UInt16
+  producer_id : UInt64
+  producer_seq : UInt64
+} derive(Eq, @debug.Debug)
+pub fn GapTimeout::equal(Self, Self) -> Bool
+pub fn GapTimeout::not_equal(Self, Self) -> Bool
+pub fn GapTimeout::to_repr(Self) -> @debug.Repr
+
 pub(all) struct LedgerEvent {
   group_id : UInt16
   event : LedgerEventKind
@@ -256,6 +285,24 @@ pub fn NackReason::equal(Self, Self) -> Bool
 pub fn NackReason::not_equal(Self, Self) -> Bool
 pub fn NackReason::to_repr(Self) -> @debug.Repr
 
+pub(all) enum ProducerOutcome {
+  Accepted
+  Duplicate
+  Pending
+} derive(Eq, @debug.Debug)
+pub fn ProducerOutcome::equal(Self, Self) -> Bool
+pub fn ProducerOutcome::not_equal(Self, Self) -> Bool
+pub fn ProducerOutcome::to_repr(Self) -> @debug.Repr
+
+pub(all) struct ProducerRegistry {
+  // private fields
+}
+pub fn ProducerRegistry::admit(Self, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Result[ProducerOutcome, ProducerError]
+pub fn ProducerRegistry::drain_flushed(Self, UInt16, UInt16, UInt64) -> Array[UInt64]
+pub fn ProducerRegistry::new() -> Self
+pub fn ProducerRegistry::non_idempotent_count(Self) -> UInt64
+pub fn ProducerRegistry::sweep_gaps(Self, UInt64) -> Array[GapTimeout]
+
 pub(all) enum RetryPlan {
   Scheduled(UInt16, UInt)
   DeadLettered(UInt16)
@@ -267,6 +314,7 @@ pub fn RetryPlan::to_repr(Self) -> @debug.Repr
 pub(all) struct RetryTimers {
   // private fields
 }
+pub fn RetryTimers::cancel(Self, DeliveryKey) -> Bool
 pub fn RetryTimers::due(Self, UInt64) -> Array[DeliveryKey]
 pub fn RetryTimers::new() -> Self
 pub fn RetryTimers::next_due_tick(Self) -> UInt64?
