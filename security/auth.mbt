@@ -1,7 +1,10 @@
-/// The token-verification discipline as one
-/// self-contained module API: CONNECT calls `authenticate` and maps
-/// its verdict onto 0x0006 AUTH_FAILED; nothing outside this file compares
-/// token material.
+/// The token-verification discipline as one self-contained module API.
+/// Nothing outside this file compares token material. The verdict shape
+/// is ready for the connection layer: its CONNECT handler will call
+/// `authenticate` and map `Rejected` onto 0x0006 AUTH_FAILED. Status:
+/// no production caller exists yet; wiring lands with the
+/// connection/session layer, under the wiring contract that admission
+/// and overload refusal run before this call.
 ///
 /// Constant-time shape (CWE-208, Go crypto/subtle form): `tag_eq` is the
 /// single comparison point in the repo. It folds every byte pair into one
@@ -22,16 +25,19 @@
 /// delay; a failure adds exactly one fixed 100ms pause — never twice, never
 /// more — plus microsecond-scale compute (one SHA-256 pass over the token
 /// and one 32-byte accumulate) and holds only the failing connection's own
-/// state plus one timer. The pause runs on an asynchronous timer: it burns
-/// no CPU while it waits and never occupies a worker thread.
+/// state plus one timer. The pause is delegated to the injected `Delay`
+/// timer, so this module itself burns no CPU while it waits and never
+/// occupies a worker thread.
 ///
-/// Overload interlock: explicit overload rejection lives in the
-/// backpressure layer and runs at admission, before authentication. Under
-/// overload, new work is refused fast with the 0x4xxx backpressure codes
-/// and never reaches the pause, so a failure storm cannot queue pauses
-/// behind admitted work. The auth stage is bounded by the auth timeout and
-/// the half-frame timeout, and a failed attempt closes the connection, so
-/// one connection yields at most one pause per attempt. With `F` concurrent
+/// Overload interlock (a wiring contract honored when the connection
+/// layer lands): explicit overload rejection lives in the backpressure
+/// layer and must run at admission, before authentication. Under
+/// overload, new work is then refused fast with the 0x4xxx backpressure
+/// codes and never reaches the pause, so a failure storm cannot queue
+/// pauses behind admitted work. The wiring contract also bounds the auth
+/// stage with the auth timeout and the half-frame timeout, and closes the
+/// connection after a failure verdict, so one connection yields at most
+/// one pause per attempt. With `F` concurrent
 /// failing connections the fixed cost is `F` timers, `F` times
 /// microsecond-scale compute, and O(F) connection state — the 100ms
 /// multiplies no shared resource and amplifies nothing but the attacker's
@@ -42,9 +48,9 @@
 pub const AUTH_FAILURE_DELAY_MS : Int = 100
 
 ///|
-/// The only authentication failure. It deliberately carries no reason
-///: unknown token, wrong token, and empty store are one
-/// indistinguishable outcome.
+/// The only authentication failure. It deliberately carries no reason:
+/// unknown token, wrong token, and empty store are one indistinguishable
+/// outcome.
 pub(all) suberror AuthFail {
   Rejected
 } derive(Eq, Debug)
@@ -57,7 +63,7 @@ pub extend AuthFail with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 /// The one side effect authentication needs: a pause of `ms` milliseconds.
-/// CONNECT binds this to its timer; tests bind a recorder.
+/// The connection layer binds this to its timer; tests bind a recorder.
 pub(open) trait Delay {
   async fn sleep_ms(Self, ms : Int) -> Unit
 }
