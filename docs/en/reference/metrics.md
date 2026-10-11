@@ -6,7 +6,8 @@ How SREs observe the broker — the 15-metric allowlist on `/metrics`, `/healthz
 
 ## Endpoints
 
-- `GET /metrics` — Prometheus text format, **15-metric allowlist**.
+- `GET /metrics` — Prometheus text format, **15-metric allowlist**, served under `METRICS_CONTENT_TYPE = text/plain; version=0.0.4; charset=utf-8`.
+- The whole surface is gated by the `metrics_enabled` config key (default `true`); like every key it is read-only at startup.
 - `GET /healthz` — status enum, same source as `quorum_state`.
 - `GET /stats` — filter parameter required (NSQ-style).
 - Latency quantiles: NSQ-style double-buffer estimator, opt-in p50/p90/p99 (three-operation interface).
@@ -31,6 +32,25 @@ How SREs observe the broker — the 15-metric allowlist on `/metrics`, `/healthz
 | `mortarmq_group_retries_total` | counter | `topic`, `group` | Total redeliveries | — | — |
 | `mortarmq_e2e_latency_ms` | gauge | `quantile=p50\|p90\|p99` | End-to-end PUB → ACK latency, 60 s window | `p50 <= p90 <= p99` | NSQ `e2e_processing_latency` |
 
+## Escaping (double insurance)
+
+Two layers keep dirty names out of the exposition semantics:
+
+1. **Write side (the contract):** label values are sanitized to the identifier allowlist `[A-Za-z0-9_-]` — every other character becomes `_` — so a topic or group name cannot carry reserved characters into label semantics. The many-to-one mapping is by design; the allowlist is the contract.
+2. **Output side (defense in depth):** label values then escape the characters the Prometheus text format reserves (`\`, `"`, newline). Help text escapes `\` and newline only — quotes are not reserved there. The type line only ever carries the lowercase kind literals and needs no escaping.
+
+## `/healthz` state machine
+
+Three tiers, one table — `/healthz`, the `mortarmq_quorum_state` gauge, the CLI `quorum_state` column and the write path's answer to a producer all print the same number:
+
+| Gauge | Tier | Runbook level | Producer sees |
+|---:|---|---:|---|
+| 0 | healthy | 2 | `PUB_OK`, `durability=quorum` |
+| 1 | soft | 1 | `PUB_OK` + `0x6004 FOLLOWER_LAG` |
+| 2 | read-only | 0 | a refusal, never `PUB_OK` |
+
+Read-only is a refusal, not a downgrade: a cluster that cannot form a majority answers `0x6002 READ_ONLY_DEGRADED` and does not acknowledge the write. Reads and the consumer-visible ceiling keep working, and the ceiling freezes rather than retreats. The state re-evaluates after every replication round and clears itself once a round completes with a majority in sync.
+
 ## The conservation identity (P1)
 
 In a quiet window — no in-flight producers, no in-flight consumers:
@@ -43,6 +63,6 @@ Every metric on the right side is a **counter that only goes up**, and `Δdepth`
 
 `dlq_total <= dropped_total` is a second, tighter check: a message cannot land in the DLQ without having been counted as dropped.
 
-::: warning Without code yet
-No endpoint serves anything today. This table is the **contract**: 15 names, their types and labels are frozen, and the conservation identity above is what the property tests will assert.
+::: warning What exists today
+The exposition renderer and both escape layers live in the `metrics/` package (content type, sanitizer, escaper); the endpoint binding goes through the admin face. Until the full surface serves, this table and the conservation identity are the acceptance bar.
 :::

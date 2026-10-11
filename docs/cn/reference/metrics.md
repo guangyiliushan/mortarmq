@@ -6,7 +6,8 @@ SRE 如何观测 broker —— `/metrics`、`/healthz`、`/stats` 上的 15 项�
 
 ## 端点
 
-- `GET /metrics` —— Prometheus 文本格式，**15 项指标白名单**。
+- `GET /metrics` —— Prometheus 文本格式，**15 项指标白名单**，以 `METRICS_CONTENT_TYPE = text/plain; version=0.0.4; charset=utf-8` 提供。
+- 整个面由配置键 `metrics_enabled`（默认 `true`）开关；与所有键一样只在启动时读取。
 - `GET /healthz` —— 状态枚举，与 `quorum_state` 同源。
 - `GET /stats` —— 必须带 filter 参数（NSQ 式）。
 - 延迟分位数：NSQ 式双缓冲估计器，p50/p90/p99 可选启用（三操作接口）。
@@ -31,6 +32,25 @@ SRE 如何观测 broker —— `/metrics`、`/healthz`、`/stats` 上的 15 项�
 | `mortarmq_group_retries_total` | counter | `topic`, `group` | 重投递总数 | — | — |
 | `mortarmq_e2e_latency_ms` | gauge | `quantile=p50\|p90\|p99` | 端到端 PUB → ACK 延迟分位（窗口 60 s） | `p50 <= p90 <= p99` | NSQ `e2e_processing_latency` |
 
+## 转义（双保险）
+
+两层防线把脏名字挡在暴露语义之外：
+
+1. **写侧（契约）：** label 值清洗到标识符白名单 `[A-Za-z0-9_-]` —— 其余字符一律变 `_` —— topic / group 名因此无法把保留字符带进 label 语义。多对一映射是设计使然，白名单就是契约。
+2. **输出侧（纵深防御）：** label 值再转义 Prometheus 文本格式的保留字符（`\`、`"`、换行）。help 文本只转义 `\` 与换行 —— 引号在 help 里不保留。type 行只会出现小写字面量，无需转义。
+
+## `/healthz` 状态机
+
+三级一张表 —— `/healthz`、`mortarmq_quorum_state` gauge、CLI 的 `quorum_state` 列、写路径给生产者的答复，四处打印同一个数：
+
+| Gauge | 层级 | Runbook 级别 | 生产者看到 |
+|---:|---|---:|---|
+| 0 | healthy | 2 | `PUB_OK`，`durability=quorum` |
+| 1 | soft | 1 | `PUB_OK` + `0x6004 FOLLOWER_LAG` |
+| 2 | read-only | 0 | 拒绝，绝不 `PUB_OK` |
+
+只读是拒绝而不是降级：凑不齐多数的集群以 `0x6002 READ_ONLY_DEGRADED` 答复且不确认写入。读路径与消费者可见上界照常工作，上界冻结而不回退。状态在每轮复制后重新评估，一轮之内多数重新同步即自行清除。
+
 ## 守恒恒等式（P1）
 
 在静默窗口内 —— 没有在途生产者，也没有在途消费者：
@@ -43,6 +63,6 @@ produced = delivered + dropped + dlq + Δdepth
 
 `dlq_total <= dropped_total` 是更紧的第二道检查：一条消息不可能没被计入 dropped 就落进 DLQ。
 
-::: warning 目前还没有代码
-今天没有任何端点在服务。这张表是**契约**：15 个名字、它们的类型与 label 都已冻结，上面的守恒恒等式就是性质测试要断言的东西。
+::: warning 今天已有什么
+暴露渲染器与两层转义都在 `metrics/` 包里（内容型、清洗器、转义器）；端点绑定走 admin 面。整个面完全服务起来之前，这张表与守恒恒等式就是验收线。
 :::
