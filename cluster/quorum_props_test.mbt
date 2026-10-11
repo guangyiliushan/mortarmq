@@ -1,14 +1,11 @@
-/// The consistency properties CQ1 and CQ2, expressed for the sampling
-/// checker.
-///
-/// Both are properties of the quorum arithmetic rather than of any one
-/// round: CQ1 says the committed ceiling the consumers read never moves
-/// backwards and is the number the rule says it is, and CQ2 says a
-/// majority that promised a term and a majority that made it durable
-/// cannot be different sets of nodes. The second one is what makes a
-/// leader's term survive a crash -- if those two groups could be
-/// disjoint, a term could be installed somewhere it was never committed
-/// and committed somewhere it was never installed.
+/// Two properties of the quorum arithmetic rather than of any one
+/// round, expressed for the sampling checker: the committed ceiling the
+/// consumers read never moves backwards and is the number the rule says
+/// it is; and a majority that promised a term and a majority that made
+/// it durable cannot be different sets of nodes. The second is what
+/// makes a leader's term survive a crash -- if those two groups could
+/// be disjoint, a term could be installed somewhere it was never
+/// committed and committed somewhere it was never installed.
 ///
 /// What each property can and cannot fail on is written where it
 /// matters. On a three-member table a majority is two, so two majorities
@@ -128,11 +125,11 @@ fn quorum_ceiling(
 }
 
 ///|
-test "CQ1 the committed ceiling never moves backwards and is the number the rule says (pin seed=20261014; daily mode logs the run seed)" {
+test "the committed ceiling never moves backwards and is the number the rule says (pin seed=20261014; daily mode logs the run seed)" {
   let seed = quorum_seed()
   let count = quorum_count()
   if quorum_daily() {
-    println("CQ1-daily seed=\{seed} count=\{count}")
+    println("ceiling-daily seed=\{seed} count=\{count}")
   }
   // One configuration, but a fresh node per sample: state carried
   // across samples would let one sample's assertion ride on another's
@@ -381,11 +378,11 @@ test "the ceiling picks the quorum-th largest position and stops at the leader's
 }
 
 ///|
-test "CQ2 a promise quorum and a commit quorum cannot be disjoint (pin seed=20261014; daily mode logs the run seed)" {
+test "a promise quorum and a commit quorum cannot be disjoint (pin seed=20261014; daily mode logs the run seed)" {
   let seed = quorum_seed()
   let count = quorum_count()
   if quorum_daily() {
-    println("CQ2-daily seed=\{seed} count=\{count}")
+    println("quorum-daily seed=\{seed} count=\{count}")
   }
   let config = match fixture_config() {
     Err(_) => fail("the fixture table must be valid")
