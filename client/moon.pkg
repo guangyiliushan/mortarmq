@@ -9,4 +9,5 @@ import {
   "guangyiliushan/mortarmq/net",
   "guangyiliushan/mortarmq/protocol",
   "moonbitlang/async",
+  "moonbitlang/core/quickcheck",
 } for "test"
