@@ -1,6 +1,6 @@
-# Daily L2 property tier (REQ-QUA-002): the random-seed sweep the commit
-# budget cannot afford. CF4 is the daily-tier property in the M3 registry
-# (INV-010); the commit tier runs the seed-pinned CF1-CF3 inside the
+# Daily L2 property tier: the random-seed sweep the commit budget
+# cannot afford. The pollution property runs here daily while the
+# commit tier runs the seed-pinned frame properties inside the
 # regular suite (ci.yml `stable` gates 5-7).
 name: daily-props
 
@@ -57,7 +57,7 @@ jobs:
       # daily mode: run-unique seed (logged for reproduction), count=1000,
       # max_size=256. The registry budget is <=30min; the sweep runs in
       # seconds and the timeout is the guard, not the expectation.
-      - name: CF4 daily sweep (random seed, count=1000, max_size=256)
+      - name: daily pollution sweep (random seed, count=1000, max_size=256)
         env:
           MORTARMQ_PROP_DAILY: "1"
         run: moon test protocol/frame_props_daily_test.mbt

@@ -136,9 +136,9 @@ jobs:
           moon fmt
           git diff --exit-code
 
-      # L2 property commit tier (REQ-QUA-002): the seed-pinned CF1-CF3
-      # frame properties ride along in the suite below on every commit
-      # (budget <=60s). CF4 is daily-tiered in daily-props.yml; its pinned
+      # L2 property commit tier: the seed-pinned frame properties ride
+      # along in the suite below on every commit (budget <=60s). The
+      # pollution property is daily-tiered in daily-props.yml; its pinned
       # suite copy is a cheap regression snapshot.
       - name: gate 5 — moon test (native)
         run: moon test
