@@ -34,9 +34,12 @@
 /// * Every refusal is sent as `Reject` carrying the registered code the
 ///   caller also gets back, so the far end learns why the link closed
 ///   and the local caller still sees a named error.
-/// * The tag comparison is the XOR-accumulator form `security/auth.mbt`
-///   uses for digests (CWE-208 / Go `crypto/subtle`); there is no `==`
-///   anywhere on tag bytes.
+/// * The tag comparison is `@security.tag_eq`, the one exported
+///   constant-time compare (Q12, CWE-208 / Go `crypto/subtle`): XOR
+///   accumulator, single verdict extraction, length checked first.
+///   There is no `==` anywhere on tag bytes in this package, and no
+///   second copy of the comparison either -- the single-point
+///   discipline a token check and a peer tag check have to share.
 /// * The channel authenticates, it does not encrypt: v0 promises a
 ///   separate shared secret on a separate listen face, not
 ///   confidentiality for replication traffic. Secrecy of frame contents
@@ -100,25 +103,6 @@ fn fresh_nonce() -> Bytes? {
         None
       }
   }
-}
-
-///|
-/// Compare two 32-byte tags in constant time.
-///
-/// XOR-accumulates every byte pair into one accumulator before the
-/// single verdict extraction, the Go `crypto/subtle.ConstantTimeCompare`
-/// form also used by the private `digest_eq` in `security/auth.mbt`.
-/// Length is not secret and is checked first; the content loop never
-/// exits early, so no byte position leaks through timing.
-fn proof_eq(left : Bytes, right : Bytes) -> Bool {
-  if left.length() != PEER_TAG_BYTES || right.length() != PEER_TAG_BYTES {
-    return false
-  }
-  let mut diff = 0U
-  for index in 0..<PEER_TAG_BYTES {
-    diff = diff | (left[index].to_uint() ^ right[index].to_uint())
-  }
-  diff == 0U
 }
 
 ///|
@@ -245,7 +229,7 @@ pub async fn peer_handshake_responder(
     responder_id,
     nonce[:],
   )
-  if !proof_eq(presented, expected) {
+  if !@security.tag_eq(presented[:], expected[:]) {
     return refuse(conn, @protocol.AuthFailed)
   }
   match write_peer_msg(conn, Welcome(responder_id)) {
@@ -310,7 +294,7 @@ pub async fn peer_handshake_initiator(
     responder_id,
     nonce[:],
   )
-  if !proof_eq(presented, expected_tag) {
+  if !@security.tag_eq(presented[:], expected_tag[:]) {
     return refuse(conn, @protocol.AuthFailed)
   }
   let own_tag = peer_tag(
