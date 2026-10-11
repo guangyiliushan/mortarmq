@@ -17,11 +17,21 @@ pub const EXIT_UNREACHABLE : Int = 3
 
 pub const EXIT_USAGE : Int = 2
 
+pub fn broker_status_outcome(BrokerStatusRow) -> CliOutcome
+
 pub fn broker_status_row(BrokerStatusRow) -> String
+
+pub fn group_describe_outcome(Array[GroupDescribeRow]) -> CliOutcome
 
 pub fn group_describe_rows(Array[GroupDescribeRow]) -> String
 
+pub fn group_list_outcome(Array[GroupListRow]) -> CliOutcome
+
 pub fn group_list_rows(Array[GroupListRow]) -> String
+
+pub fn help_text(Command) -> String
+
+pub fn leader_outcome(LeaderRow) -> CliOutcome
 
 pub fn leader_row(LeaderRow) -> String
 
@@ -29,13 +39,23 @@ pub fn resolve_partitions(UInt16?, @config.Config) -> UInt16
 
 pub fn topic_create_exit_code(TopicCreateResult) -> Int
 
+pub fn topic_create_outcome(TopicCreateResult, UInt16) -> CliOutcome
+
 pub fn topic_create_row(TopicCreateResult, UInt16) -> String
 
 pub fn topic_delete_exit_code(TopicDeleteResult) -> Int
 
+pub fn topic_delete_outcome(TopicDeleteResult) -> CliOutcome
+
 pub fn topic_delete_row(TopicDeleteResult) -> String
 
+pub fn topic_list_outcome(Array[TopicListRow]) -> CliOutcome
+
 pub fn topic_list_rows(Array[TopicListRow]) -> String
+
+pub fn unreachable_outcome(String) -> CliOutcome
+
+pub fn usage_outcome(String) -> CliOutcome
 
 // Errors
 
@@ -49,6 +69,28 @@ pub(all) struct BrokerStatusRow {
 pub fn BrokerStatusRow::equal(Self, Self) -> Bool
 pub fn BrokerStatusRow::not_equal(Self, Self) -> Bool
 pub fn BrokerStatusRow::to_repr(Self) -> @debug.Repr
+
+pub(all) struct CliOutcome {
+  exit_code : Int
+  stdout : String
+  stderr : String
+} derive(Eq, @debug.Debug)
+pub fn CliOutcome::equal(Self, Self) -> Bool
+pub fn CliOutcome::not_equal(Self, Self) -> Bool
+pub fn CliOutcome::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Command {
+  TopicsCreate
+  TopicsDelete
+  TopicsList
+  GroupsList
+  GroupsDescribe
+  LeaderGet
+  BrokerStatus
+} derive(Eq, @debug.Debug)
+pub fn Command::equal(Self, Self) -> Bool
+pub fn Command::not_equal(Self, Self) -> Bool
+pub fn Command::to_repr(Self) -> @debug.Repr
 
 pub(all) struct GroupDescribeRow {
   member_id : UInt64
