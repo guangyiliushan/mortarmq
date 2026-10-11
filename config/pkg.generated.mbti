@@ -1,0 +1,81 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/config"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn config_key_names() -> Array[String]
+
+pub fn is_config_key(String) -> Bool
+
+pub fn load_config(String) -> Result[Config, ConfigFault]
+
+// Errors
+pub(all) suberror ConfigFault {
+  Malformed
+  UnknownKey(String)
+  BadValue(String)
+  MissingKey(String)
+} derive(Eq, @debug.Debug)
+pub fn ConfigFault::equal(Self, Self) -> Bool
+pub fn ConfigFault::message(Self) -> String
+pub fn ConfigFault::not_equal(Self, Self) -> Bool
+pub fn ConfigFault::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct Config {
+  node_id : UInt16
+  peers : Array[ConfigPeer]
+  leader_priority : Array[UInt16]
+  listen_client : String
+  listen_peer : String
+  data_dir : String
+  segment_max_bytes : UInt64
+  partition_default_count : UInt16
+  delivery_max_attempts : UInt
+  delivery_lease_ms : UInt
+  poll_max_wait_ms : UInt
+  credit_initial_count : UInt
+  metadata_snapshot_records : UInt
+  metrics_enabled : Bool
+  log_level : LogLevel
+  listen_ws : String?
+  listen_admin : String
+  ws_origins : Array[String]
+  peer_secret : ConfigSecret
+} derive(Eq)
+pub fn Config::equal(Self, Self) -> Bool
+pub fn Config::not_equal(Self, Self) -> Bool
+
+pub(all) struct ConfigPeer {
+  node_id : UInt16
+  addr : String
+} derive(Eq, @debug.Debug)
+pub fn ConfigPeer::equal(Self, Self) -> Bool
+pub fn ConfigPeer::not_equal(Self, Self) -> Bool
+pub fn ConfigPeer::to_repr(Self) -> @debug.Repr
+
+pub struct ConfigSecret {
+  // private fields
+} derive(Eq)
+pub fn ConfigSecret::equal(Self, Self) -> Bool
+pub fn ConfigSecret::is_empty(Self) -> Bool
+pub fn ConfigSecret::not_equal(Self, Self) -> Bool
+pub fn ConfigSecret::reveal(Self) -> String
+pub fn ConfigSecret::wrap(String) -> Self
+
+pub(all) enum LogLevel {
+  Debug
+  Info
+  Warn
+  Error
+} derive(Eq, @debug.Debug)
+pub fn LogLevel::equal(Self, Self) -> Bool
+pub fn LogLevel::not_equal(Self, Self) -> Bool
+pub fn LogLevel::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits
