@@ -114,22 +114,68 @@ pub async fn LeaderEpoch::elect(
   self : LeaderEpoch,
   proposed : UInt64,
 ) -> Result[UInt64, @protocol.ErrCode] {
-  if proposed <= self.core.val.current {
+  self.record_term(proposed, true)
+}
+
+///|
+/// Take up a term this replica has already been promised.
+///
+/// Unlike `elect`, a term equal to the one already held is accepted
+/// rather than refused: an install arrives after the prepare that
+/// promised it, so equality is the expected case and not a replay. The
+/// record is written only when the term actually moves, because the
+/// promise that made it durable already landed at prepare time.
+///
+/// Returns the term now in force.
+///
+/// # Errors
+///
+/// * `StaleLeaderEpoch` (0x6005) for a term older than the one already
+///   held -- a stale candidate cannot install itself backwards into a
+///   replica that has moved on.
+/// * Whatever the metadata log reports when the term does have to be
+///   written and the write fails. Nothing is adopted in that case.
+pub async fn LeaderEpoch::install(
+  self : LeaderEpoch,
+  proposed : UInt64,
+) -> Result[UInt64, @protocol.ErrCode] {
+  self.record_term(proposed, false)
+}
+
+///|
+/// Shared body of `elect` and `install`: the comparison, the durable
+/// write, and only then the adoption.
+///
+/// `must_be_newer` is the one difference -- a first election or a
+/// prepare has to name a term nobody has held, while an install is
+/// confirming one that was promised moments ago.
+async fn LeaderEpoch::record_term(
+  self : LeaderEpoch,
+  proposed : UInt64,
+  must_be_newer : Bool,
+) -> Result[UInt64, @protocol.ErrCode] {
+  let current = self.core.val.current
+  if must_be_newer && proposed <= current {
     return Err(@protocol.StaleLeaderEpoch)
   }
-  let record = match leader_elect_record(proposed) {
-    Err(code) => return Err(code)
-    Ok(bytes) => bytes
+  if !must_be_newer && proposed < current {
+    return Err(@protocol.StaleLeaderEpoch)
   }
-  // Written first, adopted second. Reversing these two lines would let
-  // a failed write leave this replica acting on an epoch the log never
-  // held.
-  match self.log.append(record) {
-    Err(code) => return Err(code)
-    Ok(_) => ()
+  if proposed > current {
+    let record = match leader_elect_record(proposed) {
+      Err(code) => return Err(code)
+      Ok(bytes) => bytes
+    }
+    // Written first, adopted second. Reversing these two lines would
+    // let a failed write leave this replica acting on a term the log
+    // never held.
+    match self.log.append(record) {
+      Err(code) => return Err(code)
+      Ok(_) => ()
+    }
+    self.core.val.current = proposed
   }
-  self.core.val.current = proposed
-  Ok(proposed)
+  Ok(self.core.val.current)
 }
 
 ///|

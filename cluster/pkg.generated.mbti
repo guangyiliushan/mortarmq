@@ -8,6 +8,10 @@ import {
 }
 
 // Values
+pub const FOLLOWER_LEASE_MS : UInt64 = 2000
+
+pub const LEADER_HEARTBEAT_MS : UInt64 = 500
+
 pub const PEER_DOMAIN : Bytes = b"mortarmq-peer-v1"
 
 pub const PEER_LEN_BYTES : Int = 4
@@ -17,6 +21,8 @@ pub const PEER_NONCE_BYTES : Int = 16
 pub const PEER_SECRET_MIN_BYTES : Int = 16
 
 pub const PEER_TAG_BYTES : Int = 32
+
+pub const PREPARE_TIMEOUT_MS : UInt64 = 1000
 
 pub const QUORUM_ACK_TIMEOUT_MS : Int = 50
 
@@ -75,6 +81,7 @@ pub fn AppendBatch::to_repr(Self) -> @debug.Repr
 pub struct ClusterConfig {
   // private fields
 }
+pub fn ClusterConfig::candidate_after(Self, UInt16) -> UInt16?
 pub fn ClusterConfig::has_peer(Self, UInt16) -> Bool
 pub fn ClusterConfig::leader_priority(Self) -> Array[UInt16]
 pub fn ClusterConfig::listen_host(Self) -> String
@@ -90,22 +97,37 @@ pub fn ClusterConfig::secret(Self) -> PeerSecret
 pub struct ClusterNode {
   // private fields
 }
+pub fn ClusterNode::begin_election(Self) -> Unit
 pub fn ClusterNode::commit_horizon(Self, UInt64) -> UInt64
+pub fn ClusterNode::commit_seq(Self) -> UInt64
 pub fn ClusterNode::config(Self) -> ClusterConfig
 pub async fn ClusterNode::dial_peer(Self, &@net.Conn, PeerEntry) -> Result[PeerLink, @protocol.ErrCode]
 pub fn ClusterNode::follower_positions(Self) -> Array[FollowerProgress]
 pub fn ClusterNode::follower_progress(Self, UInt16) -> FollowerProgress?
+pub fn ClusterNode::has_install_quorum(Self) -> Bool
+pub fn ClusterNode::has_prepare_quorum(Self) -> Bool
+pub fn ClusterNode::installed_count(Self) -> Int
+pub fn ClusterNode::installed_members(Self) -> Array[UInt16]
 pub fn ClusterNode::link_count(Self) -> Int
 pub fn ClusterNode::links(Self) -> Array[PeerLink]
 pub fn ClusterNode::may_publish(Self, UInt64, UInt64) -> Bool
 pub fn ClusterNode::new(ClusterConfig) -> Self
 pub fn ClusterNode::node_id(Self) -> UInt16
+pub fn ClusterNode::note_committed(Self, UInt64) -> Unit
 pub fn ClusterNode::peers_connected(Self) -> Bool
+pub fn ClusterNode::prepared_count(Self) -> Int
+pub fn ClusterNode::promised_members(Self) -> Array[UInt16]
 pub fn ClusterNode::quorum_state(Self) -> QuorumState
 pub fn ClusterNode::record_append_ack(Self, AppendAck) -> Result[Unit, @protocol.ErrCode]
+pub fn ClusterNode::record_install_ack(Self, InstallAckMsg, UInt64) -> Result[Unit, @protocol.ErrCode]
+pub fn ClusterNode::record_prepare_ack(Self, PrepareAckMsg, UInt64) -> Result[Unit, @protocol.ErrCode]
 pub async fn ClusterNode::send_append(Self, &@net.Conn, &ReplicaLog, UInt64, Array[Bytes], Bool, Int) -> Result[AppendAck, @protocol.ErrCode]
+pub async fn ClusterNode::send_install(Self, &@net.Conn, UInt64, UInt64) -> Result[InstallAckMsg, @protocol.ErrCode]
+pub async fn ClusterNode::send_prepare(Self, &@net.Conn, &ReplicaLog, LeaderEpoch, UInt64) -> Result[PrepareAckMsg, @protocol.ErrCode]
 pub async fn ClusterNode::serve_append(Self, &@net.Conn, &ReplicaLog, LeaderEpoch) -> Result[AppendAck, @protocol.ErrCode]
+pub async fn ClusterNode::serve_install(Self, &@net.Conn, LeaderEpoch, &ReplicaLog) -> Result[InstallAckMsg, @protocol.ErrCode]
 pub async fn ClusterNode::serve_peer(Self, &@net.Conn) -> Result[PeerLink, @protocol.ErrCode]
+pub async fn ClusterNode::serve_prepare(Self, &@net.Conn, LeaderEpoch, &ReplicaLog) -> Result[PrepareAckMsg, @protocol.ErrCode]
 
 pub(all) struct FollowerProgress {
   peer_id : UInt16
@@ -116,12 +138,40 @@ pub fn FollowerProgress::equal(Self, Self) -> Bool
 pub fn FollowerProgress::not_equal(Self, Self) -> Bool
 pub fn FollowerProgress::to_repr(Self) -> @debug.Repr
 
+pub(all) struct InstallAckMsg {
+  responder_id : UInt16
+  epoch : UInt64
+  flushed_seq : UInt64
+} derive(Eq, @debug.Debug)
+pub fn InstallAckMsg::equal(Self, Self) -> Bool
+pub fn InstallAckMsg::not_equal(Self, Self) -> Bool
+pub fn InstallAckMsg::to_repr(Self) -> @debug.Repr
+
+pub(all) struct InstallMsg {
+  leader_id : UInt16
+  epoch : UInt64
+  commit_seq : UInt64
+} derive(Eq, @debug.Debug)
+pub fn InstallMsg::equal(Self, Self) -> Bool
+pub fn InstallMsg::not_equal(Self, Self) -> Bool
+pub fn InstallMsg::to_repr(Self) -> @debug.Repr
+
 pub struct LeaderEpoch {
   // private fields
 }
 pub fn LeaderEpoch::current(Self) -> UInt64
 pub async fn LeaderEpoch::elect(Self, UInt64) -> Result[UInt64, @protocol.ErrCode]
+pub async fn LeaderEpoch::install(Self, UInt64) -> Result[UInt64, @protocol.ErrCode]
 pub fn LeaderEpoch::new(&MetadataLog) -> Self
+
+pub struct Lease {
+  mut deadline_ms : UInt64
+  lease_ms : UInt64
+}
+pub fn Lease::expired(Self, UInt64) -> Bool
+pub fn Lease::new(UInt64, UInt64) -> Self
+pub fn Lease::refresh(Self, UInt64) -> Unit
+pub fn Lease::remaining_ms(Self, UInt64) -> UInt64
 
 pub(all) struct PeerEntry {
   node_id : UInt16
@@ -148,6 +198,10 @@ pub(all) enum PeerMsg {
   Reject(UInt16)
   Append(AppendBatch)
   Ack(AppendAck)
+  Prepare(PrepareMsg)
+  PrepareAck(PrepareAckMsg)
+  Install(InstallMsg)
+  InstallAck(InstallAckMsg)
 } derive(Eq, @debug.Debug)
 pub fn PeerMsg::equal(Self, Self) -> Bool
 pub fn PeerMsg::not_equal(Self, Self) -> Bool
@@ -158,6 +212,28 @@ pub struct PeerSecret {
 }
 pub fn PeerSecret::new(Bytes) -> Result[Self, ClusterFault]
 pub fn PeerSecret::tag(Self, BytesView) -> Bytes
+
+pub(all) struct PrepareAckMsg {
+  responder_id : UInt16
+  promised_epoch : UInt64
+  last_seq : UInt64
+  last_flushed_seq : UInt64
+  commit_seq : UInt64
+} derive(Eq, @debug.Debug)
+pub fn PrepareAckMsg::equal(Self, Self) -> Bool
+pub fn PrepareAckMsg::not_equal(Self, Self) -> Bool
+pub fn PrepareAckMsg::to_repr(Self) -> @debug.Repr
+
+pub(all) struct PrepareMsg {
+  candidate_id : UInt16
+  candidate_epoch : UInt64
+  last_seq : UInt64
+  last_leader_epoch : UInt64
+  commit_seq : UInt64
+} derive(Eq, @debug.Debug)
+pub fn PrepareMsg::equal(Self, Self) -> Bool
+pub fn PrepareMsg::not_equal(Self, Self) -> Bool
+pub fn PrepareMsg::to_repr(Self) -> @debug.Repr
 
 pub(all) enum QuorumState {
   Healthy

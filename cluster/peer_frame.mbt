@@ -67,6 +67,22 @@ const PEER_MSG_APPEND : Byte = 0x06
 const PEER_MSG_APPEND_ACK : Byte = 0x07
 
 ///|
+/// Candidate to members: would you promise me this term?
+const PEER_MSG_PREPARE : Byte = 0x08
+
+///|
+/// Member to candidate: promised, and here is where my log stands.
+const PEER_MSG_PREPARE_ACK : Byte = 0x09
+
+///|
+/// Candidate to members: this term is installed, take these positions.
+const PEER_MSG_INSTALL : Byte = 0x0A
+
+///|
+/// Member to candidate: installed and durable.
+const PEER_MSG_INSTALL_ACK : Byte = 0x0B
+
+///|
 /// One message on the peer channel.
 ///
 /// The handshake is `Hello`, `Challenge`, `Proof`, `Welcome` (or
@@ -93,6 +109,14 @@ pub(all) enum PeerMsg {
   /// Named `Ack` rather than `AppendAck` so the payload struct keeps its
   /// own unambiguous name at construction sites.
   Ack(AppendAck)
+  /// Candidate to members: ask for a promise on a term.
+  Prepare(PrepareMsg)
+  /// Member to candidate: promised, with the log it stands on.
+  PrepareAck(PrepareAckMsg)
+  /// Candidate to members: take this term and this committed position.
+  Install(InstallMsg)
+  /// Member to candidate: installed and durable.
+  InstallAck(InstallAckMsg)
 } derive(Eq, Debug)
 
 ///|
@@ -149,6 +173,88 @@ pub extend AppendAck with Eq::{not_equal, equal}
 
 ///|
 pub extend AppendAck with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+/// The first half of an election: a candidate asking members to promise
+/// a term before it claims one.
+///
+/// The candidate reports where its own log stands alongside the term it
+/// proposes, so a member can see what it would be joining. The member
+/// answers with its own positions, and the candidate picks the log to
+/// lead from among them -- never its own by default, because the point
+/// of asking is that somebody may be further along.
+pub(all) struct PrepareMsg {
+  candidate_id : UInt16
+  candidate_epoch : UInt64
+  last_seq : UInt64
+  last_leader_epoch : UInt64
+  commit_seq : UInt64
+} derive(Eq, Debug)
+
+///|
+pub extend PrepareMsg with Eq::{not_equal, equal}
+
+///|
+pub extend PrepareMsg with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+/// A member's answer to a prepare: the promise, and the log it made the
+/// promise on behalf of.
+///
+/// `promised_epoch` is written durably before this frame goes out, so a
+/// member that has answered has already given up its right to answer a
+/// lower term -- which is what stops two candidates from both winning
+/// with the same followers.
+pub(all) struct PrepareAckMsg {
+  responder_id : UInt16
+  promised_epoch : UInt64
+  last_seq : UInt64
+  last_flushed_seq : UInt64
+  commit_seq : UInt64
+} derive(Eq, Debug)
+
+///|
+pub extend PrepareAckMsg with Eq::{not_equal, equal}
+
+///|
+pub extend PrepareAckMsg with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+/// The second half of an election: a candidate telling members which
+/// term and which committed position it is taking.
+///
+/// A candidate that collected promises but never installed would be a
+/// leader only in its own memory; this is the frame that makes the term
+/// durable on a majority before any write under it is allowed.
+pub(all) struct InstallMsg {
+  leader_id : UInt16
+  epoch : UInt64
+  commit_seq : UInt64
+} derive(Eq, Debug)
+
+///|
+pub extend InstallMsg with Eq::{not_equal, equal}
+
+///|
+pub extend InstallMsg with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+/// A member confirming the install is durable.
+///
+/// `flushed_seq` is read back from the log after the write returned, so
+/// a member that says it installed has made the term durable rather
+/// than merely received it.
+pub(all) struct InstallAckMsg {
+  responder_id : UInt16
+  epoch : UInt64
+  flushed_seq : UInt64
+} derive(Eq, Debug)
+
+///|
+pub extend InstallAckMsg with Eq::{not_equal, equal}
+
+///|
+pub extend InstallAckMsg with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 /// Append a big-endian `u16`, the byte order every integer on both
@@ -295,6 +401,34 @@ pub fn encode_peer_msg(msg : PeerMsg) -> Bytes {
       put_u64(body, ack.flushed_seq)
       put_u64(body, ack.dirty_seq)
     }
+    Prepare(msg) => {
+      body.write_byte(PEER_MSG_PREPARE)
+      put_u16(body, msg.candidate_id)
+      put_u64(body, msg.candidate_epoch)
+      put_u64(body, msg.last_seq)
+      put_u64(body, msg.last_leader_epoch)
+      put_u64(body, msg.commit_seq)
+    }
+    PrepareAck(msg) => {
+      body.write_byte(PEER_MSG_PREPARE_ACK)
+      put_u16(body, msg.responder_id)
+      put_u64(body, msg.promised_epoch)
+      put_u64(body, msg.last_seq)
+      put_u64(body, msg.last_flushed_seq)
+      put_u64(body, msg.commit_seq)
+    }
+    Install(msg) => {
+      body.write_byte(PEER_MSG_INSTALL)
+      put_u16(body, msg.leader_id)
+      put_u64(body, msg.epoch)
+      put_u64(body, msg.commit_seq)
+    }
+    InstallAck(msg) => {
+      body.write_byte(PEER_MSG_INSTALL_ACK)
+      put_u16(body, msg.responder_id)
+      put_u64(body, msg.epoch)
+      put_u64(body, msg.flushed_seq)
+    }
   }
   let inner = body.contents()
   let frame = Buffer()
@@ -421,6 +555,18 @@ fn decode_peer_body(frame : BytesView, body_len : UInt) -> PeerMsg? {
   }
   if kind == PEER_MSG_APPEND_ACK {
     return decode_append_ack(frame, base, payload_len)
+  }
+  if kind == PEER_MSG_PREPARE {
+    return decode_prepare(frame, base, payload_len)
+  }
+  if kind == PEER_MSG_PREPARE_ACK {
+    return decode_prepare_ack(frame, base, payload_len)
+  }
+  if kind == PEER_MSG_INSTALL {
+    return decode_install(frame, base, payload_len)
+  }
+  if kind == PEER_MSG_INSTALL_ACK {
+    return decode_install_ack(frame, base, payload_len)
   }
   None
 }
@@ -581,4 +727,144 @@ pub async fn read_peer_msg(
     None => Err(@protocol.MalformedPayload)
     Some(msg) => Ok(msg)
   }
+}
+
+///|
+/// Fixed payload sizes of the election frames: an id plus four epochs
+/// or positions, an id plus three, and so on. None of them has a
+/// variable part, which is why each decoder is a length check and a
+/// handful of reads.
+const PREPARE_PAYLOAD_BYTES : Int = 2 + 32
+
+///|
+const PREPARE_ACK_PAYLOAD_BYTES : Int = 2 + 32
+
+///|
+const INSTALL_PAYLOAD_BYTES : Int = 2 + 16
+
+///|
+const INSTALL_ACK_PAYLOAD_BYTES : Int = 2 + 16
+
+///|
+/// Decode one `PREPARE` payload.
+fn decode_prepare(frame : BytesView, base : Int, payload_len : Int) -> PeerMsg? {
+  if payload_len != PREPARE_PAYLOAD_BYTES {
+    return None
+  }
+  let candidate_id = match get_u16(frame, base) {
+    None => return None
+    Some(value) => value
+  }
+  let candidate_epoch = match get_u64(frame, base + 2) {
+    None => return None
+    Some(value) => value
+  }
+  let last_seq = match get_u64(frame, base + 10) {
+    None => return None
+    Some(value) => value
+  }
+  let last_leader_epoch = match get_u64(frame, base + 18) {
+    None => return None
+    Some(value) => value
+  }
+  let commit_seq = match get_u64(frame, base + 26) {
+    None => return None
+    Some(value) => value
+  }
+  Some(
+    Prepare({
+      candidate_id,
+      candidate_epoch,
+      last_seq,
+      last_leader_epoch,
+      commit_seq,
+    }),
+  )
+}
+
+///|
+/// Decode one `PREPARE_ACK` payload.
+fn decode_prepare_ack(
+  frame : BytesView,
+  base : Int,
+  payload_len : Int,
+) -> PeerMsg? {
+  if payload_len != PREPARE_ACK_PAYLOAD_BYTES {
+    return None
+  }
+  let responder_id = match get_u16(frame, base) {
+    None => return None
+    Some(value) => value
+  }
+  let promised_epoch = match get_u64(frame, base + 2) {
+    None => return None
+    Some(value) => value
+  }
+  let last_seq = match get_u64(frame, base + 10) {
+    None => return None
+    Some(value) => value
+  }
+  let last_flushed_seq = match get_u64(frame, base + 18) {
+    None => return None
+    Some(value) => value
+  }
+  let commit_seq = match get_u64(frame, base + 26) {
+    None => return None
+    Some(value) => value
+  }
+  Some(
+    PrepareAck({
+      responder_id,
+      promised_epoch,
+      last_seq,
+      last_flushed_seq,
+      commit_seq,
+    }),
+  )
+}
+
+///|
+/// Decode one `INSTALL` payload.
+fn decode_install(frame : BytesView, base : Int, payload_len : Int) -> PeerMsg? {
+  if payload_len != INSTALL_PAYLOAD_BYTES {
+    return None
+  }
+  let leader_id = match get_u16(frame, base) {
+    None => return None
+    Some(value) => value
+  }
+  let epoch = match get_u64(frame, base + 2) {
+    None => return None
+    Some(value) => value
+  }
+  let commit_seq = match get_u64(frame, base + 10) {
+    None => return None
+    Some(value) => value
+  }
+  Some(Install({ leader_id, epoch, commit_seq, }))
+}
+
+///|
+/// Decode one `INSTALL_ACK` payload.
+fn decode_install_ack(
+  frame : BytesView,
+  base : Int,
+  payload_len : Int,
+) -> PeerMsg? {
+  if payload_len != INSTALL_ACK_PAYLOAD_BYTES {
+    return None
+  }
+  let responder_id = match get_u16(frame, base) {
+    None => return None
+    Some(value) => value
+  }
+  let epoch = match get_u64(frame, base + 2) {
+    None => return None
+    Some(value) => value
+  }
+  let flushed_seq = match get_u64(frame, base + 10) {
+    None => return None
+    Some(value) => value
+  }
+  Some(InstallAck({ responder_id, epoch, flushed_seq, }))
 }

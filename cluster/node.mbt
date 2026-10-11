@@ -64,6 +64,15 @@ priv struct NodeCore {
   links : Array[PeerLink]
   followers : Array[FollowerProgress]
   mut quorum : QuorumState
+  // Members that have promised, and members that have installed, the
+  // term this node is standing for. Cleared at the start of each round
+  // so a promise from an abandoned attempt cannot be counted in a later
+  // one.
+  mut promised : Array[UInt16]
+  mut installed : Array[UInt16]
+  // The committed prefix this replica has been told about. It arrives
+  // with an install, so it only ever moves forward.
+  mut commit_seq : UInt64
 }
 
 ///|
@@ -110,7 +119,17 @@ pub struct ClusterNode {
 /// }
 /// ```
 pub fn ClusterNode::new(config : ClusterConfig) -> ClusterNode {
-  { config, core: Ref::Ref({ links: [], followers: [], quorum: Healthy, }), }
+  {
+    config,
+    core: Ref::Ref({
+      links: [],
+      followers: [],
+      quorum: Healthy,
+      promised: [],
+      installed: [],
+      commit_seq: 0UL,
+    }),
+  }
 }
 
 ///|
@@ -368,4 +387,145 @@ fn ClusterNode::reclassify(
     in_sync < config.peer_count(),
     false,
   )
+}
+
+///|
+/// The committed prefix this replica has been told about, or zero if it
+/// has never been installed with one.
+///
+/// Reported in a prepare so a candidate comparing logs sees what each
+/// member considers settled rather than only how far each has written:
+/// a longer write is not the better log if the extra of it was never
+/// committed.
+pub fn ClusterNode::commit_seq(self : ClusterNode) -> UInt64 {
+  self.core.val.commit_seq
+}
+
+///|
+/// Adopt a committed prefix reported by an install, when it is newer
+/// than the one already held.
+///
+/// Monotone: an install from an older term cannot walk the committed
+/// prefix back, and a replayed install changes nothing.
+pub fn ClusterNode::note_committed(
+  self : ClusterNode,
+  commit_seq : UInt64,
+) -> Unit {
+  if commit_seq > self.core.val.commit_seq {
+    self.core.val.commit_seq = commit_seq
+  }
+}
+
+///|
+/// Open an election round, forgetting every promise and install the
+/// last one collected.
+///
+/// The candidate's own term is durable before this is called, so its
+/// own promise counts from the first moment rather than being added by
+/// hand later. A promise carried across rounds is how a candidate wins
+/// with numbers nobody is responsible for, so it is dropped here.
+pub fn ClusterNode::begin_election(self : ClusterNode) -> Unit {
+  self.core.val.promised = []
+  self.core.val.installed = []
+}
+
+///|
+/// Record that `responder_id` has promised the term this round stands
+/// for.
+///
+/// An answer from an unknown peer, from this node itself, from a
+/// different term, or one whose own positions contradict each other is
+/// refused rather than counted: a quorum built from answers nobody is
+/// responsible for is not a quorum.
+///
+/// # Errors
+///
+/// * `MalformedPayload` (0x0003) for a peer outside the static table,
+///   or one reporting a flushed position above its own written one.
+/// * `StaleLeaderEpoch` (0x6005) for a promise on a term this round did
+///   not propose -- somebody else is already further along.
+pub fn ClusterNode::record_prepare_ack(
+  self : ClusterNode,
+  ack : PrepareAckMsg,
+  candidate_epoch : UInt64,
+) -> Result[Unit, @protocol.ErrCode] {
+  let config = self.config
+  if ack.responder_id == config.node_id() || !config.has_peer(ack.responder_id) {
+    return Err(@protocol.MalformedPayload)
+  }
+  if ack.promised_epoch != candidate_epoch {
+    return Err(@protocol.StaleLeaderEpoch)
+  }
+  if ack.last_flushed_seq > ack.last_seq {
+    return Err(@protocol.MalformedPayload)
+  }
+  self.core.val.promised.push(ack.responder_id)
+  Ok(())
+}
+
+///|
+/// Record that `responder_id` has made the term durable.
+///
+/// # Errors
+///
+/// * `MalformedPayload` (0x0003) for a peer outside the static table.
+/// * `StaleLeaderEpoch` (0x6005) for an install of a different term --
+///   an answer from a round this node is no longer running.
+pub fn ClusterNode::record_install_ack(
+  self : ClusterNode,
+  ack : InstallAckMsg,
+  epoch : UInt64,
+) -> Result[Unit, @protocol.ErrCode] {
+  let config = self.config
+  if ack.responder_id == config.node_id() || !config.has_peer(ack.responder_id) {
+    return Err(@protocol.MalformedPayload)
+  }
+  if ack.epoch != epoch {
+    return Err(@protocol.StaleLeaderEpoch)
+  }
+  self.core.val.installed.push(ack.responder_id)
+  Ok(())
+}
+
+///|
+/// How many promises this round holds, counting the candidate's own.
+///
+/// The candidate promised its own term durably before asking anyone, so
+/// a round with no answers yet already holds one -- and a quorum of
+/// three is that one plus two members, not two members on their own.
+pub fn ClusterNode::prepared_count(self : ClusterNode) -> Int {
+  self.core.val.promised.length() + 1
+}
+
+///|
+/// How many installs this round holds, counting the candidate's own.
+///
+/// The candidate's own term is the same durable record its promise
+/// wrote, so it is already taken up on the node that proposed it.
+pub fn ClusterNode::installed_count(self : ClusterNode) -> Int {
+  self.core.val.installed.length() + 1
+}
+
+///|
+/// Whether a majority has promised the term.
+pub fn ClusterNode::has_prepare_quorum(self : ClusterNode) -> Bool {
+  self.prepared_count() >= self.config.quorum()
+}
+
+///|
+/// Whether a majority has made the term durable.
+pub fn ClusterNode::has_install_quorum(self : ClusterNode) -> Bool {
+  self.installed_count() >= self.config.quorum()
+}
+
+///|
+/// The members that promised this round, in the order they answered.
+pub fn ClusterNode::promised_members(self : ClusterNode) -> Array[UInt16] {
+  self.core.val.promised.copy()
+}
+
+///|
+/// The members that installed this round, in the order they answered.
+pub fn ClusterNode::installed_members(self : ClusterNode) -> Array[UInt16] {
+  self.core.val.installed.copy()
 }
