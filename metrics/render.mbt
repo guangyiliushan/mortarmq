@@ -92,7 +92,7 @@ pub fn render_metrics(
   }
   let mut out = ""
   for spec in whitelist {
-    out = out + "# HELP " + spec.name + " " + spec.help + "\n"
+    out = out + "# HELP " + spec.name + " " + escape_help_text(spec.help) + "\n"
     out = out + "# TYPE " + spec.name + " " + kind_text(spec.kind) + "\n"
     for sample in samples {
       if sample.name == spec.name {
@@ -153,7 +153,8 @@ fn labels_match(keys : Array[String], labels : Array[(String, String)]) -> Bool 
 
 ///|
 /// The brace-enclosed label list, or the empty string when the metric
-/// carries no labels.
+/// carries no labels. Values run through the write-side allowlist and
+/// the output-side escape before they reach the text.
 fn labels_text(labels : Array[(String, String)]) -> String {
   if labels.length() == 0 {
     return ""
@@ -164,7 +165,11 @@ fn labels_text(labels : Array[(String, String)]) -> String {
     if i > 0 {
       out = out + ","
     }
-    out = out + key + "=\"" + value + "\""
+    out = out +
+      key +
+      "=\"" +
+      escape_label_value(sanitize_label_value(value)) +
+      "\""
   }
   out + "}"
 }

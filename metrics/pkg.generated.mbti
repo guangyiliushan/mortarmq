@@ -8,9 +8,15 @@ import {
 // Values
 pub const METRICS_CONTENT_TYPE : String = "text/plain; version=0.0.4; charset=utf-8"
 
+pub fn escape_help_text(String) -> String
+
+pub fn escape_label_value(String) -> String
+
 pub fn metric_whitelist() -> Array[MetricSpec]
 
 pub fn render_metrics(Array[MetricSample]) -> Result[String, MetricError]
+
+pub fn sanitize_label_value(String) -> String
 
 // Errors
 
