@@ -31,6 +31,7 @@ All green before merge. `ci.yml` is the authority for command text, versions and
 | gate 3 · `moon info` ×4 targets + diff | `stable` | public interface drift (`.mbti`) |
 | gate 4 · `moon fmt` + diff | `stable` | formatting drift |
 | gates 5–7 · `moon test` native / release / js | `stable` | behaviour regressions |
+| gate 8 · `moon tree` cycle check | `stable` | a dependency cycle in the module graph (the section 5 layer rule) |
 | `bash .github/scripts/assert-moonc.sh` | `stable` | toolchain below the `moonc >= 0.10.14` floor (§1.1) |
 | `moon test` wasm-gc pure-core smoke test | `wasm-gc` | wasm-gc-only breakage |
 | coverage data + report | `coverage` → `coverage report` | coverage summary on the run page |
@@ -330,7 +331,7 @@ Before adding anything, check whether `moonbitlang/core` or the MoonBit standard
 
 - **Flaky evidence:** any "failed, passed on retry" is recorded as flaky evidence — archived log plus issue — and is never counted as a pass.
 - **Lean artifacts:** release artifacts stay in the tens of MB at most; a 267 MB upload timing out is timing luck, not a fix.
-- **Module dependencies are architecture:** `protocol` ← `storage` / `broker` / `cluster` / `client`, one direction only; cross-cutting abstractions go through traits. The `moon info` diff gate is the import-assertion enforcer.
+- **Module dependencies are architecture:** `protocol` ← `storage` / `broker` / `cluster` / `client`, one direction only; cross-cutting abstractions go through traits. The `moon tree` gate is the dependency-graph checker -- it prints the graph and marks a cycle, and gate 8 red-lines one; the `moon info` diff gate watches public-interface drift, not imports.
 - **Invariant registry:** when the same invariant is expressed in three places, `m3-property/sources/invariants-registry.md` is the single source of truth, and a registry change ships in the same commit as all three implementations.
 - **Action pinning:** every `uses:` is a **full commit SHA** with the version as a trailing comment, so the pin is immutable and the version stays readable — `uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`. In-repo composition uses GitHub's self-repository form (`uses: $/.github/actions/...`); actionlint carries the narrow false-positive filter required by the current parser, while external actions stay SHA-pinned. `.github/dependabot.yml` keeps pins moving with a 7-day cooldown; verify a pin against the repository's release/tag API before adopting it, because community memory about action versions lags reality.
 - **Carryover:** anything left red on the evening checklist becomes the first task of the next day (issue template: [.github/ISSUE_TEMPLATE/daily-checklist.md](./.github/ISSUE_TEMPLATE/daily-checklist.md)). Two consecutive red days trigger a scope-cut decision.

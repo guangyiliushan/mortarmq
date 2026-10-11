@@ -149,6 +149,16 @@ jobs:
       - name: gate 7 — moon test (js)
         run: moon test --target js
 
+      - name: gate 8 — moon tree (dependency graph acyclic)
+        shell: bash
+        run: |
+          out="$(moon tree)"
+          echo "$out"
+          if grep -F '(cycle)' <<<"$out"; then
+            echo 'dependency cycle: the module graph must stay acyclic (CONTRIBUTING section 5)'
+            exit 1
+          fi
+
   nightly:
     name: nightly drift warning / ${{ matrix.os }}
     # Toolchain drift early warning: a separate job allowed to fail so it never
