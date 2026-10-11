@@ -1,11 +1,44 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "guangyiliushan/mortarmq/client"
 
+import {
+  "moonbitlang/core/debug",
+}
+
 // Values
 
 // Errors
 
 // Types and methods
+pub(all) enum ClientEvent {
+  ConnectRequested
+  TransportUp
+  TransportLost
+  ConnectOk
+  AuthFailed
+  FatalError
+  ActivityStarted
+  QueueQuiet
+  BackoffExpired
+  Close
+} derive(Eq, @debug.Debug)
+pub fn ClientEvent::equal(Self, Self) -> Bool
+pub fn ClientEvent::not_equal(Self, Self) -> Bool
+pub fn ClientEvent::to_repr(Self) -> @debug.Repr
+
+pub(all) enum ClientState {
+  Disconnected
+  Connecting
+  Authenticating
+  Ready
+  Streaming
+  Backoff
+  Fatal
+} derive(Eq, @debug.Debug)
+pub fn ClientState::equal(Self, Self) -> Bool
+pub fn ClientState::not_equal(Self, Self) -> Bool
+pub fn ClientState::on(Self, ClientEvent) -> Self
+pub fn ClientState::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
