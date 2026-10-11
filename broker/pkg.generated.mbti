@@ -26,6 +26,12 @@ pub const NOTICE_KIND_ASSIGN : Byte = 0x00
 
 pub const NOTICE_KIND_REVOKE : Byte = 0x01
 
+pub const NOTICE_RESULT_ERROR : Byte = 0x02
+
+pub const NOTICE_RESULT_OK : Byte = 0x00
+
+pub const NOTICE_RESULT_STALE : Byte = 0x01
+
 pub fn admit_sub(GroupCoordinator, UInt64, UInt16, Bool, UInt16) -> Result[SubOutcome, @protocol.ErrCode]
 
 pub fn clamp_batch(Array[@protocol.MsgPayload], UInt16, UInt) -> Array[@protocol.MsgPayload]
@@ -159,6 +165,7 @@ pub fn DeclareOutcome::to_repr(Self) -> @debug.Repr
 pub struct GroupCoordinator {
   // private fields
 }
+pub fn GroupCoordinator::ack_notice(Self, UInt64, @protocol.ControlAckPayload) -> Result[NoticeAckResult, @protocol.ErrCode]
 pub fn GroupCoordinator::assignment_epoch(Self) -> UInt
 pub fn GroupCoordinator::bump_wholesale(Self, UInt64, UInt16) -> Unit
 pub fn GroupCoordinator::encode_state(Self) -> Bytes
@@ -208,6 +215,14 @@ pub(all) struct LeaveResult {
 pub fn LeaveResult::equal(Self, Self) -> Bool
 pub fn LeaveResult::not_equal(Self, Self) -> Bool
 pub fn LeaveResult::to_repr(Self) -> @debug.Repr
+
+pub(all) enum NoticeAckResult {
+  Applied
+  Duplicate
+} derive(Eq, @debug.Debug)
+pub fn NoticeAckResult::equal(Self, Self) -> Bool
+pub fn NoticeAckResult::not_equal(Self, Self) -> Bool
+pub fn NoticeAckResult::to_repr(Self) -> @debug.Repr
 
 pub struct OutboundPending {
   // private fields
