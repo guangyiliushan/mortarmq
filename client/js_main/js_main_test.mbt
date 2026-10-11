@@ -32,3 +32,39 @@ async test "client work round-trips through the host promise bridge" {
   )
   assert_eq(again, 42)
 }
+
+///|
+/// The highlight driver answers state names for every diagram pair and
+/// refuses unknown names without moving anything.
+async test "the state machine answers name for name" {
+  assert_eq(@js_main.state_after("Connecting", "TransportUp"), "Authenticating")
+  assert_eq(@js_main.state_after("Streaming", "QueueQuiet"), "Ready")
+  assert_eq(@js_main.state_after("Ready", "Close"), "Disconnected")
+  assert_eq(@js_main.state_after("Ready", "NoSuchEvent"), "unknown")
+  assert_eq(@js_main.state_after("NoSuchState", "Close"), "unknown")
+}
+
+///|
+/// The wire helpers round-trip a DECLARE through the codec: the frame
+/// the page sends decodes back to its own summary.
+async test "encode and decode round-trip through the protocol codec" {
+  let frame = @js_main.encode_declare("orders", 3)
+  assert_eq(@js_main.decode_incoming(frame), "frame op=2")
+  let pub_frame = @js_main.encode_pub(1, "user-42", "hello")
+  assert_eq(@js_main.decode_incoming(pub_frame), "frame op=3")
+  // both frames are well-formed protocol frames with their op bytes
+  assert_true(frame.length() > 5)
+  assert_eq(frame[4], 2) // the DECLARE op
+  assert_eq(pub_frame[4], 3) // the PUB op
+}
+
+///|
+/// The chain evidence resolves through the host promise bridge.
+async test "the demo chain resolves with its evidence line" {
+  let line = @js_async.Promise::wait(@js_main.demo_chain())
+  assert_true(
+    line.has_prefix(
+      "chain ok: Disconnected->Connecting->Authenticating->Ready;",
+    ),
+  )
+}

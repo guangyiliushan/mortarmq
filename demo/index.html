@@ -5,19 +5,260 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MortarMQ Demo</title>
     <style>
-      :root { color-scheme: light dark; }
-      body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; }
-      main { max-width: 42rem; padding: 2rem; }
-      code { background: rgba(127, 127, 127, 0.15); padding: 0.1rem 0.35rem; border-radius: 4px; }
+      :root { color-scheme: light dark; --ok: #1a7f37; --bad: #b42318; --accent: #0969da; }
+      * { box-sizing: border-box; }
+      body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; margin: 0; padding: 1.5rem; }
+      main { max-width: 64rem; margin: 0 auto; display: grid; gap: 1.25rem; }
+      h1 { margin: 0; }
       .badge { display: inline-block; font-size: 0.8rem; border: 1px solid currentColor; border-radius: 999px; padding: 0.05rem 0.6rem; opacity: 0.75; }
+      section { border: 1px solid rgba(127,127,127,0.35); border-radius: 10px; padding: 1rem 1.25rem; }
+      section h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
+      .row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: end; }
+      label { display: grid; gap: 0.25rem; font-size: 0.85rem; }
+      input { padding: 0.4rem 0.55rem; border: 1px solid rgba(127,127,127,0.5); border-radius: 6px; font: inherit; min-width: 8rem; }
+      button { padding: 0.45rem 0.9rem; border: 0; border-radius: 6px; background: var(--accent); color: white; font: inherit; cursor: pointer; }
+      button:disabled { opacity: 0.45; cursor: default; }
+      #chain-status { font-size: 0.9rem; padding: 0.55rem 0.8rem; border-radius: 8px; background: rgba(127,127,127,0.12); }
+      #chain-status.ok { background: rgba(26,127,55,0.14); }
+      #chain-status.bad { background: rgba(180,35,24,0.12); }
+      #machine { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+      .state { padding: 0.35rem 0.75rem; border-radius: 999px; border: 1px solid rgba(127,127,127,0.5); font-size: 0.85rem; opacity: 0.55; }
+      .state.active { opacity: 1; border-color: var(--accent); background: rgba(9,105,218,0.14); font-weight: 600; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+      th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid rgba(127,127,127,0.25); }
+      .bar-wrap { display: grid; gap: 0.35rem; margin-top: 0.5rem; }
+      .bar { height: 1.1rem; border-radius: 6px; background: rgba(127,127,127,0.2); position: relative; overflow: hidden; }
+      .bar > span { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+      .bar > b { position: absolute; left: 0.5rem; top: 0; line-height: 1.1rem; font-size: 0.78rem; }
+      footer { font-size: 0.85rem; opacity: 0.8; display: grid; gap: 0.35rem; }
+      code { background: rgba(127,127,127,0.15); padding: 0.1rem 0.35rem; border-radius: 4px; }
     </style>
   </head>
   <body>
     <main>
-      <h1>MortarMQ 浏览器直连 Demo</h1>
-      <p>本页将作为「5 分钟浏览器 demo」入口：WS 直连 3 节点 broker → DECLARE + 实时消息流 + p50/p90 延迟条 + 客户端状态机高亮。</p>
-      <p>当前为占位页：demo 以静态旁路随文档站部署于 <code>/demo/</code>）。</p>
-      <p><a href="../">← 返回文档站</a></p>
+      <header>
+        <h1>MortarMQ 浏览器直连 Demo</h1>
+        <p>
+          <span class="badge">ws:// 直连</span>
+          <span class="badge">DECLARE + 实时消息流</span>
+          <span class="badge">p50/p90 延迟条</span>
+          <span class="badge">客户端状态机高亮</span>
+        </p>
+        <div id="chain-status">宿主桥调用链：检测中……</div>
+      </header>
+
+      <section>
+        <h2>连接</h2>
+        <div class="row">
+          <label>WS 地址
+            <input id="ws-url" value="ws://localhost:7188" size="28" />
+          </label>
+          <button id="btn-connect">连接</button>
+          <button id="btn-disconnect" disabled>断开</button>
+          <span id="conn-status" class="badge">未连接</span>
+        </div>
+        <div id="machine" style="margin-top: 0.8rem"></div>
+      </section>
+
+      <section>
+        <h2>DECLARE 与发布</h2>
+        <div class="row">
+          <label>topic <input id="declare-topic" value="orders" /></label>
+          <label>分区数 <input id="declare-count" value="3" size="4" /></label>
+          <button id="btn-declare" disabled>DECLARE</button>
+        </div>
+        <div class="row" style="margin-top: 0.6rem">
+          <label>topic_id <input id="pub-topic-id" value="1" size="4" /></label>
+          <label>key <input id="pub-key" value="user-42" /></label>
+          <label>value <input id="pub-value" value="hello" /></label>
+          <button id="btn-pub" disabled>PUB</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>实时消息流</h2>
+        <table>
+          <thead><tr><th>#</th><th>方向</th><th>内容</th><th>延迟 ms</th></tr></thead>
+          <tbody id="stream"></tbody>
+        </table>
+        <div class="bar-wrap">
+          <div class="bar"><span id="bar-p50" style="width: 0"></span><b id="label-p50">p50 --</b></div>
+          <div class="bar"><span id="bar-p90" style="width: 0"></span><b id="label-p90">p90 --</b></div>
+        </div>
+      </section>
+
+      <footer>
+        <div>
+          <strong>配置门</strong>：broker 侧 <code>listen_ws</code>（示例 <code>0.0.0.0:7188</code>）与
+          <code>ws_origins</code>（示例 <code>["http://localhost:4173"]</code>）默认关闭；空
+          <code>ws_origins</code> 是拒绝所有来源。
+        </div>
+        <div>
+          <strong>降级说明</strong>：WS 监听未开启时页面无法直连；降级路径为 ws-tcp 桥（路线图中）。
+          本页不隐藏该缺口。
+        </div>
+        <div>
+          <strong>客户端模块</strong>：状态机与线协议编解码来自随页脚本
+          <code>client_js_main.js</code>（由 <code>moon build --target js ./client/js_main</code>
+          产出、复制到本目录）。缺失时页面以只读说明运行，调用链状态见顶部。
+        </div>
+      </footer>
     </main>
+
+    <script type="module">
+      // The page drives the client library through the host promise bridge:
+      // one imported module carries the connection state machine and the
+      // wire codec; the WebSocket stays in the host and carries the frames.
+      const STATES = [
+        "Disconnected", "Connecting", "Authenticating",
+        "Ready", "Streaming", "Backoff", "Fatal",
+      ];
+      const $ = (id) => document.getElementById(id);
+      let client = null;
+      let ws = null;
+      let currentState = "Disconnected";
+      let sentAt = 0;
+      const latencies = [];
+      let streamCount = 0;
+
+      function paintMachine() {
+        $("machine").innerHTML = STATES.map((s) =>
+          `<span class="state${s === currentState ? " active" : ""}">${s}</span>`).join("");
+      }
+
+      function step(event) {
+        if (!client) return;
+        currentState = client.state_after(currentState, event);
+        paintMachine();
+      }
+
+      function note(dir, text, latency) {
+        streamCount += 1;
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${streamCount}</td><td>${dir}</td><td>${text}</td><td>${
+          latency === undefined ? "--" : latency.toFixed(1)}</td>`;
+        $("stream").prepend(row);
+      }
+
+      function percentile(samples, p) {
+        const sorted = [...samples].sort((a, b) => a - b);
+        return sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+      }
+
+      function paintLatency() {
+        if (latencies.length === 0) return;
+        const p50 = percentile(latencies, 0.5);
+        const p90 = percentile(latencies, 0.9);
+        const scale = Math.max(p90, 1);
+        $("bar-p50").style.width = `${(100 * p50) / scale}%`;
+        $("bar-p90").style.width = `${(100 * p90) / scale}%`;
+        $("label-p50").textContent = `p50 ${p50.toFixed(1)} ms`;
+        $("label-p90").textContent = `p90 ${p90.toFixed(1)} ms`;
+      }
+
+      function toBytes(values) {
+        return Uint8Array.from(values);
+      }
+
+      function fromBytes(buf) {
+        return Array.from(new Uint8Array(buf));
+      }
+
+      async function boot() {
+        paintMachine();
+        try {
+          client = await import("./client_js_main.js");
+        } catch (err) {
+          // local development fallback: the build output in place
+          try {
+            client = await import("../_build/js/debug/build/client/js_main/js_main.js");
+          } catch (err2) {
+            client = null;
+          }
+        }
+        if (!client) {
+          $("chain-status").textContent =
+            "宿主桥调用链：客户端模块未构建（moon build --target js ./client/js_main 后" +
+            "将 js_main.js 复制为本目录 client_js_main.js）。页面保持只读。";
+          $("chain-status").classList.add("bad");
+          return;
+        }
+        try {
+          const line = await client.demo_chain();
+          $("chain-status").textContent = `宿主桥调用链：${line}`;
+          $("chain-status").classList.add("ok");
+        } catch (err) {
+          $("chain-status").textContent = `宿主桥调用链：调用失败（${err}）`;
+          $("chain-status").classList.add("bad");
+          return;
+        }
+        $("btn-declare").disabled = false;
+        $("btn-pub").disabled = false;
+      }
+
+      $("btn-connect").addEventListener("click", () => {
+        step("ConnectRequested");
+        try {
+          ws = new WebSocket($("ws-url").value);
+        } catch (err) {
+          step("FatalError");
+          $("conn-status").textContent = "地址无效";
+          return;
+        }
+        ws.binaryType = "arraybuffer";
+        $("conn-status").textContent = "连接中";
+        $("btn-connect").disabled = true;
+        ws.onopen = () => {
+          step("TransportUp");
+          $("conn-status").textContent = "已连接";
+          $("btn-disconnect").disabled = false;
+        };
+        ws.onmessage = (ev) => {
+          const line = client.decode_incoming(fromBytes(ev.data));
+          const now = performance.now();
+          let latency;
+          if (line.startsWith("MSG") && sentAt) {
+            latency = now - sentAt;
+            latencies.push(latency);
+            paintLatency();
+          }
+          note("recv", line, latency);
+        };
+        ws.onerror = () => {
+          step("TransportLost");
+          $("conn-status").textContent = "连接失败（见页脚降级说明）";
+        };
+        ws.onclose = () => {
+          step(currentState === "Fatal" ? "Close" : "TransportLost");
+          $("conn-status").textContent = "未连接";
+          $("btn-connect").disabled = false;
+          $("btn-disconnect").disabled = true;
+        };
+      });
+
+      $("btn-disconnect").addEventListener("click", () => {
+        step("Close");
+        if (ws) ws.close();
+      });
+
+      $("btn-declare").addEventListener("click", () => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const frame = toBytes(client.encode_declare(
+          $("declare-topic").value, Number($("declare-count").value)));
+        ws.send(frame);
+        note("send", `DECLARE ${$("declare-topic").value} x${$("declare-count").value}`);
+      });
+
+      $("btn-pub").addEventListener("click", () => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const frame = toBytes(client.encode_pub(
+          Number($("pub-topic-id").value), $("pub-key").value, $("pub-value").value));
+        sentAt = performance.now();
+        ws.send(frame);
+        note("send", `PUB key=${$("pub-key").value} value=${$("pub-value").value}`);
+      });
+
+      boot();
+    </script>
   </body>
 </html>

@@ -2,7 +2,10 @@
 // shape only, wired through the async runtime host promise bridge.
 
 import {
+  "guangyiliushan/mortarmq/client",
+  "guangyiliushan/mortarmq/protocol",
   "moonbitlang/async/js_async",
+  "moonbitlang/core/encoding/utf8",
 }
 
 import {
@@ -10,3 +13,17 @@ import {
 } for "test"
 
 supported_targets = "-all+js"
+
+options(
+  link: {
+    "js": {
+      "exports": [
+        "demo_chain",
+        "state_after",
+        "encode_declare",
+        "encode_pub",
+        "decode_incoming",
+      ],
+    },
+  },
+)
