@@ -26,6 +26,7 @@ All green before merge. `ci.yml` is the authority for command text, versions and
 | `node .github/scripts/check-doc-refs.mjs` | `lint` | a section pointer that no longer resolves, or a required check in §2.1 that drifted from `ci.yml` |
 | `bash .github/scripts/check-commit-messages.sh --self-test` | `lint` | a checker regression in subject parsing or rejection behavior |
 | `bash .github/scripts/check-commit-messages.sh` | `lint` | missing scope, invalid type/scope, oversized subject, merge subject, a commit without its `AI-assisted:` body line, or an empty selected commit range |
+| `quint` parse/typecheck/run + anti-vacuity mutation | `lint` | a formal model that stops compiling, an invariant that fails, or one that would still hold without its guard |
 | gate 1 · `moon check --deny-warn --target all` | `stable` | stale doc tests, deprecated syntax, unused code |
 | gate 2 · `moon build --target all` | `stable` | targets `check` alone never compiles |
 | gate 3 · `moon info` ×4 targets + diff | `stable` | public interface drift (`.mbti`) |
@@ -45,6 +46,8 @@ Commit a gate 3 `.mbti` diff with the change that caused it: an uncommitted `pro
 actionlint                                       # workflow syntax; config in .github/actionlint.yaml
 zizmor --persona=auditor .github                 # workflow security posture
 node .github/scripts/check-doc-refs.mjs          # section pointers and required-check names (section 2.1)
+quint parse/typecheck formal/*.qnt             # formal models compile (toolchain pin in formal/protocol.qnt)
+quint run --invariant=promiseCoversEveryAppliedEntry formal/fencing.qnt
 ```
 
 `actionlint` and `zizmor` are the same versions CI pins. Install actionlint from <https://github.com/rhysd/actionlint#installation>; install zizmor with `uv tool install zizmor` (or `python -m pip install --user zizmor`).

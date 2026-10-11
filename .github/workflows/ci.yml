@@ -29,8 +29,8 @@ jobs:
   lint:
     name: lint
     # Keeps this repository's own conventions enforced instead of aspirational:
-    # workflow syntax, workflow security posture, and resolvable doc references
-    # (CONTRIBUTING.md section 1.2). The remaining prose rules -- English-only
+    # workflow syntax, workflow security posture, resolvable doc references
+    # (CONTRIBUTING.md section 1.2), and formal model regressions. The remaining prose rules -- English-only
     # source, no plan markers -- are review-enforced (section 2.3).
     # The job name stays short on purpose: it is a required check, and renaming
     # it costs a green run plus a manual re-selection in branch protection.
@@ -72,6 +72,37 @@ jobs:
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.event.after }}
         run: bash .github/scripts/check-commit-messages.sh
+
+      # The formal models are the checked form of the fencing argument.
+      # These steps keep them compiling, keep the invariants green, and
+      # keep the invariants honest: the mutation step removes the fence
+      # guard and fails the build unless the checker catches it. The
+      # toolchain pin matches the headers in formal/; the Apalache verify
+      # path documented in formal/protocol.qnt is not exercised here (a
+      # known environment constraint).
+      - name: install quint (formal toolchain, pinned)
+        run: npm install -g @informalsystems/quint@0.33.0 # zizmor: ignore[adhoc-packages] exact-pinned CI toolchain, never a project dependency; formal/protocol.qnt documents the same pin
+
+      - name: formal models parse and typecheck
+        run: |
+          for f in formal/*.qnt; do
+            quint parse "$f"
+            quint typecheck "$f"
+          done
+
+      - name: formal invariants hold
+        run: |
+          quint run --invariant=promiseCoversEveryAppliedEntry formal/fencing.qnt
+          quint run --invariant=appliedIsPrefix formal/fencing.qnt
+
+      - name: formal anti-vacuity mutation must fail
+        run: |
+          cp formal/fencing.qnt "$RUNNER_TEMP/fencing-mutant.qnt"
+          sed -i 's/^    e == promise,$/    true,/' "$RUNNER_TEMP/fencing-mutant.qnt"
+          if quint run --invariant=promiseCoversEveryAppliedEntry "$RUNNER_TEMP/fencing-mutant.qnt"; then
+            echo 'mutated model still passes: the invariant is vacuous'
+            exit 1
+          fi
 
   stable:
     name: stable / ${{ matrix.os }}
