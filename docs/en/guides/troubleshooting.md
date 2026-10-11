@@ -8,7 +8,7 @@ What went wrong, what it means, and what to type — each entry is a `Problem` �
 
 > **Problem:** the broker exits at startup with `unknown key: listen_https`.
 
-**What it means:** parsing is fail-fast and the allowlist is closed — anything outside the [18 keys](../reference/configuration.md) is an error, not a warning. This is deliberate: a silently ignored key is a config that thinks it is applied and is not.
+**What it means:** parsing is fail-fast and the allowlist is closed — anything outside the [19 keys](../reference/configuration.md) is an error, not a warning. This is deliberate: a silently ignored key is a config that thinks it is applied and is not.
 
 **Solution:** check the key against the allowlist. Common cases:
 

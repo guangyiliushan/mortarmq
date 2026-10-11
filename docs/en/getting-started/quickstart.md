@@ -2,7 +2,7 @@
 
 Get a running MortarMQ loop. This page is a **tutorial** — read it top to bottom, do not skip steps.
 
-> **Status:** step 1 runs today; steps 2–5 are the contract the broker must satisfy when it lands. Each unimplemented step says exactly what success will look like, so you can verify it the day it ships.
+> **Status:** step 1 runs today; steps 2–5 are the contract the command dispatcher must satisfy when it ships. Each unimplemented step says exactly what success will look like, so you can verify it the day it ships.
 
 ## Before you start
 
@@ -113,7 +113,7 @@ An empty `ws_origins` rejects **every** origin — it is not "allow all". See [T
 |---|---|---|
 | `moon: command not found` | Toolchain not on `PATH` | Reinstall from <https://cli.moonbitlang.com> |
 | `moon test` red on step 1 | Broken local state or a real regression | `moon clean && moon test`; if still red, file an issue |
-| `unknown key: listen_https` at step 2 | Config has a key outside the 18-key allowlist | [Troubleshooting §1](../guides/troubleshooting.md#_1-startup-refuses-unknown-key) |
+| `unknown key: listen_https` at step 2 | Config has a key outside the 19-key allowlist | [Troubleshooting §1](../guides/troubleshooting.md#_1-startup-refuses-unknown-key) |
 | `0x0008 UNKNOWN_TOPIC` at step 3 | SUB does not implicitly DECLARE | Run `topics create` first — [Troubleshooting §2](../guides/troubleshooting.md#_2-0x0008-unknown-topic) |
 
 ## Where to go next

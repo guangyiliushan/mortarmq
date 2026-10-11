@@ -29,7 +29,12 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DOCS = join(ROOT, "docs");
 
-const GUIDES = ["guides/runbook.md", "concepts/security.md", "guides/upgrade.md"];
+const GUIDES = [
+  "guides/runbook.md",
+  "concepts/security.md",
+  "guides/upgrade.md",
+  "getting-started/quickstart.md",
+];
 
 function readDoc(tree, rel) {
   try {
@@ -63,7 +68,17 @@ function loadAuthority() {
     const m = row.match(/^(\d+)\s*\|\s*`([a-z_]+)`/);
     if (m) keys.add(m[2]);
   }
-  return { commands, metrics, codes, keys };
+  // Output columns of the read commands: a `column=value` sentence in a
+  // guide describes CLI output, not a config setting, and resolves here.
+  const columns = new Set();
+  for (const line of en("reference/cli.md").split("\n")) {
+
+    if (!/^\| `mortarmq/.test(line)) continue;
+    for (const cell of line.split("|")) {
+      for (const m of cell.matchAll(/`([a-z][a-z0-9_]+)`/g)) columns.add(m[1]);
+    }
+  }
+  return { commands, metrics, codes, keys, columns };
 }
 
 function scanGuide(text, authority, label, problems) {
@@ -81,7 +96,9 @@ function scanGuide(text, authority, label, problems) {
     if (!authority.codes.has(id)) note("error code", m[1]);
   }
   for (const m of text.matchAll(/`([a-z][a-z0-9_]*_[a-z0-9_]+)\s*=/g)) {
-    if (!authority.keys.has(m[1])) note("config key", m[1]);
+    if (!authority.keys.has(m[1]) && !authority.columns.has(m[1])) {
+      note("config key", m[1]);
+    }
   }
 }
 

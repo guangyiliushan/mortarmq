@@ -33,7 +33,7 @@ admin 只绑本机不是图方便 —— 它是把观测面挡在网外的那道
 **1) 每台写配置** —— 各自不同的 `node_id`，三台用**同一张** 3 项 `peers` 表；若共用一台主机，`listen_*` 端口要错开。
 
 ```bash
-# TODO: 每节点一份 config.json；全部 18 个键见 reference/configuration
+# TODO: 每节点一份 config.json；全部 19 个键见 reference/configuration
 ```
 
 **2) 启动三个 broker**

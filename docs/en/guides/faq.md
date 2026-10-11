@@ -42,7 +42,7 @@ Authentication **yes**: a static token in the CONNECT frame, stored server-side 
 
 ### 9. Does configuration hot-reload?
 
-**No.** All 18 keys are `update_mode = read-only`; changing one means a restart. Hot reload is a v1 item.
+**No.** All 19 keys are `update_mode = read-only`; changing one means a restart. Hot reload is a v1 item.
 
 ### 10. Can I change a topic's partition count?
 

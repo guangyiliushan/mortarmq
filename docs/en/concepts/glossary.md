@@ -58,4 +58,4 @@ The numbered IDs that recur across this site. Each one is either defined on a pa
 
 ## 4. Backlog
 
-To be added as they stabilize: the 18 config allowlist names, the 15 metric names, and the TSV column names for the 7 CLI commands. All three are machine-readable; this glossary only hosts abbreviations that recur in conversation.
+To be added as they stabilize: the 19 config allowlist names, the 15 metric names, and the TSV column names for the 7 CLI commands. All three are machine-readable; this glossary only hosts abbreviations that recur in conversation.

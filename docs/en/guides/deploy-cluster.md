@@ -33,7 +33,7 @@ The admin listener binding to localhost is not a convenience — it is the contr
 **1) Config each node** — distinct `node_id`, the same 3-entry `peers` table on all three, distinct `listen_*` ports if they share a host.
 
 ```bash
-# TODO: one config.json per node; see reference/configuration for all 18 keys
+# TODO: one config.json per node; see reference/configuration for all 19 keys
 ```
 
 **2) Start the three brokers**

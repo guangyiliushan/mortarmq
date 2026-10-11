@@ -2,7 +2,7 @@
 
 跑通一个 MortarMQ 闭环。本页是**教程** —— 从头读到尾，不要跳步。
 
-> **状态：** 第 1 步今天就能跑；第 2–5 步是 broker 落地时必须兑现的契约。每个未实现的步骤都写清了**成功长什么样**，这样它上线那天你能自己验证。
+> **状态：** 第 1 步今天就能跑；第 2–5 步是命令调度器发布时必须兑现的契约。每个未实现的步骤都写清了**成功长什么样**，这样它上线那天你能自己验证。
 
 ## 开始之前
 
@@ -113,7 +113,7 @@ demo 页随本站发布在 `/demo/`，通过 `ws://` 连接。有两个配置键
 |---|---|---|
 | `moon: command not found` | 工具链不在 `PATH` | 到 <https://cli.moonbitlang.com> 重装 |
 | 第 1 步 `moon test` 红 | 本地状态坏了，或真是回归 | `moon clean && moon test`；仍红就提 issue |
-| 第 2 步 `unknown key: listen_https` | 配置里有 18 键白名单之外的键 | [故障排查 §1](../guides/troubleshooting.md#_1-启动被拒-unknown-key) |
+| 第 2 步 `unknown key: listen_https` | 配置里有 19 键白名单之外的键 | [故障排查 §1](../guides/troubleshooting.md#_1-启动被拒-unknown-key) |
 | 第 3 步 `0x0008 UNKNOWN_TOPIC` | SUB 不隐式 DECLARE | 先跑 `topics create` —— [故障排查 §2](../guides/troubleshooting.md#_2-0x0008-unknown-topic) |
 
 ## 接下来
