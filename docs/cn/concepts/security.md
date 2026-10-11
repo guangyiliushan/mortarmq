@@ -12,6 +12,7 @@
 | token 穷举爆破（服务端只存 SHA-256 摘要 + 常量时间比较） | 动态签发 / 吊销（v1） |
 | 管理面暴露（HTTP 只绑 127.0.0.1） | 按 topic 的 authz ACL（v2） |
 | 保留名滥用（`$` 前缀） | 恶意客户端除耗尽资源以外的逻辑攻击 |
+| 持密钥 peer 的冒充与旧 leader 复活（共享密钥握手绑定节点身份、静态成员表把关准入、`leader_epoch` 围栏挡住集群已离开的 epoch） | **合法持有共享密钥但行为恶意的 peer**：可推高 `leader_epoch`（破坏活性），可凭单成员声称驱动 Install/Append 采纳（所声称的 commit 点无 quorum 见证）（升级路径：epoch 上界 + quorum 见证，复制加固线） |
 
 ## Token 握手规范（已冻结）
 
