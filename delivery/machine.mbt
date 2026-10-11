@@ -279,6 +279,14 @@ fn ledger_to_delivery_error(code : LedgerFault) -> DeliveryError {
 ///|
 /// Start one delivery of `key` to `owner_conn` and return the wire bundle.
 ///
+/// Durable-first by construction: the bundle is returned only after the
+/// `DELIVER` event has been written through the disk seam, so an executor
+/// that emits the `MSG` only after this return can never send what the
+/// ledger has not recorded. A failure (including a kill at the write)
+/// returns no bundle at all -- there is nothing to emit. The group-commit
+/// fsync cadence is the frozen batch window; at-least-once covers a crash
+/// inside it by redelivering.
+///
 /// A first call bills `attempt = 1`; a redelivery (after the restart policy
 /// or a retry path made the entry redeliverable) bills `attempt + 1` with a
 /// fresh `delivery_id`. An entry already in flight, and an already-acked
@@ -502,7 +510,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
             fenced_delivery_id: delivery_id,
             dlq_sequence: 0UL,
             retry_due_wall: 0UL,
-            terminated: false,
+              terminated: false,
           }
         }
       }

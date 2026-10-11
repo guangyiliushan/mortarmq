@@ -996,16 +996,7 @@ async test "an interrupted completion only finishes the source termination" {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
-  match
-    machine.nack(
-      disk,
-      rng,
-      dlq_key(1),
-      1UL,
-      @delivery.DeliveryOutcome::Terminal,
-      2000,
-      None,
-    ) {
+  match machine.nack(disk, rng, dlq_key(1), 1UL, @delivery.DeliveryOutcome::Terminal, 2000, None) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
   }
@@ -1016,31 +1007,28 @@ async test "an interrupted completion only finishes the source termination" {
   }
   // Kill lands on the SOURCE_TERMINATED append: the record and its
   // journal are durable, the termination is not.
-  match
-    machine.complete_dead_letter(
-      disk,
-      dlq_key(1),
-      request_of(false, @delivery.NackReason::Terminal, b"v"),
-      port,
-      3000,
-      None,
-    ) {
-    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) =>
-      assert_eq(true, true)
+  match machine.complete_dead_letter(
+    disk,
+    dlq_key(1),
+    request_of(false, @delivery.NackReason::Terminal, b"v"),
+    port,
+    3000,
+    None,
+  ) {
+    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) => assert_eq(true, true)
     _ => fail("expected the kill at the source termination")
   }
   disk.set_kill_at(0)
   let recovered = t_recovery_machine(disk, path)
   assert_eq(recovered.state_of(dlq_key(1)), Some(@delivery.DeadLetterQueued(1)))
-  match
-    recovered.complete_dead_letter(
-      disk,
-      dlq_key(1),
-      request_of(false, @delivery.NackReason::Terminal, b"v"),
-      port,
-      4000,
-      None,
-    ) {
+  match recovered.complete_dead_letter(
+    disk,
+    dlq_key(1),
+    request_of(false, @delivery.NackReason::Terminal, b"v"),
+    port,
+    4000,
+    None,
+  ) {
     Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
     _ => fail("expected the completion to finish the termination")
   }
@@ -1071,16 +1059,7 @@ async test "a crashed completion retries without duplicating the DLQ record" {
     Ok(_) => ()
     Err(_) => fail("begin_delivery failed")
   }
-  match
-    machine.nack(
-      disk,
-      rng,
-      dlq_key(1),
-      1UL,
-      @delivery.DeliveryOutcome::Terminal,
-      2000,
-      None,
-    ) {
+  match machine.nack(disk, rng, dlq_key(1), 1UL, @delivery.DeliveryOutcome::Terminal, 2000, None) {
     Ok(_) => ()
     Err(_) => fail("nack failed")
   }
@@ -1088,7 +1067,7 @@ async test "a crashed completion retries without duplicating the DLQ record" {
   let durable = Ref::Ref(0)
   let seen_seq = Ref::Ref(0UL)
   let seen_ticket = Ref::Ref(0UL)
-  let port = (bytes : Bytes) => {
+  let port = (bytes : Bytes) =>
     match @delivery.decode_mmdl(bytes[:]) {
       Ok(envelope) =>
         if seen_ticket.val != 0UL && envelope.source_sequence == seen_seq.val {
@@ -1101,35 +1080,31 @@ async test "a crashed completion retries without duplicating the DLQ record" {
         }
       Err(_) => Err(@delivery.DeliveryError::Malformed)
     }
-  }
   // Kill lands on the DLQ_WRITTEN append: the record write already
   // happened and nothing about it is journaled.
-  match
-    machine.complete_dead_letter(
-      disk,
-      dlq_key(1),
-      request_of(false, @delivery.NackReason::Terminal, b"v"),
-      port,
-      3000,
-      None,
-    ) {
-    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) =>
-      assert_eq(true, true)
+  match machine.complete_dead_letter(
+    disk,
+    dlq_key(1),
+    request_of(false, @delivery.NackReason::Terminal, b"v"),
+    port,
+    3000,
+    None,
+  ) {
+    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) => assert_eq(true, true)
     _ => fail("expected the kill at the DLQ journal")
   }
   assert_eq(durable.val, 1)
   disk.set_kill_at(0)
   let recovered = t_recovery_machine(disk, path)
   assert_eq(recovered.state_of(dlq_key(1)), Some(@delivery.DeadLetterQueued(1)))
-  match
-    recovered.complete_dead_letter(
-      disk,
-      dlq_key(1),
-      request_of(false, @delivery.NackReason::Terminal, b"v"),
-      port,
-      4000,
-      None,
-    ) {
+  match recovered.complete_dead_letter(
+    disk,
+    dlq_key(1),
+    request_of(false, @delivery.NackReason::Terminal, b"v"),
+    port,
+    4000,
+    None,
+  ) {
     Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
     _ => fail("expected the completion to re-run")
   }
