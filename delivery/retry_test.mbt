@@ -331,3 +331,154 @@ async test "recover restores a pending retry from the durable event" {
     Err(_) => fail("redelivery after recover failed")
   }
 }
+
+///|
+fn retry_dlq_request() -> @delivery.DeadLetterRequest {
+  {
+    from_dlq_topic: false,
+    reason: @delivery.NackReason::Retry,
+    source: { producer_id: 3UL, producer_seq: 4UL, key: b"k", value: b"v", },
+  }
+}
+
+///|
+async test "an owner fence at the final attempt forces the dead-letter transition" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = retry_machine(path)
+  let rng = @harness.SplitMix64::new(2UL)
+  let mut round = 0
+  while round < 4 {
+    let bundle = match
+      machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
+      Ok(bundle) => bundle
+      Err(_) => fail("begin_delivery failed")
+    }
+    match
+      machine.nack(
+        disk,
+        rng,
+        retry_key(1),
+        bundle.delivery_id,
+        @delivery.DeliveryOutcome::Retry,
+        1000,
+        None,
+      ) {
+      Ok(_) => ()
+      Err(_) => fail("nack failed")
+    }
+    round = round + 1
+  }
+  match machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
+    Ok(bundle) => assert_eq(bundle.attempt, 5)
+    Err(_) => fail("begin_delivery failed")
+  }
+  // The owner vanishes on the final attempt: no redelivery is left and the
+  // DLQ flow is the only exit, so the fence routes straight into it.
+  match
+    machine.on_ownership_changed(disk, 1, 1, 0, 55, 7, 9, 3, 4, 2000, None) {
+    Ok(_) => ()
+    Err(_) => fail("on_ownership_changed failed")
+  }
+  assert_eq(machine.state_of(retry_key(1)), Some(@delivery.DeadLetterQueued(5)))
+  match machine.begin_delivery(disk, retry_key(1), 9, 3000, None) {
+    Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
+    _ => fail("expected no sixth delivery")
+  }
+  let port = (_bytes : Bytes) => Ok(42UL)
+  match
+    machine.complete_dead_letter(
+      disk,
+      retry_key(1),
+      retry_dlq_request(),
+      port,
+      3000,
+      None,
+    ) {
+    Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
+    _ => fail("expected the DLQ enqueue")
+  }
+  // The durable trail: five deliveries, four retries, then FENCED and
+  // NACK_TERMINAL into the DLQ flow.
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      assert_eq(scan.events.length(), 13)
+      assert_eq(scan.events[9].event, @delivery.Fenced)
+      assert_eq(scan.events[10].event, @delivery.NackTerminal)
+      assert_eq(scan.events[11].event, @delivery.DlqWritten)
+      assert_eq(scan.events[12].event, @delivery.SourceTerminated)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+}
+
+///|
+async test "a crash on the final attempt repairs into the dead-letter flow" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = retry_machine(path)
+  let rng = @harness.SplitMix64::new(4UL)
+  let mut round = 0
+  while round < 4 {
+    let bundle = match
+      machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
+      Ok(bundle) => bundle
+      Err(_) => fail("begin_delivery failed")
+    }
+    match
+      machine.nack(
+        disk,
+        rng,
+        retry_key(1),
+        bundle.delivery_id,
+        @delivery.DeliveryOutcome::Retry,
+        1000,
+        None,
+      ) {
+      Ok(_) => ()
+      Err(_) => fail("nack failed")
+    }
+    round = round + 1
+  }
+  match machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
+    Ok(bundle) => assert_eq(bundle.attempt, 5)
+    Err(_) => fail("begin_delivery failed")
+  }
+  // Kill during the final attempt: recovery must not wedge the entry in
+  // RetryScheduled(5) where no retry and no DLQ can reach it.
+  let writer = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  let recovered = match @delivery.DeliveryMachine::recover(disk, 1, 0, writer) {
+    Ok(machine) => machine
+    Err(_) => fail("recover failed")
+  }
+  assert_eq(
+    recovered.state_of(retry_key(1)),
+    Some(@delivery.DeadLetterQueued(5)),
+  )
+  // The repair journaled its own NACK_TERMINAL so the event-order
+  // contract still holds.
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      assert_eq(scan.events.length(), 10)
+      assert_eq(scan.events[9].event, @delivery.NackTerminal)
+      assert_eq(scan.events[9].attempt, 5)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+  let port = (_bytes : Bytes) => Ok(42UL)
+  match
+    recovered.complete_dead_letter(
+      disk,
+      retry_key(1),
+      retry_dlq_request(),
+      port,
+      3000,
+      None,
+    ) {
+    Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
+    _ => fail("expected the DLQ enqueue")
+  }
+}

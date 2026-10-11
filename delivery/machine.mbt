@@ -468,11 +468,35 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
           Ok(_) => ()
           Err(code) => return Err(ledger_to_delivery_error(code))
         }
-        group.entries[sequence] = {
-          state: RetryScheduled(attempt),
-          fenced_delivery_id: delivery_id,
-          dlq_sequence: 0UL,
-          retry_due_wall: 0UL,
+        if attempt >= MAX_ATTEMPTS {
+          // The fenced delivery was the final attempt: there is no
+          // redelivery left and the DLQ flow is the only exit.
+          match
+            self.mark_dead_letter_pending(
+              disk,
+              DeliveryKey::new(
+                group_id~,
+                topic_id=self.topic_id,
+                partition=self.partition,
+                sequence~,
+              ),
+              delivery_id,
+              owner_conn,
+              attempt,
+              NackReason::Retry,
+              now_unix_ms,
+              watermark,
+            ) {
+            Ok(_) => ()
+            Err(code) => return Err(code)
+          }
+        } else {
+          group.entries[sequence] = {
+            state: RetryScheduled(attempt),
+            fenced_delivery_id: delivery_id,
+            dlq_sequence: 0UL,
+            retry_due_wall: 0UL,
+          }
         }
       }
       _ => ()
@@ -1081,8 +1105,22 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
       next_delivery_id,
     }
   }
-  // Restart policy: Delivering entries become redeliverable.
-  for _group_id, group in machine.groups {
+  // Restart policy: Delivering entries become redeliverable. A delivery
+  // that crashed on its final attempt cannot redeliver and must not wedge
+  // between retries and the DLQ: recovery repairs it into the dead-letter
+  // flow with its own NACK_TERMINAL, exactly like the fence-at-limit
+  // path (the repair write is recovery-class work and skips the capacity
+  // gate by design).
+  let group_ids : Array[UInt16] = []
+  for group_id, _group in machine.groups {
+    group_ids.push(group_id)
+  }
+  group_ids.sort()
+  for group_id in group_ids {
+    let group = match machine.groups.get(group_id) {
+      Some(group) => group
+      None => continue
+    }
     let sequences : Array[UInt64] = []
     for sequence, entry in group.entries {
       match entry.state {
@@ -1090,18 +1128,43 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
         _ => ()
       }
     }
+    sequences.sort()
     for sequence in sequences {
       let entry = match group.entries.get(sequence) {
         Some(entry) => entry
         None => continue
       }
       match entry.state {
-        Delivering(_, _, attempt) =>
-          group.entries[sequence] = {
-            state: RetryScheduled(attempt),
-            fenced_delivery_id: entry.fenced_delivery_id,
-            dlq_sequence: entry.dlq_sequence,
-            retry_due_wall: 0UL,
+        Delivering(delivery_id, owner_conn, attempt) =>
+          if attempt >= MAX_ATTEMPTS {
+            let repair = LedgerEvent::new(
+              group_id~,
+              event=NackTerminal,
+              sequence~,
+              delivery_id~,
+              owner_conn~,
+              attempt~,
+              delay_ms=0U,
+              reason=NackReason::Retry,
+              timestamp=0UL,
+            )
+            match machine.writer.append(disk, repair, None) {
+              Ok(_) => ()
+              Err(code) => return Err(ledger_to_delivery_error(code))
+            }
+            group.entries[sequence] = {
+              state: DeadLetterQueued(attempt),
+              fenced_delivery_id: entry.fenced_delivery_id,
+              dlq_sequence: entry.dlq_sequence,
+              retry_due_wall: 0UL,
+            }
+          } else {
+            group.entries[sequence] = {
+              state: RetryScheduled(attempt),
+              fenced_delivery_id: entry.fenced_delivery_id,
+              dlq_sequence: entry.dlq_sequence,
+              retry_due_wall: 0UL,
+            }
           }
         _ => ()
       }
