@@ -6,17 +6,23 @@ import {
 }
 
 // Values
+pub const ADMIN_DEFAULT_BIND : Bytes = b"127.0.0.1"
+
 pub const AUTH_FAILURE_DELAY_MS : Int = 100
 
 pub const HMAC_BLOCK_BYTES : Int = 64
 
 pub const HMAC_DIGEST_BYTES : Int = 32
 
+pub fn admin_bind(BytesView) -> Result[Bytes, AdminBindError]
+
 pub async fn[D : Delay] authenticate(TokenStore, BytesView, D) -> Result[Bytes, AuthFail]
 
 pub fn digest_hex(Bytes) -> Bytes
 
 pub fn hmac_sha256(Bytes, BytesView) -> Bytes
+
+pub fn is_loopback(BytesView) -> Bool
 
 pub fn parse_tokens(BytesView) -> TokenStore
 
@@ -29,6 +35,14 @@ pub fn tag_eq(BytesView, BytesView) -> Bool
 pub fn token_line(Bytes, Bytes) -> Result[Bytes, TokensError]
 
 // Errors
+pub(all) suberror AdminBindError {
+  Malformed
+  NonLoopback
+} derive(Eq, @debug.Debug)
+pub fn AdminBindError::equal(Self, Self) -> Bool
+pub fn AdminBindError::not_equal(Self, Self) -> Bool
+pub fn AdminBindError::to_repr(Self) -> @debug.Repr
+
 pub(all) suberror AuthFail {
   Rejected
 } derive(Eq, @debug.Debug)
