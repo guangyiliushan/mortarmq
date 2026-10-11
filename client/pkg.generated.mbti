@@ -2,10 +2,14 @@
 package "guangyiliushan/mortarmq/client"
 
 import {
+  "guangyiliushan/mortarmq/harness",
   "moonbitlang/core/debug",
 }
 
 // Values
+pub fn plan_renewal(BytesView, Array[Subscription]) -> Array[RenewalStep]
+
+pub fn[R : @harness.Rng] reconnect_delay(UInt16, R) -> UInt
 
 // Errors
 
@@ -39,6 +43,28 @@ pub fn ClientState::equal(Self, Self) -> Bool
 pub fn ClientState::not_equal(Self, Self) -> Bool
 pub fn ClientState::on(Self, ClientEvent) -> Self
 pub fn ClientState::to_repr(Self) -> @debug.Repr
+
+pub(all) enum RenewalStep {
+  Connect(BytesView)
+  Resubscribe(Subscription)
+} derive(Eq, @debug.Debug)
+pub fn RenewalStep::equal(Self, Self) -> Bool
+pub fn RenewalStep::not_equal(Self, Self) -> Bool
+pub fn RenewalStep::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Subscription {
+  group : Bytes
+  topic_id : UInt16
+  partition : UInt16
+  start_policy : Byte
+  credit_count : UInt16
+  credit_bytes : UInt
+  flags : UInt16
+  ack_floor : UInt64
+} derive(Eq, @debug.Debug)
+pub fn Subscription::equal(Self, Self) -> Bool
+pub fn Subscription::not_equal(Self, Self) -> Bool
+pub fn Subscription::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
