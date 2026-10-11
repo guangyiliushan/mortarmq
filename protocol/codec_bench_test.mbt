@@ -1,4 +1,4 @@
-/// L6 codec benchmark matrix: frozen size grid x encode / decode / decode+copy.
+/// The codec benchmark grid: frozen size grid x encode / decode / decode+copy.
 ///
 /// The size axis is total frame bytes on the wire, the same axis as the
 /// 2026-09-30 historical baseline (decode_64B/1KiB/64KiB were measured on full
