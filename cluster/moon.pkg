@@ -2,9 +2,16 @@
 // The peer channel speaks the @net.Conn trait and never names a socket, so
 // the concrete transport wiring lives at the edge and this package stays
 // transport-neutral. It imports protocol for the shared error registry,
-// security for the keyed MAC, and env for the handshake nonce; the test
-// side adds async and socket so the handshake can run over a real
-// loopback listener.
+// metadata for the LEADER_ELECT record, security for the keyed MAC, and
+// env for the handshake nonce; the test side adds async and socket so the
+// handshake can run over a real loopback listener.
+//
+// Targets match net/tcp: the peer-channel tests bind and dial real loopback
+// sockets, and moonbitlang/async/socket defines them only where it defines
+// TCP. The library code itself would build anywhere -- the package is
+// bounded by what its tests can run on.
+supported_targets = "+native+wasm"
+
 import {
   "guangyiliushan/mortarmq/metadata",
   "guangyiliushan/mortarmq/net",
