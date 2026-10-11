@@ -1,0 +1,49 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/metrics"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub const METRICS_CONTENT_TYPE : String = "text/plain; version=0.0.4; charset=utf-8"
+
+pub fn metric_whitelist() -> Array[MetricSpec]
+
+pub fn render_metrics(Array[MetricSample]) -> Result[String, MetricError]
+
+// Errors
+
+// Types and methods
+pub(all) enum MetricError {
+  UnknownMetric
+  LabelMismatch
+} derive(Eq, @debug.Debug)
+pub fn MetricError::equal(Self, Self) -> Bool
+pub fn MetricError::not_equal(Self, Self) -> Bool
+pub fn MetricError::to_repr(Self) -> @debug.Repr
+
+pub(all) enum MetricKind {
+  Counter
+  Gauge
+} derive(Eq, @debug.Debug)
+pub fn MetricKind::equal(Self, Self) -> Bool
+pub fn MetricKind::not_equal(Self, Self) -> Bool
+pub fn MetricKind::to_repr(Self) -> @debug.Repr
+
+pub(all) struct MetricSample {
+  name : String
+  labels : Array[(String, String)]
+  value : UInt64
+}
+
+pub(all) struct MetricSpec {
+  name : String
+  kind : MetricKind
+  label_keys : Array[String]
+  help : String
+}
+
+// Type aliases
+
+// Traits
