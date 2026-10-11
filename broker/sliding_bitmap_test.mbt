@@ -1,6 +1,6 @@
 /// Exercise the 1024-bit sliding bitmap (ADR-0011): O(1) mark and query,
 /// the watermark that consumes only the contiguous prefix (the derived
-/// cursor of REQ-CON-004), duplicate idempotence, the window edge, and
+/// consumer cursor derivation), duplicate idempotence, the window edge, and
 /// the residue-collision rule at the 1024 boundary.
 
 ///|

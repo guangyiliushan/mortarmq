@@ -1,18 +1,18 @@
-/// Rebalance properties CB1, CB3, CB4 (M3 suite S3, INV-012, REQ-CON-003).
+/// Rebalance properties CB1, CB3, CB4.
 ///
 /// CB1 safety: after every member event the converged assignment gives
 /// every subscribed partition exactly one owner (and an empty universe
 /// when the last member leaves). CB3 incremental: one event migrates only
 /// the affected partitions -- everything outside the NOTICE set keeps its
-/// owner AND its ownership epoch (the "未变更不动 epoch" assertion of the
-/// T039 brief). CB4: assignment_epoch is monotone, advancing exactly once
+/// owner AND its ownership epoch (the "未变更不动 epoch" assertion).
+/// CB4: assignment_epoch is monotone, advancing exactly once
 /// per membership or subscription change. Each property pins seed and
 /// count so a failure reproduces exactly; CB2 (liveness) is the daily
 /// tier in `rebalance_props_daily_test.mbt`.
 ///
 /// The draws pick a partition count, a step count, and a join/leave
 /// sequence over one topic; the engine under test is the coordinator's
-/// declarative-target recomputation (Q24 A).
+/// declarative-target recomputation.
 
 ///|
 fn cb_partitions(draw : UInt) -> Int {

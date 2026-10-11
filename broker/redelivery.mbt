@@ -1,13 +1,13 @@
-/// Send one matured retry through the credit gate (Q16: redelivery counts
+/// Send one matured retry through the credit gate (redelivery counts
 /// credit).
 ///
-/// The T029 retry path ends at `RetryTimers::due`, which hands back the
+/// The retry path ends at `RetryTimers::due`, which hands back the
 /// keys whose backoff matured. This is the next hop before anything is
 /// billed or sent: the popped key is re-checked (the frozen timer
 /// contract -- "the executor must re-check the entry's current state
 /// before it redelivers"), then the attempt goes through the credit gate
-/// exactly like a first delivery (ruling Q16: "A 重投计 credit" keeps the
-/// single "delivered <= window" invariant), and only a booked attempt
+/// exactly like a first delivery, keeping the
+/// single "delivered <= window" invariant, and only a booked attempt
 /// reaches `DeliveryMachine::begin_delivery`, which charges it on the
 /// ledger as `attempt + 1`.
 ///
@@ -15,14 +15,14 @@
 ///
 /// * A gate refusal (`NoCredit`, `StaleGeneration`, `MessageExceedsCredit`)
 ///   sends nothing and bills nothing: the entry stays `RetryScheduled`
-///   and the timer path may try again later (REQ-DEL-005: "信用耗尽时
+///   and the timer path may try again later ("信用耗尽时
 ///   MSG 停发").
 /// * A key that is not `RetryScheduled` (already acked, still delivering,
 ///   dead-lettered) is refused before the gate: no credit is booked for a
 ///   send that cannot happen.
 /// * The gate is the caller's `CreditRegistry` (S6 owns it; this path
 ///   only calls). `ownership_generation` is the coordinator's wholesale
-///   generation (Q28), so a stale-subscription retry is refused by the
+///   generation, so a stale-subscription retry is refused by the
 ///   same fence as a fresh delivery.
 
 ///|
@@ -48,12 +48,12 @@ pub extend RedeliverError with @moonbitlang/core/debug.Debug::{to_repr}
 /// Parameters:
 ///
 /// * `machine` : The partition delivery machine holding the entry.
-/// * `registry` : The credit registry (the gate of Q16).
+/// * `registry` : The credit registry (the credit gate).
 /// * `key` : The matured timer key; only a `RetryScheduled` entry passes.
 /// * `subscription_id` : The window to bill.
 /// * `owner_conn` : The connection the redelivery goes out on.
 /// * `owner_epoch` : The ownership epoch the attempt is booked under.
-/// * `ownership_generation` : The wholesale generation (Q28) the window
+/// * `ownership_generation` : The wholesale generation the window
 ///   is validated against.
 /// * `msg_bytes` : The message size the gate books (key plus value).
 ///
@@ -89,7 +89,7 @@ pub async fn[D : @harness.Disk] redeliver_one(
     Some(@delivery.DeliveryState::RetryScheduled(_)) => ()
     _ => return Err(DeliveryFailed(@delivery.DeliveryError::InvalidTransition))
   }
-  // 2. The gate books the attempt's credit (Q16: a redelivery counts).
+  // 2. The gate books the attempt's credit (a redelivery counts).
   match
     CreditRegistry::admit(
       registry,

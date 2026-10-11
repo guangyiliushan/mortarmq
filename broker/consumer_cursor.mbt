@@ -1,6 +1,6 @@
 /// Derive one partition consumer cursor from its delivery ledger.
 ///
-/// The cursor is a materialized view of the ACK ledger (REQ-CON-004): it
+/// The cursor is a materialized view of the ACK ledger: it
 /// is never a truth source of its own. The delivery log (MMLQ) is truth;
 /// the cursor checkpoint (MMCU) is a derived cache that may lag the log
 /// and must never lead it; on any disagreement the log wins ("truth
@@ -231,7 +231,7 @@ pub fn ConsumerCursor::observe(
 ///|
 /// Read the derived cursor (O(1)): the longest consumed prefix.
 ///
-/// This is `ack_floor` (REQ-CON-004): it advances only over the
+/// This is `ack_floor`: it advances only over the
 /// contiguous consumed prefix and never regresses.
 pub fn ConsumerCursor::ack_floor(self : ConsumerCursor) -> UInt64 {
   SlidingBitmap::watermark(self.bitmap)

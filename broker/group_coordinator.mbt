@@ -1,6 +1,6 @@
 /// Assign topic partitions to the members of one consumer group.
 ///
-/// The coordinator is the only assignment authority (REQ-CON-001): members
+/// The coordinator is the only assignment authority: members
 /// join with the topics they subscribe and leave explicitly, and every
 /// recomputation is deterministic, so the same join and leave sequence
 /// always produces the same assignment (L1 "assignment results are
@@ -18,11 +18,11 @@
 /// * Every choice is ordered: partitions by (topic_id, partition), quota
 ///   extras and fills by (owned_count, member_id). Same-seed runs replay
 ///   identically.
-/// * Group size is explicit (REQ-CON-006): at most `MAX_GROUP_MEMBERS`
+/// * Group size is explicit: at most `MAX_GROUP_MEMBERS`
 ///   members and `MAX_GROUP_ASSIGNMENTS` assigned partitions; a join past
 ///   either cap is refused with the registered code and changes nothing.
 /// * An explicit leave releases the leaver partitions at once (the
-///   graceful-release choreography of REQ-CON-003 layers on later); no
+///   graceful-release choreography layers on later); no
 ///   REVOKE notice is sent to a member that already left.
 ///
 /// # Epochs (the four-epoch model, glossary 2)
@@ -32,15 +32,15 @@
 /// records are written first, then `membership_epoch` and
 /// `assignment_epoch` advance, so a reader never sees an epoch ahead of
 /// the state it names. Unchanged partitions keep their `ownership_epoch`.
-/// `installed_assignment_epoch` lives on the member (R12a naming; the wire
+/// `installed_assignment_epoch` lives on the member (the wire
 /// field stays `assignment_epoch`). The wholesale generation
 /// (`wholesale_ownership_epoch`) advances only when a subscription's
 /// ownership set is replaced whole -- never on a partial migration.
 ///
 /// Ownership changes between live members emit the eight-parameter
-/// `OwnershipChangedHandler` callback (Q29: flat parameters, no shared
+/// `OwnershipChangedHandler` callback (flat parameters, no shared
 /// record) to the three registered ports in fixed order: fence (ledger
-/// FENCED durable first, Q27), release (credit window), then waiter sink
+/// FENCED durable first), release (credit window), then waiter sink
 /// (long-poll wake). A leave takes the wholesale path and emits nothing
 /// per partition.
 
@@ -95,7 +95,7 @@ pub extend LeaveResult with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 /// Store one member as the coordinator knows it.
 ///
-/// `installed_assignment_epoch` is the R12a name of the assignment epoch
+/// `installed_assignment_epoch` is the assignment epoch
 /// this member has loaded (glossary 2; the wire field stays
 /// `assignment_epoch`).
 priv struct GroupMember {
@@ -427,10 +427,10 @@ fn GroupCoordinator::push_notice(
 /// The three ports run in fixed order -- fence (ledger FENCED durable),
 /// release (credit window), waiter sink (long-poll wake) -- so a crash
 /// between them leaves only memory state to rebuild from the ledger
-/// (Q27 consumption order). Only moves between live members emit; a leave
+/// from the ledger. Only moves between live members emit; a leave
 /// takes the wholesale path and emits nothing per partition. The fence
 /// slot returns only once the FENCED write has landed in the log (its
-/// adapter awaits the S4 port return, ruling v1.1 #1 as narrowed by D1):
+/// adapter awaits the S4 port return):
 /// only then do the release and waiter slots run. The fsync batch window
 /// is the frozen group-commit design (5ms/128) and a crash inside it is
 /// covered by at-least-once redelivery; a crash between the stages loses
@@ -639,7 +639,7 @@ pub fn GroupCoordinator::subscription_id_of(
 ///|
 /// Read the wholesale ownership generation of one subscription, if any.
 ///
-/// The value `CREDIT.ownership_epoch` carries (Q28): `None` before the
+/// The value `CREDIT.ownership_epoch` carries: `None` before the
 /// first wholesale change, then the bump count. Bindings outlive their
 /// member here (tombstones), so a stale credit window stays refutable.
 pub fn GroupCoordinator::wholesale_epoch_of(
@@ -651,7 +651,7 @@ pub fn GroupCoordinator::wholesale_epoch_of(
 }
 
 ///|
-/// Read the installed assignment epoch of one member (R12a name).
+/// Read the installed assignment epoch of one member.
 pub fn GroupCoordinator::installed_assignment_epoch_of(
   self : GroupCoordinator,
   member_id : UInt64,
@@ -792,7 +792,7 @@ pub fn GroupCoordinator::join(
 /// Release one member and reassign its partitions to the rest.
 ///
 /// The leaver is removed at once (the graceful-release choreography of
-/// REQ-CON-003 layers on later); only partitions the leaver owned move,
+/// layers on later); only partitions the leaver owned move,
 /// and no REVOKE notice is sent to the member that left. The leaver
 /// subscriptions take the wholesale path: their wholesale generations
 /// advance and no ownership-change callback fires per partition. The
@@ -846,7 +846,7 @@ pub fn GroupCoordinator::leave(
 }
 
 ///|
-/// Record that a member installed one assignment epoch (R12a name).
+/// Record that a member installed one assignment epoch.
 ///
 /// The coordinator is the only writer of `installed_assignment_epoch`.
 /// Installing an epoch the coordinator has not produced yet, or replaying
@@ -884,7 +884,7 @@ pub fn GroupCoordinator::mark_installed(
 ///|
 /// Advance the wholesale ownership generation of one subscription.
 ///
-/// The wholesale path (Q28): call on revoke-all, loss or rejoin of a
+/// The wholesale path: call on revoke-all, loss or rejoin of a
 /// (member, topic) subscription. A partial partition migration must never
 /// call this -- it emits ownership-change callbacks instead. Bindings
 /// outlive their member (tombstones), so a stale `CREDIT.ownership_epoch`
@@ -905,7 +905,7 @@ pub fn GroupCoordinator::bump_wholesale(
 /// Register the ledger fence port (the first consumer of a live move).
 ///
 /// The handler is called before the credit release port and the waiter
-/// sink, so the FENCED write is durable before any memory effect (Q27).
+/// sink, so the FENCED write is durable before any memory effect.
 pub fn GroupCoordinator::on_fence_port(
   self : GroupCoordinator,
   handler : OwnershipChangedHandler,

@@ -1,7 +1,7 @@
 /// Exercise the group coordinator assignment engine: deterministic
 /// results, sticky retention with minimum-mecessary moves, the explicit
-/// group size caps (REQ-CON-006), and the NOTICE diff each join and leave
-/// produces (REQ-CON-001).
+/// group size caps, and the NOTICE diff each join and leave
+/// produces.
 
 ///|
 fn expect_joined(

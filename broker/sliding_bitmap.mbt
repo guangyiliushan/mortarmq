@@ -1,8 +1,8 @@
 /// Track one bounded window of sequences in a 1024-bit sliding bitmap.
 ///
-/// One structure serves both bounded sets of ADR-0011: the A05
-/// out-of-order ACK set (whose watermark reads as `ack_floor`, the derived
-/// cursor of REQ-CON-004) and the A04 producer dedup `accepted_set` (whose
+/// One structure serves both bounded sets of ADR-0011: the
+/// out-of-order ACK set (whose watermark reads as `ack_floor`, the
+/// consumer cursor derivation) and the producer dedup `accepted_set` (whose
 /// watermark reads as `high_watermark`). The bit of a sequence is its low
 /// 10 bits (`seq & 1023`), freshness comes from the watermark, and
 /// entries age out as the watermark consumes the contiguous prefix.
@@ -15,7 +15,7 @@
 /// * The window covers exactly [watermark, watermark + 1024). A sequence
 ///   below the watermark is already consumed (is_marked answers true,
 ///   mark answers false); one at or past the edge is refused until the
-///   watermark catches up (the in-flight cap of 1000 keeps the A05 site
+///   watermark catches up (the in-flight cap of 1000 keeps the ack site
 ///   inside the window).
 /// * A duplicate mark is idempotent and answers false (not newly
 ///   recorded). Consumed bits are cleared as the watermark passes them,
@@ -147,9 +147,8 @@ pub fn SlidingBitmap::is_marked(self : SlidingBitmap, seq : UInt64) -> Bool {
 ///|
 /// Read the current watermark (O(1)).
 ///
-/// For the A05 site this is `ack_floor`, the derived cursor of
-/// REQ-CON-004: it only advances over the contiguous acked prefix. For
-/// the A04 dedup site it plays `high_watermark`.
+/// For the consumer cursor this is `ack_floor`: it only advances over the
+/// contiguous acked prefix. For the dedup site it plays `high_watermark`.
 pub fn SlidingBitmap::watermark(self : SlidingBitmap) -> UInt64 {
   self.floor
 }

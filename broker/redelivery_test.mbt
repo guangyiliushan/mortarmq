@@ -1,4 +1,4 @@
-/// Exercise the redelivery credit gate (Q16: redelivery counts credit):
+/// Exercise the redelivery credit gate (redelivery counts credit):
 /// the matured-timer hop re-checks state, bills the gate like a first
 /// delivery, and only then charges the ledger; refusals bill nothing.
 
@@ -157,7 +157,7 @@ async test "a refused gate bills nothing and sends nothing" {
       Err(_) => abort("expected the retry nack to apply")
     },
   )
-  // An empty window refuses the retry: REQ-DEL-005 "信用耗尽时 MSG 停发".
+  // An empty window refuses the retry: "信用耗尽时 MSG 停发".
   let registry = open_window(0U.to_uint16(), 1UL)
   assert_eq(
     @broker.redeliver_one(
@@ -224,7 +224,7 @@ async test "a stale wholesale generation refuses the retry" {
       Err(_) => abort("expected the retry nack to apply")
     },
   )
-  // The window validates the coordinator's wholesale generation (Q28).
+  // The window validates the coordinator's wholesale generation.
   let registry = open_window(10U.to_uint16(), 1UL)
   assert_eq(
     @broker.redeliver_one(

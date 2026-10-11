@@ -1,9 +1,9 @@
-/// CB2 daily tier (T039): liveness -- after a finite member event
+/// CB2 daily tier: liveness -- after a finite member event
 /// sequence the assignment is quiescent. A re-join of a live
 /// (connection, topic) is idempotent: zero notices, every owner and
 /// ownership epoch stays put, and the epoch counters do not move --
 /// migration has stopped. This is the daily-tier counterpart of the CB
-/// pins in `rebalance_props_test.mbt` (INV-012, REQ-CON-003): with
+/// pins in `rebalance_props_test.mbt`: with
 /// `MORTARMQ_PROP_DAILY` set the sweep runs registry daily mode --
 /// run-unique seed from the clock, count=1000, max_size=256 -- and logs
 /// the seed so a failure reproduces. Without the flag it runs the pinned

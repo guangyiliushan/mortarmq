@@ -1,7 +1,7 @@
-/// Exercise the four-epoch model: the fence order of REQ-CON-003, the
-/// R12a installed-assignment naming, persist-then-increment epoch
-/// discipline, the wholesale generation rules (Q28), and the
-/// ownership-change fan-out order of Q27/Q29.
+/// Exercise the four-epoch model: its generation, ownership and recency
+/// fences, the installed-assignment naming, persist-then-increment epoch
+/// discipline, the wholesale generation rules, and the
+/// ownership-change fan-out order.
 
 ///|
 fn joined(

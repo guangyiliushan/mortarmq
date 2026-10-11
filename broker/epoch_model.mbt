@@ -2,7 +2,7 @@
 ///
 /// Every version counter answers one question, and `fence_operation`
 /// asks them in order so a stale request is refused with the code that
-/// names its staleness (REQ-CON-003):
+/// names its staleness:
 ///
 /// | epoch | type | who advances it | question it answers |
 /// |---|---|---|---|
@@ -11,7 +11,7 @@
 /// | `installed_assignment_epoch` | u32 | member installs | which assignment this member has loaded |
 /// | `ownership_epoch` | u64 | coordinator | who owns this partition right now |
 ///
-/// # Naming (R12a)
+/// # Naming
 ///
 /// `installed_assignment_epoch` is the glossary name (glossary 2; renamed
 /// 2026-10-01 from `member_epoch`, which sat four characters from
@@ -128,7 +128,7 @@ pub fn fence_operation(
 /// Parameters in order: group_id, topic_id, partition, the subscription id
 /// of the member losing the partition, the owner losing it, the owner
 /// gaining it, the superseded ownership epoch, the new ownership epoch.
-/// The parameter list is the event shape (R12a style: semantics pinned,
+/// The parameter list is the event shape (semantics pinned,
 /// no shared record type). The identity is the `group_id` of
 /// NOTICE/CONTROL_ACK; a consumer that needs the group name resolves it
 /// through the coordinator -- names never enter the event.

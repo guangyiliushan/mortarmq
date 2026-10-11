@@ -7,7 +7,7 @@
 /// connection cancels it. The service is the response boundary of the
 /// long-poll path: it clamps batches to the request bounds, maps the wait
 /// cap onto the registered `MaxWaitingPulls` refusal, and keeps the frame
-/// order `REQ-CON-002` names. It holds no transport and no credit window:
+/// order the pull contract names. It holds no transport and no credit window:
 /// the connection loop owns sending, the record path owns data, and the
 /// credit window of a subscription is fenced elsewhere.
 ///
