@@ -113,6 +113,46 @@ pub fn RetryTimers::schedule(
 }
 
 ///|
+/// Cancel every timer for `key` -- the remove face of the frozen queue
+/// contract. A cancelled timer never fires: once `cancel` returns, no
+/// later `due` can hand the key back, including the case where the key
+/// was scheduled more than once. Returns whether anything was removed.
+///
+/// Who cancels and when is the caller's policy, not this queue's: the
+/// requirement sources do not prescribe a trigger face, and the
+/// executor's trigger-time state re-check remains the correctness guard
+/// for entries that resolve while a timer is pending.
+pub fn RetryTimers::cancel(self : RetryTimers, key : DeliveryKey) -> Bool {
+  let mut removed = false
+  let kept : Array[TimerEntry] = []
+  for entry in self.heap {
+    if entry.topic_id == key.topic_id &&
+      entry.partition == key.partition &&
+      entry.group_id == key.group_id &&
+      entry.sequence == key.sequence {
+      removed = true
+    } else {
+      kept.push(entry)
+    }
+  }
+  if removed {
+    self.heap.clear()
+    for entry in kept {
+      self.heap.push(entry)
+    }
+    let mut index = self.heap.length() / 2
+    while index >= 0 {
+      sift_down(self.heap, index)
+      if index == 0 {
+        break
+      }
+      index = index - 1
+    }
+  }
+  removed
+}
+
+///|
 /// Report the earliest scheduled tick, or `None` when the queue is empty.
 /// The executor uses it to arm its next wakeup.
 pub fn RetryTimers::next_due_tick(self : RetryTimers) -> UInt64? {

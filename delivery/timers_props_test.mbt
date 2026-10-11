@@ -177,3 +177,79 @@ test "CL3 a rolled-back query tick changes neither what fires nor its order (qui
     seed=20261016,
   )
 }
+
+///|
+/// Draw a schedule plus a cancel mask: bit per entry selects the keys the
+/// property cancels before querying.
+fn cl4_schedule(draw : UInt) -> (Array[UInt64], Array[UInt64], Array[Bool]) {
+  let ticks : Array[UInt64] = []
+  let sequences : Array[UInt64] = []
+  let cancelled : Array[Bool] = []
+  let n = (draw % 7U).reinterpret_as_int() + 2
+  let mut bits = draw >> 3
+  for index in 0..<n {
+    let tick = (bits % 64U).to_uint64()
+    bits = bits >> 6
+    let do_cancel = bits % 2U == 1U
+    bits = bits >> 1
+    ticks.push(tick)
+    sequences.push((index + 1).to_uint64())
+    cancelled.push(do_cancel)
+  }
+  (ticks, sequences, cancelled)
+}
+
+///|
+test "CL4 a cancelled timer never fires (quickcheck seed=20261017 is reproducible)" {
+  @quickcheck.check(
+    (draw : UInt) => {
+      let (ticks, sequences, cancelled) = cl4_schedule(draw)
+      let timers = cl_fill(ticks, sequences)
+      let mut index = 0
+      while index < sequences.length() {
+        if cancelled[index] {
+          ignore(
+            timers.cancel(
+              @delivery.DeliveryKey::new(
+                group_id=1,
+                topic_id=1,
+                partition=0,
+                sequence=sequences[index],
+              ),
+            ),
+          )
+        }
+        index = index + 1
+      }
+      let popped = timers.due(63UL)
+      // Nothing cancelled ever fires; what fires is exactly the expected
+      // set of the survivors, in composite order.
+      let mut ok = true
+      let survivors_ticks : Array[UInt64] = []
+      let survivors_seq : Array[UInt64] = []
+      index = 0
+      while index < sequences.length() {
+        if !cancelled[index] {
+          survivors_ticks.push(ticks[index])
+          survivors_seq.push(sequences[index])
+        }
+        index = index + 1
+      }
+      let expected = cl_expected(survivors_ticks, survivors_seq, 63UL)
+      if !cl_same(popped.map(key => key.sequence), expected) {
+        ok = false
+      }
+      index = 0
+      while index < popped.length() {
+        let sequence = popped[index].sequence
+        if cancelled[sequence.to_int() - 1] {
+          ok = false
+        }
+        index = index + 1
+      }
+      ok
+    },
+    count=200,
+    seed=20261017,
+  )
+}

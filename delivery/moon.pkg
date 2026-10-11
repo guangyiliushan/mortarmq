@@ -7,5 +7,6 @@ import {
 
 import {
   "moonbitlang/async",
+  "moonbitlang/core/env",
   "moonbitlang/core/quickcheck",
 } for "test"

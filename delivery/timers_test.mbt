@@ -249,3 +249,38 @@ async test "restart rebuilds pending retries and keeps the ledger consistent (L4
   assert_eq(again.state_of(t_key(2)), Some(@delivery.RetryScheduled(1)))
   assert_eq(again.state_of(t_key(5)), Some(@delivery.DeadLetterQueued(5)))
 }
+
+///|
+test "cancel removes every timer for the key and the rest keep firing" {
+  let timers = @delivery.RetryTimers::new()
+  // The key is scheduled twice: one cancel silences both copies.
+  timers.schedule(100UL, t_key(1))
+  timers.schedule(200UL, t_key(1))
+  timers.schedule(150UL, t_key(2))
+  assert_eq(
+    timers.cancel(
+      @delivery.DeliveryKey::new(
+        group_id=1,
+        topic_id=1,
+        partition=0,
+        sequence=1UL,
+      ),
+    ),
+    true,
+  )
+  // A second cancel finds nothing.
+  assert_eq(
+    timers.cancel(
+      @delivery.DeliveryKey::new(
+        group_id=1,
+        topic_id=1,
+        partition=0,
+        sequence=1UL,
+      ),
+    ),
+    false,
+  )
+  let popped = timers.due(300UL)
+  assert_eq(popped.length(), 1)
+  assert_eq(popped[0].sequence, 2UL)
+}
