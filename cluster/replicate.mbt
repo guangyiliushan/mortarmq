@@ -70,6 +70,16 @@ pub async fn ClusterNode::send_append(
   flush_after_append : Bool,
   ack_deadline_ms : Int,
 ) -> Result[AppendAck, @protocol.ErrCode] {
+  // The tier speaks before the log does. A cluster that has already
+  // told a producer no would put this payload on its own disk and still
+  // not be able to commit it, so the answer is settled here rather than
+  // after the round has spent an fsync on a write nobody can have.
+  // Re-sending what is already written stays open: that is `catch_up`,
+  // and it is how a read-only cluster gets itself out again.
+  match self.quorum_state().write_refusal() {
+    Some(code) => return Err(code)
+    None => ()
+  }
   // An empty batch has no first entry, so it has no base sequence to
   // name; that is a caller bug rather than a message to send.
   if payloads.length() == 0 {
@@ -114,6 +124,60 @@ async fn ClusterNode::ship_batch(
   flush_after_append : Bool,
   ack_deadline_ms : Int,
 ) -> Result[AppendAck, @protocol.ErrCode] {
+  let ran_out : Ref[Bool] = Ref::Ref(false)
+  let outcome = self.ship_batch_round(
+    link, leader_epoch, base_seq, payloads, flush_after_append, ack_deadline_ms,
+    ran_out,
+  )
+  // One classification, reached on every path out of the round. There
+  // is no early return above it, so no exit can leave the tier
+  // describing a round that did not happen: a link that died on the
+  // first byte and one that never answered are read by the same table,
+  // and neither leaves the tier claiming a health nobody tested.
+  let refusal = self.refresh_quorum(log.last_flushed_seq(), ran_out.val)
+  if ran_out.val {
+    // A round that ran out the clock has no answer of its own. What it
+    // owes a producer is the tier's to say, because which of the two
+    // read-only rows it landed on depends on follower positions that
+    // only the classification above could see -- so the code is taken
+    // from there rather than named here. The round's own answer stands
+    // only where that classification has nothing to say, which the
+    // table rules out for a deadline that passed; it is kept so the
+    // match stays total rather than crashing a node over a condition
+    // the matrix rows already pin.
+    match refusal {
+      Some(code) => Err(code)
+      None => outcome
+    }
+  } else {
+    outcome
+  }
+}
+
+///|
+/// The round itself: encode it, write it, wait for the answer.
+///
+/// Split from `ship_batch` so that one function reports what happened
+/// and one decides what the cluster's quorum now is. This half only
+/// reports; it never touches the tier, which is why a round that fails
+/// before a byte moves still gets classified -- its caller does that.
+///
+/// `ran_out` is how it tells its caller that the deadline, rather than
+/// the peer, ended the round.
+///
+/// # Errors
+///
+/// As `ship_batch`.
+async fn ClusterNode::ship_batch_round(
+  self : ClusterNode,
+  link : PeerLink,
+  leader_epoch : UInt64,
+  base_seq : UInt64,
+  payloads : Array[Bytes],
+  flush_after_append : Bool,
+  ack_deadline_ms : Int,
+  ran_out : Ref[Bool],
+) -> Result[AppendAck, @protocol.ErrCode] {
   if payloads.length() == 0 {
     return Err(@protocol.MalformedPayload)
   }
@@ -144,12 +208,14 @@ async fn ClusterNode::ship_batch(
       read_peer_msg(link.channel(), PEER_FRAME_TIMEOUT_MS)
     }) {
     // The majority did not answer inside the deadline. The write stays
-    // uncommitted, the cluster goes read-only, and the caller is told
-    // no rather than left waiting or handed a success it cannot stand
-    // behind. The link is suspect after a cancelled read, so the caller
-    // is expected to tear it down rather than reuse it.
+    // uncommitted and the caller is told no rather than left waiting or
+    // handed a success it cannot stand behind. What that "no" is called
+    // is not this round's decision: `ship_batch` reclassifies with this
+    // round and reports the tier's own refusal, which may name either
+    // read-only row. The link is suspect after a cancelled read, so the
+    // caller is expected to tear it down rather than reuse it.
     None => {
-      self.note_ack_timeout()
+      ran_out.val = true
       return Err(@protocol.ReadOnlyDegraded)
     }
     Some(Err(code)) => return Err(code)
@@ -163,13 +229,7 @@ async fn ClusterNode::ship_batch(
     Ack(ack) =>
       match self.record_append_ack(ack, link.peer_id()) {
         Err(code) => Err(code)
-        Ok(_) => {
-          // A completed round is the moment the tier is re-evaluated:
-          // this is where a cluster that lost its majority notices, and
-          // where one that got it back stops being read-only.
-          self.reclassify(log.last_flushed_seq())
-          Ok(ack)
-        }
+        Ok(_) => Ok(ack)
       }
     _ => Err(@protocol.MalformedPayload)
   }

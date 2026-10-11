@@ -112,6 +112,10 @@ priv struct NodeCore {
   // The committed prefix this replica has been told about. It arrives
   // with an install, so it only ever moves forward.
   mut commit_seq : UInt64
+  // A tier change nobody has read yet. Held as a value rather than as
+  // a log, because what a watcher needs is that a change happened, not
+  // every round that agreed with the change it already reported.
+  mut quorum_event : @protocol.ErrCode?
 }
 
 ///|
@@ -167,6 +171,7 @@ pub fn ClusterNode::new(config : ClusterConfig) -> ClusterNode {
       promised: [],
       installed: [],
       commit_seq: 0UL,
+      quorum_event: None,
     }),
   }
 }
@@ -392,30 +397,41 @@ pub fn ClusterNode::quorum_state(self : ClusterNode) -> QuorumState {
 }
 
 ///|
-/// Record that a quorum acknowledgement did not arrive inside its
-/// deadline.
+/// Re-evaluate the tier from the positions now known, and report what
+/// a producer is owed for it.
 ///
-/// The write this round carried is not acknowledged; the tier becomes
-/// read-only and stays there until a later round completes with a
-/// majority. The caller reports `write_refusal` for it rather than
-/// inventing an answer.
-fn ClusterNode::note_ack_timeout(self : ClusterNode) -> Unit {
-  self.core.val.quorum = ReadOnly(AckTimeout)
-}
-
-///|
-/// Re-evaluate the tier from the positions now known, after a round
-/// completed.
+/// This is the one place the write path decides what the cluster's
+/// quorum is in. Every exit of a replication round comes through here,
+/// so a link that died on the first byte and a link that never answered
+/// inside its deadline are read by the same table instead of by two
+/// hand-written answers -- and a round that never got as far as moving
+/// a byte leaves the tier saying what the last round observed, rather
+/// than leaving it claiming health it was not asked about.
 ///
-/// "In sync" means durable at exactly the leader's own position: a
+/// "In sync" means durable at exactly this replica's own position: a
 /// member that has acknowledged nothing has told us nothing about where
 /// it is, and a member that acknowledged an older position is behind.
-/// The classification itself is `classify_quorum`, so a round and a
-/// hand-rolled matrix row can never disagree.
-fn ClusterNode::reclassify(
+///
+/// `ack_timeout` marks a round whose deadline passed before a majority
+/// answered. It does not choose the row: `classify_quorum` reads
+/// "no follower" first, because a cluster with no follower to form a
+/// majority with has no deadline worth timing, and the reason a cluster
+/// is read-only is that table's to name rather than this caller's.
+///
+/// The tier before the change is read, not overwritten blind, because
+/// the difference between the two is what `take_quorum_event` turns
+/// into a signal: losing the majority and getting it back are events,
+/// while a cluster that simply stays read-only is a state.
+///
+/// # Returns
+///
+/// `write_refusal` for the tier just computed -- `None` while the
+/// cluster still accepts writes, the registered code once it does not.
+fn ClusterNode::refresh_quorum(
   self : ClusterNode,
   own_flushed_seq : UInt64,
-) -> Unit {
+  ack_timeout : Bool,
+) -> @protocol.ErrCode? {
   let config = self.config
   let mut in_sync = 1
   for entry in config.peers() {
@@ -430,12 +446,37 @@ fn ClusterNode::reclassify(
       None => ()
     }
   }
-  self.core.val.quorum = classify_quorum(
+  let was = self.core.val.quorum
+  let now = classify_quorum(
     in_sync,
     config.quorum(),
     in_sync < config.peer_count(),
-    false,
+    ack_timeout,
   )
+  self.core.val.quorum = now
+  match now.transition_into(was) {
+    Some(code) => self.core.val.quorum_event = Some(code)
+    None => ()
+  }
+  now.write_refusal()
+}
+
+///|
+/// The tier change this node has not reported yet, consumed by reading.
+///
+/// `0x6001 QUORUM_LOST` when the cluster stopped accepting writes and
+/// `0x600A QUORUM_RECOVERED` when it started again. These are edges
+/// rather than states: a cluster that stays read-only reports the loss
+/// once, because an alarm that repeats while nothing new has happened
+/// is an alarm an operator learns to ignore.
+///
+/// Reading clears it. A newer edge replaces one that was never read,
+/// since the later edge is the one describing where the cluster is now;
+/// a consumer that needs every edge has to read between rounds.
+pub fn ClusterNode::take_quorum_event(self : ClusterNode) -> @protocol.ErrCode? {
+  let seen = self.core.val.quorum_event
+  self.core.val.quorum_event = None
+  seen
 }
 
 ///|

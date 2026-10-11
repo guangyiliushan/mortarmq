@@ -17,8 +17,7 @@
 /// # Read-only is a refusal, not a downgrade
 ///
 /// A cluster that cannot form a majority answers `0x6002
-/// READ_ONLY_DEGRADED` (or `0x6003 IN_SYNC_REPLICAS_NOT_ENOUGH` when no
-/// follower is in sync at all) and does not acknowledge the write. The
+/// READ_ONLY_DEGRADED` and does not acknowledge the write. The
 /// alternative -- accepting the write on the leader's word alone -- is
 /// exactly the false success the requirement forbids: it would tell a
 /// producer its record is durable when a single disk loss could take it
@@ -57,7 +56,8 @@ pub(all) enum ReadOnlyReason {
   /// majority fsynced. Producer sees `0x6002 READ_ONLY_DEGRADED`.
   AckTimeout
   /// Matrix level 0 (no follower): fewer than a quorum of replicas are
-  /// in sync. Producer sees `0x6003 IN_SYNC_REPLICAS_NOT_ENOUGH`.
+  /// in sync. Kept distinct from `AckTimeout` so an operator can tell
+  /// the two apart; both currently owe a producer the same code.
   NoFollower
 } derive(Eq, Debug)
 
@@ -152,10 +152,13 @@ pub fn QuorumState::may_write(self : QuorumState) -> Bool {
 /// The registered code a producer gets for a write in this tier, or
 /// `None` when the write may proceed.
 ///
-/// The refusal is carried by the row that caused it, which is why the
-/// two read-only reasons differ: `0x6002` tells the producer to retry
-/// later once a majority answers, `0x6003` says there is no majority to
-/// wait for until a follower is repaired.
+/// Both read-only reasons return the same code, and that is a holding
+/// position rather than an oversight: two frozen documents disagree
+/// about what a cluster with no follower owes a producer, the
+/// requirement's code is emitted while that is unresolved, and the
+/// distinction between the reasons is kept in the type -- where an
+/// operator can see it -- rather than on the wire, where choosing wrong
+/// would tell a producer something untrue.
 ///
 /// # Example
 ///
@@ -170,7 +173,7 @@ pub fn QuorumState::may_write(self : QuorumState) -> Bool {
 ///     @cluster.ReadOnlyReason::NoFollower,
 ///   )
 ///   assert_eq(timeout.write_refusal(), Some(@protocol.ReadOnlyDegraded))
-///   assert_eq(silent.write_refusal(), Some(@protocol.InSyncReplicasNotEnough))
+///   assert_eq(silent.write_refusal(), Some(@protocol.ReadOnlyDegraded))
 /// }
 /// ```
 pub fn QuorumState::write_refusal(self : QuorumState) -> @protocol.ErrCode? {
@@ -178,7 +181,7 @@ pub fn QuorumState::write_refusal(self : QuorumState) -> @protocol.ErrCode? {
     Healthy => None
     Soft => None
     ReadOnly(AckTimeout) => Some(@protocol.ReadOnlyDegraded)
-    ReadOnly(NoFollower) => Some(@protocol.InSyncReplicasNotEnough)
+    ReadOnly(NoFollower) => Some(@protocol.ReadOnlyDegraded)
   }
 }
 
@@ -272,4 +275,44 @@ pub fn classify_quorum(
     return Soft
   }
   Healthy
+}
+
+///|
+/// The registered code for a cluster that has crossed into or out of
+/// read-only, or `None` when nothing changed.
+///
+/// These two owe a state machine rather than a producer: `0x6001
+/// QUORUM_LOST` when the tier stops accepting writes, `0x600A
+/// QUORUM_RECOVERED` when it starts again. They are edges, not states --
+/// a cluster that stays read-only reports the loss once, because
+/// repeating it would make one alert look like a stream of new events.
+///
+/// # Example
+///
+/// ```mbt check
+/// test {
+///   let healthy = @cluster.QuorumState::Healthy
+///   let lost = @cluster.QuorumState::ReadOnly(@cluster.ReadOnlyReason::AckTimeout)
+///   assert_eq(lost.transition_into(healthy), Some(@protocol.QuorumLost))
+///   assert_eq(healthy.transition_into(lost), Some(@protocol.QuorumRecovered))
+///   assert_eq(healthy.transition_into(healthy), None)
+///   assert_eq(lost.transition_into(lost), None)
+/// }
+/// ```
+pub fn QuorumState::transition_into(
+  self : QuorumState,
+  was : QuorumState,
+) -> @protocol.ErrCode? {
+  match self {
+    ReadOnly(_) =>
+      match was {
+        ReadOnly(_) => None
+        _ => Some(@protocol.QuorumLost)
+      }
+    _ =>
+      match was {
+        ReadOnly(_) => Some(@protocol.QuorumRecovered)
+        _ => None
+      }
+  }
 }

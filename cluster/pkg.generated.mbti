@@ -137,6 +137,7 @@ pub async fn ClusterNode::serve_append(Self, PeerLink, &ReplicaLog, LeaderEpoch)
 pub async fn ClusterNode::serve_install(Self, PeerLink, LeaderEpoch, &ReplicaLog) -> Result[InstallAckMsg, @protocol.ErrCode]
 pub async fn ClusterNode::serve_peer(Self, &@net.Conn) -> Result[PeerLink, @protocol.ErrCode]
 pub async fn ClusterNode::serve_prepare(Self, PeerLink, LeaderEpoch, &ReplicaLog) -> Result[PrepareAckMsg, @protocol.ErrCode]
+pub fn ClusterNode::take_quorum_event(Self) -> @protocol.ErrCode?
 
 pub(all) struct FollowerProgress {
   peer_id : UInt16
@@ -254,6 +255,7 @@ pub fn QuorumState::equal(Self, Self) -> Bool
 pub fn QuorumState::may_write(Self) -> Bool
 pub fn QuorumState::not_equal(Self, Self) -> Bool
 pub fn QuorumState::to_repr(Self) -> @debug.Repr
+pub fn QuorumState::transition_into(Self, Self) -> @protocol.ErrCode?
 pub fn QuorumState::warning(Self) -> @protocol.ErrCode?
 pub fn QuorumState::write_refusal(Self) -> @protocol.ErrCode?
 
