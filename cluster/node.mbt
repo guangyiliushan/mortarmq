@@ -37,11 +37,33 @@ pub extend PeerLink with Eq::{not_equal, equal}
 pub extend PeerLink with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-/// The mutable link table of one node, held behind a `Ref` so a node
-/// can be shared between the accept task and the dial tasks that bring
-/// it up without aliasing the node itself.
+/// What one peer has reported about its own log: how far it has written
+/// and how far it has fsynced.
+///
+/// Kept per peer rather than as a single "the cluster is caught up"
+/// number, because a quorum question is answered from individual
+/// positions: which replicas are durable at or past a given sequence.
+/// Both fields only ever move forward; an acknowledgement that would
+/// move one backwards is refused instead of applied.
+pub(all) struct FollowerProgress {
+  peer_id : UInt16
+  flushed_seq : UInt64
+  dirty_seq : UInt64
+} derive(Eq, Debug)
+
+///|
+pub extend FollowerProgress with Eq::{not_equal, equal}
+
+///|
+pub extend FollowerProgress with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+/// The mutable link table and per-peer replication progress of one node,
+/// held behind a `Ref` so a node can be shared between the accept task
+/// and the dial tasks that bring it up without aliasing the node itself.
 priv struct NodeCore {
   links : Array[PeerLink]
+  followers : Array[FollowerProgress]
 }
 
 ///|
@@ -88,7 +110,7 @@ pub struct ClusterNode {
 /// }
 /// ```
 pub fn ClusterNode::new(config : ClusterConfig) -> ClusterNode {
-  { config, core: Ref::Ref({ links: [], }), }
+  { config, core: Ref::Ref({ links: [], followers: [], }), }
 }
 
 ///|
@@ -194,4 +216,96 @@ pub fn ClusterNode::peers_connected(self : ClusterNode) -> Bool {
     }
   }
   !missing
+}
+
+///|
+/// This node's id -- the value it puts in an `APPEND` it sends or an
+/// `APPEND_ACK` it returns.
+pub fn ClusterNode::node_id(self : ClusterNode) -> UInt16 {
+  self.config.node_id()
+}
+
+///|
+/// Record one follower's reported positions.
+///
+/// An acknowledgement is accepted only if it is consistent and comes
+/// from a real peer: `flushed_seq` above `dirty_seq` describes a state
+/// no replica can be in, and a peer outside the static table is not a
+/// member however it reached us. A refused acknowledgement changes
+/// nothing, so a late or replayed ack can never move a position
+/// backwards -- both are monotone by construction.
+///
+/// # Errors
+///
+/// * `MalformedPayload` (0x0003) for a self-contradictory or
+///   out-of-table acknowledgement.
+pub fn ClusterNode::record_append_ack(
+  self : ClusterNode,
+  ack : AppendAck,
+) -> Result[Unit, @protocol.ErrCode] {
+  if ack.flushed_seq > ack.dirty_seq {
+    return Err(@protocol.MalformedPayload)
+  }
+  let config = self.config
+  if ack.follower_id == config.node_id() || !config.has_peer(ack.follower_id) {
+    return Err(@protocol.MalformedPayload)
+  }
+  let mut index = -1
+  for position in 0..<self.core.val.followers.length() {
+    if self.core.val.followers[position].peer_id == ack.follower_id {
+      index = position
+    }
+  }
+  if index < 0 {
+    self.core.val.followers.push({
+      peer_id: ack.follower_id,
+      flushed_seq: ack.flushed_seq,
+      dirty_seq: ack.dirty_seq,
+    })
+    return Ok(())
+  }
+  let previous = self.core.val.followers[index]
+  let flushed = if ack.flushed_seq > previous.flushed_seq {
+    ack.flushed_seq
+  } else {
+    previous.flushed_seq
+  }
+  let dirty = if ack.dirty_seq > previous.dirty_seq {
+    ack.dirty_seq
+  } else {
+    previous.dirty_seq
+  }
+  self.core.val.followers[index] = {
+    peer_id: ack.follower_id,
+    flushed_seq: flushed,
+    dirty_seq: dirty,
+  }
+  Ok(())
+}
+
+///|
+/// The last positions one peer reported, or `None` if it has never
+/// acknowledged anything.
+pub fn ClusterNode::follower_progress(
+  self : ClusterNode,
+  peer_id : UInt16,
+) -> FollowerProgress? {
+  for progress in self.core.val.followers {
+    if progress.peer_id == peer_id {
+      return Some(progress)
+    }
+  }
+  None
+}
+
+///|
+/// The sequences every known peer has reported, both positions.
+///
+/// The quorum question T044 answers is a function of this list plus the
+/// leader's own flushed position, which is why both positions are kept
+/// per peer rather than collapsed into one "caught up" flag.
+pub fn ClusterNode::follower_positions(
+  self : ClusterNode,
+) -> Array[FollowerProgress] {
+  self.core.val.followers.copy()
 }

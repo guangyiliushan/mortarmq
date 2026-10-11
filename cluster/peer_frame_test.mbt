@@ -100,3 +100,97 @@ test "nonce and tag constants are the sizes the handshake signs over" {
   assert_eq(fixture_nonce().length(), @cluster.PEER_NONCE_BYTES)
   assert_eq(fixture_tag(0).length(), @cluster.PEER_TAG_BYTES)
 }
+
+///|
+/// A hand-built `APPEND` frame whose length claims a twenty-three byte
+/// payload -- the fixed prefix alone -- whatever entry count it
+/// declares.
+///
+/// Hand-built rather than encoded, so the decoder's own guard is what
+/// answers: an `APPEND` promising five entries inside a payload that
+/// ends after the count is malformed by inspection, and encoding it
+/// would be asking the encoder to reproduce the very mistake. Bytes are
+/// written as numbers rather than literals so the frame's layout stays
+/// readable next to the field order it encodes.
+fn append_prefix(flush_flag : Byte, entry_count : UInt) -> Bytes {
+  let frame = Buffer()
+  // length 0x00000018 = one type byte plus twenty-three payload bytes
+  for _ in 0..<3 {
+    frame.write_byte((0x00).to_byte())
+  }
+  frame.write_byte((0x18).to_byte())
+  // type 0x06 = APPEND
+  frame.write_byte((0x06).to_byte())
+  // leader_id = 1
+  frame.write_byte((0x00).to_byte())
+  frame.write_byte((0x01).to_byte())
+  // leader_epoch = 0 and base_seq = 0: sixteen zero bytes
+  for _ in 0..<16 {
+    frame.write_byte((0x00).to_byte())
+  }
+  frame.write_byte(flush_flag)
+  // entry count, big-endian
+  frame.write_byte(((entry_count >> 24) & 0xFFU).reinterpret_as_int().to_byte())
+  frame.write_byte(((entry_count >> 16) & 0xFFU).reinterpret_as_int().to_byte())
+  frame.write_byte(((entry_count >> 8) & 0xFFU).reinterpret_as_int().to_byte())
+  frame.write_byte((entry_count & 0xFFU).reinterpret_as_int().to_byte())
+  frame.contents()
+}
+
+///|
+test "an APPEND round-trips with its entries intact" {
+  let batch : @cluster.AppendBatch = {
+    leader_id: 1U.to_uint16(),
+    leader_epoch: 4UL,
+    base_seq: 41UL,
+    flush_after_append: true,
+    entries: [b"alpha", b"", b"gamma"],
+  }
+  let frame = @cluster.encode_peer_msg(@cluster.PeerMsg::Append(batch))
+  assert_eq(
+    @cluster.decode_peer_msg(frame[:]),
+    Some(@cluster.PeerMsg::Append(batch)),
+  )
+}
+
+///|
+test "an APPEND_ACK round-trips both positions" {
+  let ack : @cluster.AppendAck = {
+    follower_id: 3U.to_uint16(),
+    leader_epoch: 9UL,
+    flushed_seq: 100UL,
+    dirty_seq: 120UL,
+  }
+  let frame = @cluster.encode_peer_msg(@cluster.PeerMsg::Ack(ack))
+  assert_eq(
+    @cluster.decode_peer_msg(frame[:]),
+    Some(@cluster.PeerMsg::Ack(ack)),
+  )
+}
+
+///|
+test "an APPEND whose entry count outruns its payload decodes to None" {
+  // Count claims five entries; the payload ends immediately after the
+  // count, so there is no way to read even the first length word.
+  let over_promise = append_prefix(b'\x01', 5U)
+  assert_eq(@cluster.decode_peer_msg(over_promise[:]), None)
+}
+
+///|
+test "an APPEND whose flush flag is neither zero nor one decodes to None" {
+  let bad_flag = append_prefix(b'\x02', 0U)
+  assert_eq(@cluster.decode_peer_msg(bad_flag[:]), None)
+  // The legal values both decode.
+  let asked = append_prefix(b'\x01', 0U)
+  match @cluster.decode_peer_msg(asked[:]) {
+    Some(@cluster.PeerMsg::Append(batch)) =>
+      assert_eq(batch.flush_after_append, true)
+    _ => fail("flag 1 must decode as a request to flush")
+  }
+  let unasked = append_prefix(b'\x00', 0U)
+  match @cluster.decode_peer_msg(unasked[:]) {
+    Some(@cluster.PeerMsg::Append(batch)) =>
+      assert_eq(batch.flush_after_append, false)
+    _ => fail("flag 0 must decode as no flush")
+  }
+}

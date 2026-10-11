@@ -128,14 +128,14 @@ fn proof_eq(left : Bytes, right : Bytes) -> Bool {
 /// A best-effort farewell on a channel already being torn down: its
 /// write failure is swallowed on purpose because the caller reports the
 /// real error either way, and the point of the frame is only to save
-/// the other end from guessing. The return type is the handshake's own,
-/// so a refusal reads as `return refuse(...)` in the middle of a
-/// handshake instead of a write that has to be checked for a second
-/// time.
-async fn refuse(
+/// the other end from guessing. The result type is left to the caller,
+/// so a refusal reads as `return refuse(conn, code)` anywhere on the
+/// channel -- handshake or replication -- instead of a write that has
+/// to be checked for a second time.
+async fn[X] refuse(
   conn : &@net.Conn,
   code : @protocol.ErrCode,
-) -> Result[UInt16, @protocol.ErrCode] {
+) -> Result[X, @protocol.ErrCode] {
   // `ErrCode::to_uint16` reports the registered value as a `UInt` (the
   // accessor's name predates the width); the peer frame carries it as
   // the sixteen bits it actually is.
