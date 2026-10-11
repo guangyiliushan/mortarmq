@@ -139,25 +139,10 @@ pub fn ConfigFault::message(self : ConfigFault) -> String {
 /// table, in table order.
 pub fn config_key_names() -> Array[String] {
   [
-    "node_id",
-    "peers",
-    "leader_priority",
-    "listen_client",
-    "listen_peer",
-    "data_dir",
-    "segment_max_bytes",
-    "partition_default_count",
-    "delivery_max_attempts",
-    "delivery_lease_ms",
-    "poll_max_wait_ms",
-    "credit_initial_count",
-    "metadata_snapshot_records",
-    "metrics_enabled",
-    "log_level",
-    "listen_ws",
-    "listen_admin",
-    "ws_origins",
-    "peer_secret",
+    "node_id", "peers", "leader_priority", "listen_client", "listen_peer", "data_dir",
+    "segment_max_bytes", "partition_default_count", "delivery_max_attempts", "delivery_lease_ms",
+    "poll_max_wait_ms", "credit_initial_count", "metadata_snapshot_records", "metrics_enabled",
+    "log_level", "listen_ws", "listen_admin", "ws_origins", "peer_secret",
   ]
 }
 
@@ -374,7 +359,10 @@ fn expect_u16_array(
 }
 
 ///|
-fn parse_peer_entry(item : Json, key : String) -> Result[ConfigPeer, ConfigFault] {
+fn parse_peer_entry(
+  item : Json,
+  key : String,
+) -> Result[ConfigPeer, ConfigFault] {
   match item {
     Array(parts) =>
       if parts.length() == 2 {
@@ -384,10 +372,7 @@ fn parse_peer_entry(item : Json, key : String) -> Result[ConfigPeer, ConfigFault
               match parts[1] {
                 String(addr) =>
                   if valid_addr(addr) {
-                    Ok({
-                      node_id: id_value.to_int().to_uint16(),
-                      addr,
-                    })
+                    Ok({ node_id: id_value.to_int().to_uint16(), addr, })
                   } else {
                     Err(BadValue(key))
                   }
@@ -452,9 +437,7 @@ fn parse_log_level(json : Json, key : String) -> Result[LogLevel, ConfigFault] {
 /// of the wrong shape or range, a missing key that has no default, or a
 /// file that is not a JSON object at all.
 pub fn load_config(text : String) -> Result[Config, ConfigFault] {
-  let parsed = @json.parse(text) catch {
-    _ => return Err(Malformed)
-  }
+  let parsed = @json.parse(text) catch { _ => return Err(Malformed) }
   let map = match parsed {
     Object(map) => map
     _ => return Err(Malformed)
@@ -510,7 +493,8 @@ pub fn load_config(text : String) -> Result[Config, ConfigFault] {
     Ok(None) => 67108864UL
     Err(fault) => return Err(fault)
   }
-  let partition_default_count = match expect_u16(map, "partition_default_count") {
+  let partition_default_count = match
+    expect_u16(map, "partition_default_count") {
     Ok(Some(value)) => value
     Ok(None) => 4
     Err(fault) => return Err(fault)
@@ -535,9 +519,8 @@ pub fn load_config(text : String) -> Result[Config, ConfigFault] {
     Ok(None) => 256U
     Err(fault) => return Err(fault)
   }
-  let metadata_snapshot_records = match expect_u32(
-    map, "metadata_snapshot_records",
-  ) {
+  let metadata_snapshot_records = match
+    expect_u32(map, "metadata_snapshot_records") {
     Ok(Some(value)) => value
     Ok(None) => 8192U
     Err(fault) => return Err(fault)

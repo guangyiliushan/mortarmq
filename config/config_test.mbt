@@ -44,25 +44,10 @@ test "the whitelist names exactly the nineteen frozen keys" {
 test "every whitelisted key loads one at a time" {
   let keys = @config.config_key_names()
   let values : Array[String] = [
-    "1",
-    "[[1, \"0.0.0.0:7188\"], [2, \"0.0.0.0:7189\"], [3, \"0.0.0.0:7190\"]]",
-    "[3, 2, 1]",
-    "\"0.0.0.0:7188\"",
-    "\"0.0.0.0:7189\"",
-    "\"./data\"",
-    "67108864",
-    "4",
-    "5",
-    "30000",
-    "5000",
-    "256",
-    "8192",
-    "true",
-    "\"debug\"",
-    "\"127.0.0.1:7191\"",
-    "\"127.0.0.1:7190\"",
-    "[\"localhost\", \"127.0.0.1\"]",
-    "\"test-only-fake-secret-not-real\"",
+    "1", "[[1, \"0.0.0.0:7188\"], [2, \"0.0.0.0:7189\"], [3, \"0.0.0.0:7190\"]]",
+    "[3, 2, 1]", "\"0.0.0.0:7188\"", "\"0.0.0.0:7189\"", "\"./data\"", "67108864",
+    "4", "5", "30000", "5000", "256", "8192", "true", "\"debug\"", "\"127.0.0.1:7191\"",
+    "\"127.0.0.1:7190\"", "[\"localhost\", \"127.0.0.1\"]", "\"test-only-fake-secret-not-real\"",
   ]
   assert_eq(values.length(), 19)
   let mut i = 0
@@ -74,7 +59,8 @@ test "every whitelisted key loads one at a time" {
     } else if key == "peers" {
       "{\"node_id\": 1, \"peers\": " + value + "}"
     } else {
-      "{\"node_id\": 1, \"peers\": " + peers_fragment() +
+      "{\"node_id\": 1, \"peers\": " +
+      peers_fragment() +
       ", \"" +
       key +
       "\": " +
@@ -90,7 +76,8 @@ test "every whitelisted key loads one at a time" {
 
 ///|
 test "an extra key outside the whitelist fails the load naming it" {
-  let text = "{\"node_id\": 1, \"peers\": " + peers_fragment() +
+  let text = "{\"node_id\": 1, \"peers\": " +
+    peers_fragment() +
     ", \"listen_https\": \"x\"}"
   let fault = load_fault(text)
   assert_eq(fault, @config.UnknownKey("listen_https"))
@@ -101,14 +88,11 @@ test "an extra key outside the whitelist fails the load naming it" {
 ///|
 test "case and hyphen variants of whitelisted names are refused" {
   let variants : Array[String] = [
-    "Listen_Client",
-    "listen-client",
-    "LISTEN_WS",
-    "peer-secret",
-    "node id",
+    "Listen_Client", "listen-client", "LISTEN_WS", "peer-secret", "node id",
   ]
   for name in variants {
-    let text = "{\"node_id\": 1, \"peers\": " + peers_fragment() +
+    let text = "{\"node_id\": 1, \"peers\": " +
+      peers_fragment() +
       ", \"" +
       name +
       "\": 1}"
@@ -156,31 +140,30 @@ test "type and range violations fail naming the key" {
   let bad : Array[String] = [
     "{\"node_id\": 70000, \"peers\": " + peers_fragment() + "}",
     "{\"node_id\": 1.5, \"peers\": " + peers_fragment() + "}",
-    "{\"node_id\": 1, \"peers\": " + peers_fragment() +
+    "{\"node_id\": 1, \"peers\": " +
+    peers_fragment() +
     ", \"metrics_enabled\": 1}",
-    "{\"node_id\": 1, \"peers\": " + peers_fragment() +
+    "{\"node_id\": 1, \"peers\": " +
+    peers_fragment() +
     ", \"segment_max_bytes\": \"big\"}",
-    "{\"node_id\": 1, \"peers\": " + peers_fragment() + ", \"log_level\": \"trace\"}",
-    "{\"node_id\": 1, \"peers\": " + peers_fragment() +
+    "{\"node_id\": 1, \"peers\": " +
+    peers_fragment() +
+    ", \"log_level\": \"trace\"}",
+    "{\"node_id\": 1, \"peers\": " +
+    peers_fragment() +
     ", \"listen_client\": \"nope\"}",
-    "{\"node_id\": 1, \"peers\": " + peers_fragment() +
+    "{\"node_id\": 1, \"peers\": " +
+    peers_fragment() +
     ", \"ws_origins\": [\"ok\", 5]}",
     "{\"node_id\": 1, \"peers\": [[1, \"x\"]]}",
-    "{\"node_id\": 1, \"peers\": " + peers_fragment() +
+    "{\"node_id\": 1, \"peers\": " +
+    peers_fragment() +
     ", \"leader_priority\": [1, \"a\"]}",
     "{\"node_id\": 1, \"peers\": " + peers_fragment() + ", \"data_dir\": \"\"}",
   ]
   let keys : Array[String] = [
-    "node_id",
-    "node_id",
-    "metrics_enabled",
-    "segment_max_bytes",
-    "log_level",
-    "listen_client",
-    "ws_origins",
-    "peers",
-    "leader_priority",
-    "data_dir",
+    "node_id", "node_id", "metrics_enabled", "segment_max_bytes", "log_level", "listen_client",
+    "ws_origins", "peers", "leader_priority", "data_dir",
   ]
   assert_eq(bad.length(), keys.length())
   let mut i = 0
@@ -212,14 +195,14 @@ test "every fault message points at a restart" {
 
 ///|
 test "the peer secret stays behind its wrapper" {
-  let text = "{\"node_id\": 1, \"peers\": " + peers_fragment() +
+  let text = "{\"node_id\": 1, \"peers\": " +
+    peers_fragment() +
     ", \"peer_secret\": \"test-only-fake-secret-not-real\"}"
   let config = load_ok(text)
-  assert_eq(
-    config.peer_secret.reveal(), "test-only-fake-secret-not-real",
-  )
+  assert_eq(config.peer_secret.reveal(), "test-only-fake-secret-not-real")
   assert_eq(config.peer_secret.is_empty(), false)
   assert_eq(
-    @config.ConfigSecret::wrap("a") == @config.ConfigSecret::wrap("a"), true,
+    @config.ConfigSecret::wrap("a") == @config.ConfigSecret::wrap("a"),
+    true,
   )
 }
