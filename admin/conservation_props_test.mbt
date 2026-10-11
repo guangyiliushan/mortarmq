@@ -12,6 +12,11 @@
 /// insert/query/merge contract and are reported with that gap rather
 /// than tested against a stand-in.
 ///
+/// `MORTARMQ_PROP_DAILY` switches to the daily tier: a run-unique seed
+/// from the clock with a larger count, printed so a failure reproduces.
+/// Without it the run uses a pinned seed and count, so a plain
+/// `moon test` never surprises.
+///
 /// Vocabulary note: the registry's produced/delivered/dropped/dlq
 /// totals and the depth gauge are the counter face's published,
 /// delivered, dropped, dlq and retained; the identity below is the
@@ -156,7 +161,42 @@ fn observed_faces(
 }
 
 ///|
+/// Whether the property run is in the daily tier.
+fn prop_daily() -> Bool {
+  match @env.get_env_var("MORTARMQ_PROP_DAILY") {
+    Some(_) => true
+    None => false
+  }
+}
+
+///|
+/// The seed this run draws from: a run-unique one in the daily tier, a
+/// pinned one otherwise.
+fn prop_seed() -> UInt64 {
+  if prop_daily() {
+    @env.now()
+  } else {
+    20261031UL
+  }
+}
+
+///|
+/// The sample count for this run.
+fn prop_count() -> UInt {
+  if prop_daily() {
+    1000U
+  } else {
+    200U
+  }
+}
+
+///|
 test "property: the quiet-window identity holds over any history (pin seed=20261031; daily mode logs the run seed)" {
+  let seed = prop_seed() + 0UL
+  let count = prop_count()
+  if prop_daily() {
+    println("conservation-identity-daily seed=\{seed} count=\{count}")
+  }
   @quickcheck.check(
     (draw : UInt) => {
       let events = prop_history(draw)
@@ -165,8 +205,8 @@ test "property: the quiet-window identity holds over any history (pin seed=20261
       // conservation form over the counter face.
       counts.conserved() && counts.floor_lag_consistent()
     },
-    count=200,
-    seed=20261031,
+    count~,
+    seed~,
   )
 }
 
@@ -184,6 +224,11 @@ test "a mutated counter breaks the quiet-window identity" {
 
 ///|
 test "property: cumulative totals never regress across recovery prefixes (pin seed=20261032; daily mode logs the run seed)" {
+  let seed = prop_seed() + 1UL
+  let count = prop_count()
+  if prop_daily() {
+    println("conservation-monotone-daily seed=\{seed} count=\{count}")
+  }
   @quickcheck.check(
     (draw : UInt) => {
       let events = prop_history(draw)
@@ -194,8 +239,8 @@ test "property: cumulative totals never regress across recovery prefixes (pin se
       earlier.conserved() &&
       later.conserved()
     },
-    count=200,
-    seed=20261032,
+    count~,
+    seed~,
   )
 }
 
@@ -212,14 +257,19 @@ test "a regressing total is rejected by the monotone check" {
 
 ///|
 test "property: the floor and lag stay consistent over any history (pin seed=20261033; daily mode logs the run seed)" {
+  let seed = prop_seed() + 2UL
+  let count = prop_count()
+  if prop_daily() {
+    println("conservation-floor-lag-daily seed=\{seed} count=\{count}")
+  }
   @quickcheck.check(
     (draw : UInt) => {
       let events = prop_history(draw)
       let counts = @delivery.counts_of_events(events, 1, events.length())
       counts.floor_lag_consistent()
     },
-    count=200,
-    seed=20261033,
+    count~,
+    seed~,
   )
 }
 
@@ -237,6 +287,11 @@ test "an invented lag or a floor past the max is rejected" {
 
 ///|
 test "property: the quorum faces stay aligned over any classification (pin seed=20261034; daily mode logs the run seed)" {
+  let seed = prop_seed() + 3UL
+  let count = prop_count()
+  if prop_daily() {
+    println("quorum-alignment-daily seed=\{seed} count=\{count}")
+  }
   @quickcheck.check(
     (draw : UInt) => {
       let bits = draw
@@ -250,8 +305,8 @@ test "property: the quorum faces stay aligned over any classification (pin seed=
       let (code, name, may_write, refusal, warning) = observed_faces(state)
       quorum_faces_align(code, name, may_write, refusal, warning)
     },
-    count=200,
-    seed=20261034,
+    count~,
+    seed~,
   )
 }
 
