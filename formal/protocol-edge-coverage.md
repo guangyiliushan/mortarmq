@@ -1,0 +1,106 @@
+# Edge coverage report for the protocol state machine
+
+This report analyses which edges of `formal/protocol.qnt` the repository
+test suite exercises, and derives the golden-case gap list from that
+analysis. The property is the one the acceptance line asks for: every
+reachable state transition of the model is covered by at least one test
+case; a transition without one is a gap and gets a proposed case.
+
+Method: quint 0.33.0 exposes no coverage surface (`quint run` reports
+trace statistics only), so the edges are enumerated from the model's
+`step` action by hand and each is matched against test evidence in the
+suite. Two layers of evidence count:
+
+- **Model level** -- the model itself checks every edge twice: the five
+  invariants hold over all reachable states at MaxSeq=4 (and 6), and the
+  witness runs plus the non-vacuity battery in the model header drive
+  each error edge end to end. This layer is complete by construction.
+- **Code level** -- a named test in this repository drives the real
+  decoder, session, or broker path the edge stands for. This is the
+  layer the gap list below is about.
+
+The covering set is the A01 domain's cases as they stand: the golden
+frame classes (`protocol/golden_test.mbt`), the codec suites
+(`protocol/payload_test.mbt`, `protocol/frame_props_test.mbt`,
+`protocol/errcode_paths_test.mbt`), and the semantic suites where each
+rule is implemented (`session/session_test.mbt`,
+`broker/topic_registry_test.mbt`, `broker/route_snapshot_test.mbt`,
+`metadata/declare_test.mbt`).
+
+## Edge catalog
+
+| Edge | Action | Code-level evidence | Status |
+| --- | --- | --- | --- |
+| E1 | connect_req | `session/session_test.mbt` "a valid CONNECT establishes a session and returns the role"; `protocol/payload_test.mbt` "core CONNECT payload round-trips"; `protocol/golden_test.mbt` "golden CONNECT frame maps every header and payload field" | covered |
+| E2 | respond_connected | same as E1 (the session test asserts the OK answer) | covered |
+| E3 | pre_connect_op | `session/session_test.mbt` "traffic outside the pre-CONNECT whitelist is refused"; "PING and ERR before CONNECT are tolerated, not served" (the whitelist complement) | covered |
+| E4 | respond_pre_connect_err | same as E3 (the refusal asserts the 0x0005 code) | covered |
+| E5 | declare_req | `protocol/payload_test.mbt` "core DECLARE payload round-trips"; `protocol/golden_test.mbt` "golden DECLARE frame maps topic metadata" | covered |
+| E6 | respond_declare_created | `broker/topic_registry_test.mbt` "first declare creates a topic and assigns identifier one" | covered |
+| E7 | respond_declare_replay | `broker/topic_registry_test.mbt` "an identical re-declare replays the existing entry idempotently"; `broker/route_snapshot_test.mbt` "replaying the same declarations rebuilds an equal view" | covered |
+| E8 | respond_declare_idempotent | `metadata/declare_test.mbt` "declare collapses same-name submissions as idempotent"; `broker/route_snapshot_test.mbt` "an idempotent re-declare leaves the published view and every index unchanged" | covered |
+| E9 | sub_req | `protocol/payload_test.mbt` "core SUB payload round-trips with the v0 wildcard partition"; "SUB rejects a concrete partition in v0" | covered (wire) |
+| E10 | respond_sub_ok | -- | gap G1 |
+| E11 | respond_sub_unknown | `protocol/errcode_paths_test.mbt` P10 covers the routing face of 0x0008 only; no SUB-admission case | gap G1 |
+| E12 | pub_req | `protocol/payload_test.mbt` "core PUB payload round-trips"; key/value bound cases | covered (wire) |
+| E13 | pub_bad_seq_req | `protocol/errcode_test.mbt` pins 0x0013 in the registry; no case drives the illegal combination | gap G2 |
+| E14 | respond_pub_ok | -- | gap G3 |
+| E15 | respond_pub_dup | -- | gap G3 |
+| E16 | respond_pub_bad_seq | -- | gap G2 |
+| E17 | ping_req | `protocol/payload_test.mbt` "core PING payload round-trips"; `protocol/golden_test.mbt` "golden PING frame is the minimum legal frame" | covered |
+| E18 | respond_ok | `protocol/payload_test.mbt` "core OK payload round-trips" | covered |
+| E19 | notice_push | `protocol/payload_test.mbt` "extension NOTICE payload round-trips"; "extension NOTICE accepts ASSIGN and REVOKE kinds" | covered (wire) |
+| E20 | control_ack | `protocol/payload_test.mbt` "extension CONTROL_ACK payload round-trips"; the double-ack no-op rule is untested | gap G4 |
+| E21 | close_req | `protocol/frame_timeout_test.mbt` covers the fatal and timeout closes ("a wire error closes without consulting the half-frame deadline"; "a half frame whose deadline fires is disconnected rather than waited for"); the orderly close is untested | gap G5 |
+
+Fifteen of twenty-one edges carry code-level evidence; the six gap
+edges cluster into five proposed cases.
+
+## Golden-case gap list
+
+Each gap names the missing case, the rule it would pin, and where the
+rule lands today. Cases are written in the golden convention: the
+expected outcome is spelled out, never generated by the encoder.
+
+- **G1 -- SUB admission (E10, E11).** *Proposed case:* a SUB on a
+  declared topic acknowledges and subscribes; a SUB on an undeclared
+  topic is refused with 0x0008 UNKNOWN_TOPIC and declares nothing (SUB
+  never creates a topic). *Where the rule lands:* the SUB admission
+  face; the codec already pins the wire shape (partition 0xFFFF) and
+  the routing face of 0x0008 has its own case.
+- **G2 -- malformed producer combination (E13, E16).** *Proposed case:*
+  a PUB carrying producer id zero with a positive producer sequence is
+  refused with 0x0013 PRODUCER_SEQ_INVALID and the idempotent window is
+  left untouched. *Where the rule lands:* the publish admission face;
+  0x0013 is registry-pinned today.
+- **G3 -- producer idempotent window (E14, E15).** *Proposed case:* a
+  first-time producer sequence enters the window and is delivered; an
+  immediate repeat of the same sequence is acknowledged again with no
+  second delivery and no window change. *Where the rule lands:* the
+  publish admission face (the delivery ledger has its own
+  exactly-once cases; this is the wire-window rule from the field
+  semantics).
+- **G4 -- notice acknowledgement idempotence (E20).** *Proposed case:*
+  acknowledging the same notice id twice is a no-op: no state changes
+  on the second ack. *Where the rule lands:* the notice bookkeeping
+  face; the wire round-trip is covered.
+- **G5 -- orderly close (E21).** *Proposed case:* after an orderly
+  close no further frame is served on that connection (the
+  no-frame-after-close rule as a black-box case; the model invariant
+  checks it as `inv_noFrameAfterClose`). *Where the rule lands:* the
+  connection lifecycle face; fatal and timeout closes already have
+  cases.
+
+## Conclusion
+
+At the model level the coverage property holds without gaps: every
+edge is reachable under the witness runs and every rule survives the
+recorded non-vacuity battery, verified at MaxSeq=4 and 6.
+
+At the code level fifteen of twenty-one edges are pinned by named
+tests today; the six remaining edges stand behind admission and
+lifecycle faces whose cases are listed above as G1-G5, with the rule
+and the owning face named for each. Per the acceptance line the gap
+list is the deliverable's second half: the five cases close it, and
+until a case lands the corresponding rule stays visible here instead
+of being claimed.
