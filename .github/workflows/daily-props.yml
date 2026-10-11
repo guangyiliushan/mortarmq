@@ -53,11 +53,18 @@ jobs:
       - name: moon update
         run: moon update
 
-      # MORTARMQ_PROP_DAILY flips frame_props_daily_test.mbt into registry
-      # daily mode: run-unique seed (logged for reproduction), count=1000,
-      # max_size=256. The registry budget is <=30min; the sweep runs in
-      # seconds and the timeout is the guard, not the expectation.
-      - name: daily pollution sweep (random seed, count=1000, max_size=256)
+      # MORTARMQ_PROP_DAILY flips the daily-tier property files into
+      # registry daily mode: run-unique seed (logged for reproduction),
+      # count=1000, max_size=256. Two sweeps run here today -- the
+      # protocol pollution sweep (frame_props_daily_test.mbt) and the
+      # broker rebalance sweep (rebalance_props_daily_test.mbt). The
+      # cluster quorum sweep (quorum_props_test.mbt) is named but not yet
+      # wired; it joins this step when its daily wiring lands. The
+      # registry budget is <=30min; the sweeps run in seconds and the
+      # timeout is the guard, not the expectation.
+      - name: daily property sweeps (random seed, count=1000, max_size=256)
         env:
           MORTARMQ_PROP_DAILY: "1"
-        run: moon test protocol/frame_props_daily_test.mbt
+        run: |
+          moon test protocol/frame_props_daily_test.mbt
+          moon test broker/rebalance_props_daily_test.mbt
