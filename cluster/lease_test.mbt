@@ -148,3 +148,27 @@ test "a node knows whether it has a leader, and when it lost one" {
   assert_eq(node.lease_expired_at(), Some(7UL))
   assert_eq(node.take_lease_event(), Some(@protocol.LeaseExpired))
 }
+
+///|
+/// A lease survives one lost heartbeat, because the follower waits
+/// longer than the leader sends.
+///
+/// That order is the whole reason an election is not started every time
+/// the network hiccups: a follower that expired on one missed heartbeat
+/// would treat every blip as a dead leader. The two numbers are asserted
+/// rather than left in a comment, because changing either of them looks
+/// harmless and is not -- and the single tick in between is the case
+/// that says which of the two is doing the work.
+test "a lease survives one lost heartbeat, and expires only on its own length" {
+  assert_eq(@cluster.FOLLOWER_LEASE_MS > @cluster.LEADER_HEARTBEAT_MS, true)
+  let lease = @cluster.Lease::new(0UL, @cluster.FOLLOWER_LEASE_MS)
+  // One heartbeat's worth of silence is not an expiry.
+  assert_eq(lease.expired(@cluster.LEADER_HEARTBEAT_MS), false)
+  assert_eq(
+    lease.remaining_ms(@cluster.LEADER_HEARTBEAT_MS),
+    @cluster.FOLLOWER_LEASE_MS - @cluster.LEADER_HEARTBEAT_MS,
+  )
+  // The lease's own length is.
+  assert_eq(lease.expired(@cluster.FOLLOWER_LEASE_MS), true)
+  assert_eq(lease.remaining_ms(@cluster.FOLLOWER_LEASE_MS), 0UL)
+}

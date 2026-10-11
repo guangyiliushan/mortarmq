@@ -9,7 +9,7 @@
 /// the deadline turns the cluster read-only mid-round, a write offered
 /// while it is read-only is refused before it reaches the log, and a
 /// catch-up that finally closes the gap brings it back. A third case
-/// covers a peer that is simply gone, and a fourth runs all three nodes
+/// covers a peer that is gone, and a fourth runs all three nodes
 /// so that the row where a majority is durable and one ack runs out the
 /// clock -- which one follower cannot reach -- is exercised too.
 
@@ -83,7 +83,6 @@ fn matrix_rows() -> Array[MatrixRow] {
 test "every row of the degradation matrix reports the same tier everywhere" {
   let rows = matrix_rows()
   assert_eq(rows.length(), 4)
-  let mut seen_gauge = 0
   for row in rows {
     let state = @cluster.classify_quorum(
       row.in_sync_count,
@@ -107,9 +106,7 @@ test "every row of the degradation matrix reports the same tier everywhere" {
       assert_eq(state.code(), 2U.to_uint16())
       assert_eq(state.warning(), None)
     }
-    seen_gauge = seen_gauge + 1
   }
-  assert_eq(seen_gauge, 4)
 }
 
 ///|
@@ -156,7 +153,7 @@ async test "a missed quorum acknowledgement refuses the write and the next round
   // loopback round trip never does by accident.
   let missed_deadline_ms = 100
   // Longer than the deadline, so the follower genuinely applies the
-  // first batch -- just not in time to answer for it.
+  // first batch -- not in time to answer for it.
   let follower_delay_ms = 400
 
   let follower_config = handshake_config(
@@ -424,7 +421,7 @@ async test "a round to a peer that has gone leaves the tier, not the health it s
             // The far end is gone by now. However this round fails --
             // a write the transport refuses, or a reply that never
             // arrives -- it ends, and the tier is re-read on that exit
-            // just as it is on one that completed.
+            // as it is on one that completed.
             let outcome = @cluster.ClusterNode::send_append(
               leader,
               link,

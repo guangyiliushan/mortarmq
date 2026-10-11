@@ -117,7 +117,7 @@ async test "a batch that would leave a gap is refused and the log stands" {
   assert_eq(gap, Err(@protocol.CatchupRequired))
   match reply {
     Some(@cluster.PeerMsg::Reject(code)) =>
-      assert_eq(code, @protocol.CatchupRequired.to_uint16().to_uint16())
+      assert_eq(code.to_uint(), @protocol.CatchupRequired.to_uint16())
     _ => fail("the follower must answer with a Reject frame")
   }
   assert_eq(follower_log.held(), [1UL, 2UL])

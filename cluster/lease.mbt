@@ -128,7 +128,7 @@ pub fn Lease::remaining_ms(self : Lease, now_ms : UInt64) -> UInt64 {
 /// same moment name the same candidate without first having to agree on
 /// anything. The preference says who *tries*, not who *is* -- whoever
 /// tries still has to collect the promises and the installations, and a
-/// candidate that cannot is simply not the leader.
+/// candidate that cannot is not the leader.
 ///
 /// Returns `None` when nobody is left to try: with the failed leader
 /// excluded, a cluster that has run out of members has no election to

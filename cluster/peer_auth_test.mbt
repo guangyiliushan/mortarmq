@@ -80,7 +80,7 @@ async fn dial_loopback(port : Int) -> Result[&@net.Conn, @protocol.ErrCode] {
 ///
 /// `ClusterConfig` always names three members, so a two-party test
 /// still carries the full table -- a v0 cluster has no two-node mode --
-/// and the third row is simply never reached. `second_id` is a
+/// and the third row is never reached. `second_id` is a
 /// parameter so a fixture can model a node whose id is missing from the
 /// other side's table.
 fn handshake_peers(
@@ -306,7 +306,7 @@ async test "a leaked client token cannot open a peer link, and a peer secret is 
   let secret_view : NoPause = { calls: Ref::Ref([]), }
   assert_eq(
     // The peer secret itself, exactly as `fixture_secret` builds it:
-    // presented to the client channel it is just an unknown token.
+    // presented to the client channel it is an unknown token.
     @security.authenticate(store, b"0123456789abcdef", secret_view),
     Err(@security.Rejected),
   )

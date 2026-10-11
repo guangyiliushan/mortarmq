@@ -493,11 +493,11 @@ pub fn ClusterNode::quorum_state(self : ClusterNode) -> QuorumState {
 /// The tier before the change is read, not overwritten blind, because
 /// the difference between the two is what `take_quorum_event` turns
 /// into a signal: losing the majority and getting it back are events,
-/// while a cluster that simply stays read-only is a state.
+/// while a cluster that stays read-only is a state.
 ///
 /// # Returns
 ///
-/// `write_refusal` for the tier just computed -- `None` while the
+/// `write_refusal` for the tier computed -- `None` while the
 /// cluster still accepts writes, the registered code once it does not.
 fn ClusterNode::refresh_quorum(
   self : ClusterNode,
@@ -763,7 +763,7 @@ pub fn ClusterNode::record_prepare_ack(
   // twice would let one member out of three form a quorum on its own,
   // which is the whole thing the quorum exists to prevent. A second
   // answer from the same member is redundant rather than malformed, so
-  // it is accepted and simply does not count again.
+  // it is accepted and does not count again.
   if !self.core.val.promised.contains(ack.responder_id) {
     self.core.val.promised.push(ack.responder_id)
   }

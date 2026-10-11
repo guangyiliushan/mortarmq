@@ -217,7 +217,7 @@ test "a candidate with no answers holds no quorum" {
   )
   candidate.begin_election()
   // Only its own durable promise: one of three is not a majority, so a
-  // candidate nobody answers is simply not the leader.
+  // candidate nobody answers is not the leader.
   assert_eq(candidate.prepared_count(), 1)
   assert_eq(candidate.has_prepare_quorum(), false)
   assert_eq(candidate.installed_count(), 1)

@@ -301,8 +301,8 @@ pub extend InstallAckMsg with Eq::{not_equal, equal}
 pub extend InstallAckMsg with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-/// Append a big-endian `u16`, the byte order every integer on both
-/// channels uses.
+/// Append a 2-byte big-endian value, the byte order every integer on
+/// both channels uses.
 fn put_u16(buf : Buffer, value : UInt16) -> Unit {
   let wide = value.to_uint()
   buf.write_byte(((wide >> 8) & 0xFFU).reinterpret_as_int().to_byte())
@@ -310,7 +310,7 @@ fn put_u16(buf : Buffer, value : UInt16) -> Unit {
 }
 
 ///|
-/// Append a big-endian `u32` frame length.
+/// Append a 4-byte big-endian frame length.
 fn put_u32(buf : Buffer, value : UInt) -> Unit {
   buf.write_byte(((value >> 24) & 0xFFU).reinterpret_as_int().to_byte())
   buf.write_byte(((value >> 16) & 0xFFU).reinterpret_as_int().to_byte())
@@ -319,8 +319,8 @@ fn put_u32(buf : Buffer, value : UInt) -> Unit {
 }
 
 ///|
-/// Read a big-endian `u16` at `offset`, or `None` when fewer than two
-/// bytes remain. Every read goes through here, so no field can be read
+/// Read a 2-byte big-endian value at `offset`, or `None` when fewer
+/// than two bytes remain. Every read goes through here, so no field can be read
 /// outside the frame it belongs to.
 fn get_u16(view : BytesView, offset : Int) -> UInt16? {
   if offset < 0 || offset + 2 > view.length() {
@@ -332,8 +332,8 @@ fn get_u16(view : BytesView, offset : Int) -> UInt16? {
 }
 
 ///|
-/// Append a big-endian `u64`, the sequence and epoch width both
-/// replication positions use.
+/// Append an 8-byte big-endian value, the sequence and epoch width
+/// both replication positions use.
 fn put_u64(buf : Buffer, value : UInt64) -> Unit {
   for shift in [56, 48, 40, 32, 24, 16, 8, 0] {
     let byte = ((value >> shift) & 0xFFUL).to_uint().reinterpret_as_int()
@@ -342,8 +342,8 @@ fn put_u64(buf : Buffer, value : UInt64) -> Unit {
 }
 
 ///|
-/// Read a big-endian `u64` at `offset`, or `None` when fewer than eight
-/// bytes remain.
+/// Read an 8-byte big-endian value at `offset`, or `None` when fewer
+/// than eight bytes remain.
 fn get_u64(view : BytesView, offset : Int) -> UInt64? {
   if offset < 0 || offset + 8 > view.length() {
     return None
@@ -356,8 +356,8 @@ fn get_u64(view : BytesView, offset : Int) -> UInt64? {
 }
 
 ///|
-/// Read a big-endian `u32` at `offset`, or `None` when fewer than four
-/// bytes remain.
+/// Read a 4-byte big-endian value at `offset`, or `None` when fewer
+/// than four bytes remain.
 fn get_u32(view : BytesView, offset : Int) -> UInt? {
   if offset < 0 || offset + 4 > view.length() {
     return None

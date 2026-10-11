@@ -24,7 +24,6 @@
 module fencing {
   // Four sequences and three terms is enough: the fence is about the
   // ordering between two integers, not about size.
-  val MaxSeq: int = 4
   val MaxEpoch: int = 3
 
   // The epoch this replica has durably promised. Zero means it has

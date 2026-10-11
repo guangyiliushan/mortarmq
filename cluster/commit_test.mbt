@@ -224,7 +224,7 @@ async test "a live three-node cluster commits only what a majority has fsynced" 
   }
   // Nothing, then one entry, then still only one: the gate opened
   // exactly when the majority fsynced and did not open a step earlier
-  // just because the leader was durable.
+  // because the leader was durable.
   assert_eq(gate.val, [false, true, false, true])
   assert_eq(follower_log.last_appended_seq(), 2UL)
   assert_eq(follower_log.last_flushed_seq(), 1UL)

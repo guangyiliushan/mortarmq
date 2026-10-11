@@ -119,10 +119,13 @@ async fn[X] refuse(
   conn : &@net.Conn,
   code : @protocol.ErrCode,
 ) -> Result[X, @protocol.ErrCode] {
-  // `ErrCode::to_uint16` reports the registered value as a `UInt` (the
-  // accessor's name predates the width); the peer frame carries it as
-  // the sixteen bits it actually is.
-  let wire_code : UInt16 = code.to_uint16().to_uint16()
+  // Two different conversions, not one twice. `ErrCode::to_uint16`
+  // reports the registered value as a `UInt` -- the accessor's name
+  // predates the width it reports -- and the peer frame carries that
+  // value as a 16-bit one. Spelled apart so the second is visible as
+  // the narrowing it is rather than as a repeated call.
+  let registered = code.to_uint16()
+  let wire_code : UInt16 = registered.to_uint16()
   match write_peer_msg(conn, PeerMsg::Reject(wire_code)) {
     Ok(_) => ()
     Err(_) => ()
