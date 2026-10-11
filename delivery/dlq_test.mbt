@@ -980,3 +980,168 @@ async test "loop protection still holds after a restart" {
   }
   assert_eq(calls.val, 0)
 }
+
+///|
+/// The fourth event-order form (NACK_TERMINAL -> DLQ_WRITTEN, no
+/// SOURCE_TERMINATED): the completion interrupted after the record
+/// landed only finishes the missing source termination -- exactly one
+/// record, exactly one termination, no rewrite.
+async test "an interrupted completion only finishes the source termination" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  disk.set_kill_at(4)
+  let machine = dlq_machine(path)
+  let rng = @harness.SplitMix64::new(1UL)
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
+    Ok(_) => ()
+    Err(_) => fail("begin_delivery failed")
+  }
+  match
+    machine.nack(
+      disk,
+      rng,
+      dlq_key(1),
+      1UL,
+      @delivery.DeliveryOutcome::Terminal,
+      2000,
+      None,
+    ) {
+    Ok(_) => ()
+    Err(_) => fail("nack failed")
+  }
+  let calls = Ref::Ref(0)
+  let port = (_bytes : Bytes) => {
+    calls.val = calls.val + 1
+    Ok(42UL)
+  }
+  // Kill lands on the SOURCE_TERMINATED append: the record and its
+  // journal are durable, the termination is not.
+  match
+    machine.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(false, @delivery.NackReason::Terminal, b"v"),
+      port,
+      3000,
+      None,
+    ) {
+    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) =>
+      assert_eq(true, true)
+    _ => fail("expected the kill at the source termination")
+  }
+  disk.set_kill_at(0)
+  let recovered = t_recovery_machine(disk, path)
+  assert_eq(recovered.state_of(dlq_key(1)), Some(@delivery.DeadLetterQueued(1)))
+  match
+    recovered.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(false, @delivery.NackReason::Terminal, b"v"),
+      port,
+      4000,
+      None,
+    ) {
+    Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
+    _ => fail("expected the completion to finish the termination")
+  }
+  // The record was written once (no rewrite) and the trail is complete.
+  assert_eq(calls.val, 1)
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      assert_eq(scan.events.length(), 4)
+      assert_eq(scan.events[1].event, @delivery.NackTerminal)
+      assert_eq(scan.events[2].event, @delivery.DlqWritten)
+      assert_eq(scan.events[3].event, @delivery.SourceTerminated)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+}
+
+///|
+/// The crash window between the record write and its journal: the port
+/// dedupes before it appends on the idempotent-producer rule, so the
+/// re-run lands the record exactly once.
+async test "a crashed completion retries without duplicating the DLQ record" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  disk.set_kill_at(3)
+  let machine = dlq_machine(path)
+  let rng = @harness.SplitMix64::new(1UL)
+  match machine.begin_delivery(disk, dlq_key(1), 7, 1000, None) {
+    Ok(_) => ()
+    Err(_) => fail("begin_delivery failed")
+  }
+  match
+    machine.nack(
+      disk,
+      rng,
+      dlq_key(1),
+      1UL,
+      @delivery.DeliveryOutcome::Terminal,
+      2000,
+      None,
+    ) {
+    Ok(_) => ()
+    Err(_) => fail("nack failed")
+  }
+  // A dedupe-before-append port keyed on the envelope's source identity.
+  let durable = Ref::Ref(0)
+  let seen_seq = Ref::Ref(0UL)
+  let seen_ticket = Ref::Ref(0UL)
+  let port = (bytes : Bytes) => {
+    match @delivery.decode_mmdl(bytes[:]) {
+      Ok(envelope) =>
+        if seen_ticket.val != 0UL && envelope.source_sequence == seen_seq.val {
+          Ok(seen_ticket.val)
+        } else {
+          durable.val = durable.val + 1
+          seen_seq.val = envelope.source_sequence
+          seen_ticket.val = 42UL
+          Ok(42UL)
+        }
+      Err(_) => Err(@delivery.DeliveryError::Malformed)
+    }
+  }
+  // Kill lands on the DLQ_WRITTEN append: the record write already
+  // happened and nothing about it is journaled.
+  match
+    machine.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(false, @delivery.NackReason::Terminal, b"v"),
+      port,
+      3000,
+      None,
+    ) {
+    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) =>
+      assert_eq(true, true)
+    _ => fail("expected the kill at the DLQ journal")
+  }
+  assert_eq(durable.val, 1)
+  disk.set_kill_at(0)
+  let recovered = t_recovery_machine(disk, path)
+  assert_eq(recovered.state_of(dlq_key(1)), Some(@delivery.DeadLetterQueued(1)))
+  match
+    recovered.complete_dead_letter(
+      disk,
+      dlq_key(1),
+      request_of(false, @delivery.NackReason::Terminal, b"v"),
+      port,
+      4000,
+      None,
+    ) {
+    Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
+    _ => fail("expected the completion to re-run")
+  }
+  // Dedupe held: one durable record across the crash, one journal trail.
+  assert_eq(durable.val, 1)
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      assert_eq(scan.events.length(), 4)
+      assert_eq(scan.events[2].event, @delivery.DlqWritten)
+      assert_eq(scan.events[2].delivery_id, 42UL)
+      assert_eq(scan.events[3].event, @delivery.SourceTerminated)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+}

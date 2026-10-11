@@ -26,10 +26,13 @@
 ///   completed DLQ enqueue (the envelope is durable before the source is
 ///   terminated); `NACK_TERMINAL -> SOURCE_TERMINATED` without
 ///   `DLQ_WRITTEN` is the loop-guard quarantine -- terminal with no DLQ
-///   record; `NACK_TERMINAL` alone is a pending dead-letter whose DLQ
-///   write did not land, and recovery re-runs the completion. The form of
-///   the durable event sequence is the whole state distinction, so a crash
-///   at any prefix stays unambiguous and nothing is dropped silently.
+///   record; `NACK_TERMINAL -> DLQ_WRITTEN` without `SOURCE_TERMINATED`
+///   is an interrupted completion -- the record is durable and re-running
+///   the completion only finishes the source termination; `NACK_TERMINAL`
+///   alone is a pending dead-letter whose DLQ write did not land, and
+///   recovery re-runs the completion. The form of the durable event
+///   sequence is the whole state distinction, so a crash at any prefix
+///   stays unambiguous and nothing is dropped silently.
 /// * owner fencing: `on_ownership_changed` is the port method the
 ///   coordinator calls with the pinned eight flat parameters (no shared
 ///   event record): `(group_id, topic_id, partition, subscription_id,
@@ -205,6 +208,7 @@ priv struct Entry {
   fenced_delivery_id : UInt64
   dlq_sequence : UInt64
   retry_due_wall : UInt64
+  terminated : Bool
 }
 
 ///|
@@ -333,6 +337,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
     fenced_delivery_id,
     dlq_sequence: 0UL,
     retry_due_wall: 0UL,
+    terminated: false,
   }
   self.groups[key.group_id] = {
     entries: group.entries,
@@ -400,6 +405,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
           fenced_delivery_id: entry.fenced_delivery_id,
           dlq_sequence: 0UL,
           retry_due_wall: 0UL,
+          terminated: false,
         }
         self.groups[key.group_id] = group
         return Ok(Applied)
@@ -496,6 +502,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
             fenced_delivery_id: delivery_id,
             dlq_sequence: 0UL,
             retry_due_wall: 0UL,
+            terminated: false,
           }
         }
       }
@@ -738,6 +745,7 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
     fenced_delivery_id: entry_fence(group, key.sequence),
     dlq_sequence: 0UL,
     retry_due_wall: now_unix_ms + delay_ms.to_uint64(),
+    terminated: false,
   }
   self.groups[key.group_id] = group
   Ok(Scheduled(attempt, delay_ms))
@@ -780,6 +788,7 @@ async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
     fenced_delivery_id: entry_fence(group, key.sequence),
     dlq_sequence: 0UL,
     retry_due_wall: 0UL,
+    terminated: false,
   }
   self.groups[key.group_id] = group
   Ok(DeadLettered(attempt))
@@ -819,6 +828,7 @@ async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
     fenced_delivery_id: entry_fence(group, key.sequence),
     dlq_sequence: 0UL,
     retry_due_wall: 0UL,
+    terminated: true,
   }
   self.groups[key.group_id] = group
   Ok(())
@@ -845,8 +855,13 @@ async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
 /// death path, and the broker -- which never parses user payloads -- starts
 /// the path over. Only envelope-carrying replays are loop-proofed.
 ///
-/// Completion is idempotent: a second call reports the stored DLQ sequence
-/// without writing again.
+/// Completion is idempotent. The ledger adjudicates before any rewrite:
+/// a journaled DLQ record is never written again and a missing source
+/// termination is finished exactly once. For the crash window between the
+/// record write and its journal, the `dlq_write` port must dedupe before
+/// it appends -- the envelope's source identity is the idempotence key --
+/// mirroring the idempotent-producer rule, so re-running the completion
+/// lands the DLQ record exactly once.
 pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
   self : DeliveryMachine,
   disk : D,
@@ -870,6 +885,35 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
     _ => return Err(InvalidTransition)
   }
   if entry.dlq_sequence != 0UL {
+    // The ledger adjudicates before any rewrite: the DLQ record is
+    // already durable and journaled, so nothing is written again. If the
+    // source termination is the missing half of the interrupted
+    // completion (the fourth event-order form), finish it exactly once.
+    if !entry.terminated {
+      let terminated = LedgerEvent::new(
+        group_id=key.group_id,
+        event=SourceTerminated,
+        sequence=key.sequence,
+        delivery_id=0UL,
+        owner_conn=0UL,
+        attempt=final_attempt,
+        delay_ms=0U,
+        reason=request.reason,
+        timestamp=now_unix_ms,
+      )
+      match self.writer.append(disk, terminated, watermark) {
+        Ok(_) => ()
+        Err(code) => return Err(ledger_to_delivery_error(code))
+      }
+      group.entries[key.sequence] = {
+        state: DeadLetterQueued(final_attempt),
+        fenced_delivery_id: entry_fence(group, key.sequence),
+        dlq_sequence: entry.dlq_sequence,
+        retry_due_wall: 0UL,
+        terminated: true,
+      }
+      self.groups[key.group_id] = group
+    }
     return Ok(Enqueued(entry.dlq_sequence))
   }
   let mut death_path : Array[DlqHop] = []
@@ -995,6 +1039,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
     fenced_delivery_id: entry_fence(group, key.sequence),
     dlq_sequence,
     retry_due_wall: 0UL,
+    terminated: true,
   }
   self.groups[key.group_id] = group
   Ok(Enqueued(dlq_sequence))
@@ -1045,6 +1090,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           fenced_delivery_id: prior_fenced,
           dlq_sequence: prior_dlq,
           retry_due_wall: 0UL,
+          terminated: false,
         }
       Ack =>
         group.entries[event.sequence] = {
@@ -1052,6 +1098,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           fenced_delivery_id: prior_fenced,
           dlq_sequence: 0UL,
           retry_due_wall: 0UL,
+          terminated: true,
         }
       Fenced =>
         group.entries[event.sequence] = {
@@ -1059,6 +1106,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           fenced_delivery_id: event.delivery_id,
           dlq_sequence: prior_dlq,
           retry_due_wall: 0UL,
+          terminated: false,
         }
       NackRetry | Timeout =>
         group.entries[event.sequence] = {
@@ -1066,6 +1114,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           fenced_delivery_id: prior_fenced,
           dlq_sequence: prior_dlq,
           retry_due_wall: event.timestamp + event.delay_ms.to_uint64(),
+          terminated: false,
         }
       NackTerminal =>
         group.entries[event.sequence] = {
@@ -1073,6 +1122,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           fenced_delivery_id: prior_fenced,
           dlq_sequence: prior_dlq,
           retry_due_wall: 0UL,
+          terminated: false,
         }
       DlqWritten =>
         group.entries[event.sequence] = {
@@ -1080,6 +1130,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           fenced_delivery_id: prior_fenced,
           dlq_sequence: event.delivery_id,
           retry_due_wall: 0UL,
+          terminated: false,
         }
       SourceTerminated =>
         group.entries[event.sequence] = {
@@ -1091,6 +1142,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
           fenced_delivery_id: prior_fenced,
           dlq_sequence: prior_dlq,
           retry_due_wall: 0UL,
+          terminated: true,
         }
       _ => return Err(Malformed)
     }
@@ -1157,6 +1209,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
               fenced_delivery_id: entry.fenced_delivery_id,
               dlq_sequence: entry.dlq_sequence,
               retry_due_wall: 0UL,
+              terminated: false,
             }
           } else {
             group.entries[sequence] = {
@@ -1164,6 +1217,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
               fenced_delivery_id: entry.fenced_delivery_id,
               dlq_sequence: entry.dlq_sequence,
               retry_due_wall: 0UL,
+              terminated: false,
             }
           }
         _ => ()
