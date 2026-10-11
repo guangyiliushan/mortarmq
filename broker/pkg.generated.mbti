@@ -38,6 +38,10 @@ pub fn fence_ownership_epoch(UInt64, UInt64) -> Result[Unit, @protocol.ErrCode]
 
 pub fn fnv1a32(Bytes) -> UInt
 
+pub async fn[D : @harness.Disk] load_group_state(D, Bytes) -> Result[GroupCoordinator?, @protocol.ErrCode]
+
+pub async fn[D : @harness.Disk] persist_group_state(D, Bytes, GroupCoordinator, UInt64) -> Result[Unit, @protocol.ErrCode]
+
 pub fn pull_ok(Array[@protocol.MsgPayload]) -> Array[@protocol.WirePayload]
 
 pub fn pull_refused() -> @protocol.WirePayload
@@ -45,6 +49,8 @@ pub fn pull_refused() -> @protocol.WirePayload
 pub async fn[D : @harness.Disk] redeliver_one(@delivery.DeliveryMachine, CreditRegistry, D, @delivery.DeliveryKey, UInt16, UInt64, UInt64, UInt64, UInt, UInt64, @storage.Watermark?) -> Result[@delivery.DeliveryAttempt, RedeliverError]
 
 pub fn route_partition(Bytes, UInt16) -> UInt16
+
+pub fn scan_group_state(BytesView) -> GroupCoordinator?
 
 // Errors
 pub(all) suberror RedeliverError {
@@ -156,7 +162,9 @@ pub fn GroupCoordinator::bump_wholesale(Self, UInt64, UInt16) -> Unit
 pub fn GroupCoordinator::encode_state(Self) -> Bytes
 pub fn GroupCoordinator::installed_assignment_epoch_of(Self, UInt64) -> UInt?
 pub fn GroupCoordinator::join(Self, UInt64, UInt16, UInt16) -> Result[JoinResult, @protocol.ErrCode]
+pub async fn[D : @harness.Disk] GroupCoordinator::join_persisted(Self, D, Bytes, UInt64, UInt16, UInt16, UInt64) -> Result[JoinResult, @protocol.ErrCode]
 pub fn GroupCoordinator::leave(Self, UInt64) -> Result[LeaveResult, @protocol.ErrCode]
+pub async fn[D : @harness.Disk] GroupCoordinator::leave_persisted(Self, D, Bytes, UInt64, UInt64) -> Result[LeaveResult, @protocol.ErrCode]
 pub fn GroupCoordinator::mark_installed(Self, UInt64, UInt) -> Result[Unit, @protocol.ErrCode]
 pub fn GroupCoordinator::new(UInt16) -> Self
 pub fn GroupCoordinator::on_fence_port(Self, (UInt16, UInt16, UInt16, UInt16, UInt64, UInt64, UInt64, UInt64) -> Unit) -> Unit

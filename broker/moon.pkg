@@ -1,6 +1,7 @@
 import {
   "guangyiliushan/mortarmq/delivery",
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/metadata",
   "guangyiliushan/mortarmq/protocol",
   "guangyiliushan/mortarmq/storage",
   "moonbitlang/core/debug",
@@ -8,6 +9,7 @@ import {
 
 import {
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/metadata",
   "moonbitlang/async",
   "moonbitlang/core/quickcheck",
   "moonbitlang/core/env",
