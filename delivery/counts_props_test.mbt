@@ -150,10 +150,10 @@ test "CM2 the cumulative totals never regress (quickcheck seed=20261012 is repro
 }
 
 ///|
-test "CM3 the floor and lag stay consistent (quickcheck seed=20261013 is reproducible)" {
+test "CM3 the floor and lag match an independent buckets oracle (quickcheck seed=20261013 is reproducible)" {
   @quickcheck.check(
     (draw : UInt) => {
-      let (events, _buckets) = cm_history(draw)
+      let (events, buckets) = cm_history(draw)
       let mut ok = true
       let mut n = 0
       while n <= events.length() {
@@ -162,6 +162,36 @@ test "CM3 the floor and lag stay consistent (quickcheck seed=20261013 is reprodu
           ok = false
         }
         n = n + 1
+      }
+      // Three-way cross-check at full history against oracle values the
+      // generator maintains from its own path choices, not from the
+      // events the fold reads: a wrong max, floor, or lag in the
+      // production counters cannot hide behind the identity.
+      let counts = @delivery.counts_of_events(events, 1, events.length())
+      let mut independent_floor = 0UL
+      let mut index = 0
+      let mut open_run = true
+      while index < buckets.length() {
+        if buckets[index] == 1UL && open_run {
+          independent_floor = (index + 1).to_uint64()
+        } else {
+          open_run = false
+        }
+        index = index + 1
+      }
+      let independent_max = buckets.length().to_uint64()
+      let independent_span = independent_max - independent_floor
+      if counts.ack_floor > counts.max_sequence {
+        ok = false
+      }
+      if counts.lag != independent_span {
+        ok = false
+      }
+      if counts.max_sequence != independent_max {
+        ok = false
+      }
+      if counts.ack_floor != independent_floor {
+        ok = false
       }
       ok
     },
