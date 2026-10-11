@@ -56,6 +56,13 @@ pub const PEER_HANDSHAKE_MAX_BODY : UInt = 51U
 /// scanning forward for the next length prefix could not tell a real
 /// frame from payload bytes, so recovery would corrupt what follows
 /// instead of repairing it.
+///
+/// Expiry answers `BadLength` and closes: the frame did not arrive in
+/// full, which is the same outcome a length prefix that cannot be
+/// honoured produces. Both are one failure because an abandoned half
+/// frame cannot be told apart from the header of the next one -- keeping
+/// it would corrupt every frame decoded after, so the only safe answer
+/// is the same one in both cases.
 pub const PEER_FRAME_TIMEOUT_MS : Int = 10000
 
 ///|
