@@ -1,4 +1,4 @@
-# Daily L2 property tier: the random-seed sweep the commit budget
+# Daily property tier: the random-seed sweep the commit budget
 # cannot afford. The pollution property runs here daily while the
 # commit tier runs the seed-pinned frame properties inside the
 # regular suite (ci.yml `stable` gates 5-7).
