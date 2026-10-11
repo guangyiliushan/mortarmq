@@ -11,7 +11,7 @@
 ///
 /// * `mark` and `is_marked` are O(1): one residue, one word, one mask.
 ///   No allocation happens on any path -- the 16 words (128 bytes,
-///   L1-resident) are built once in `new`.
+///   cache-resident at the first level) are built once in `new`.
 /// * The window covers exactly [watermark, watermark + 1024). A sequence
 ///   below the watermark is already consumed (is_marked answers true,
 ///   mark answers false); one at or past the edge is refused until the
