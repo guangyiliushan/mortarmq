@@ -160,7 +160,8 @@ async test "ownership change fences in-flight deliveries and remembers the id" {
   match @delivery.scan_ledger(disk, path) {
     Ok(scan) => {
       let events = scan.events
-      // D1, D2, A2, F1, D3, A3: the fence is durable before the redelivery.
+      // The fence event is journaled before the redelivery that follows
+      // it.
       assert_eq(events.length(), 6)
       assert_eq(events[3].event, @delivery.Fenced)
       assert_eq(events[3].sequence, 1UL)
