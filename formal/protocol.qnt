@@ -4,8 +4,9 @@
 // this skeleton.
 //
 // Toolchain: quint 0.33.0 (Apache-2.0) against the Apalache 0.62.1
-// server that quint manages under ~/.quint/. A Java 17+ runtime must
-// be on PATH. Reproduce:
+// server. On Windows the server must be started first, and a Java 21+
+// runtime must be on PATH (Apalache 0.62.1 class files are version 65;
+// a Java 17 runtime dies with UnsupportedClassVersionError). Reproduce:
 //
 //   npm install -g @informalsystems/quint@0.33.0
 //   ~/.quint/apalache-dist-0.62.1/apalache/bin/apalache-mc server --port=8822 &
