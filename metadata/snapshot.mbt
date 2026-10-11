@@ -392,6 +392,11 @@ pub async fn load_snapshot(
 /// to full replay when both are, then replay every log record past the
 /// end offset of the snapshot. The log is never modified.
 ///
+/// `log_bytes` is the log content, not a path: passing path bytes
+/// cannot fail loudly here and answers with an empty state, so callers
+/// read the file first. `dir` is the directory prefix the slot files
+/// live under.
+///
 /// Replay applies TopicCreate and TopicDelete mutations through the
 /// DECLARE machine and skips SnapshotHint and other record types. A
 /// snapshot whose end offset lies past the log end is refused like a
@@ -416,13 +421,13 @@ pub async fn load_snapshot(
 pub async fn recover_snapshot(
   disk : &@harness.Disk,
   dir : Bytes,
-  log : Bytes,
+  log_bytes : Bytes,
 ) -> Result[SnapshotState, MetadataFault] {
   let mut best : SnapshotState? = None
   for slot in [SNAPSHOT_SLOT_A, SNAPSHOT_SLOT_B] {
     match load_snapshot(disk, dir, slot) {
       Ok(candidate) =>
-        if candidate.end_offset <= log.length().to_uint64() {
+        if candidate.end_offset <= log_bytes.length().to_uint64() {
           match best {
             None => best = Some(candidate)
             Some(current) =>
@@ -448,21 +453,22 @@ pub async fn recover_snapshot(
     }
   }
   for ;; {
-    if position == log.length() {
+    if position == log_bytes.length() {
       break
     }
-    if position + MMML_HEADER_BYTES > log.length() {
+    if position + MMML_HEADER_BYTES > log_bytes.length() {
       break
     }
-    let payload_len = match read_uint_be(log[:], position + 12) {
+    let payload_len = match read_uint_be(log_bytes[:], position + 12) {
       Ok(value) => value.reinterpret_as_int()
       Err(_) => break
     }
     let record_len = MMML_HEADER_BYTES + payload_len
-    if position + record_len > log.length() {
+    if position + record_len > log_bytes.length() {
       break
     }
-    let record = match decode_mmml_record(log[position:position + record_len]) {
+    let record = match
+      decode_mmml_record(log_bytes[position:position + record_len]) {
       Ok(value) => value
       Err(_) => return Err(Corruption(position.reinterpret_as_uint()))
     }

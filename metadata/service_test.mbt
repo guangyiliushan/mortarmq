@@ -130,3 +130,19 @@ fn svc_flip_byte(data : Bytes, index : Int) -> Bytes {
 fn m2_frag() -> Bytes raise {
   svc_pair_record(2UL, 1UL, [@metadata.DeclareBody::Create("payments", 1)])
 }
+
+///|
+async test "path-like log bytes recover an empty state that is checkable" {
+  let fake = @harness.FakeDisk::new()
+  let disk : &@harness.Disk = fake
+  let service = @metadata.MetadataService::new()
+  match service.recover(disk, b"meta", b"meta/mmml.log") {
+    Ok(state) => {
+      assert_eq(state.end_offset, 0UL)
+      assert_eq(service.partition_count("orders"), None)
+      assert_eq(service.read_face(), @metadata.MetadataMode::Healthy)
+    }
+    Err(_) =>
+      fail("empty-prefix recovery answers Ok; the emptiness is the signal")
+  }
+}

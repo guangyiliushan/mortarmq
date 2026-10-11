@@ -91,23 +91,28 @@ pub async fn MetadataService::save(
 }
 
 ///|
-/// The gateed crash-recovery path: rebuild machine state from the
+/// The gated crash-recovery path: rebuild machine state from the
 /// snapshot chain and log, feed the gate on damage, and clear it only
 /// after a trustworthy rebuild.
+///
+/// `log_bytes` is the log content, not a path: passing path bytes
+/// cannot fail loudly here and answers with an empty state (end offset
+/// zero), so callers read the file first. `dir` is the directory prefix
+/// the snapshot slots live under.
 ///
 /// # Errors
 ///
 /// * `MetadataReadOnly` (0x2003) when recovery met record damage; the
 ///   damaged region is recorded for the operator and later writes are
-///   until a rebuild clears the gate.
+///   refused until a rebuild clears the gate.
 /// * `Internal` (0x000A) for a disk fault during recovery.
 pub async fn MetadataService::recover(
   self : MetadataService,
   disk : &@harness.Disk,
   dir : Bytes,
-  log : Bytes,
+  log_bytes : Bytes,
 ) -> Result[SnapshotState, @protocol.ErrCode] {
-  match recover_snapshot(disk, dir, log) {
+  match recover_snapshot(disk, dir, log_bytes) {
     Ok(state) => {
       self.machine = state.machine
       self.gate.restore_healthy()
