@@ -42,6 +42,7 @@ pub const SNAPSHOT_SLOT_B : Bytes = b"mmml-snapshot-b.checkpoint"
 /// an empty log.
 pub(all) struct SnapshotState {
   machine : DeclareMachine
+  tracker : ChangeTracker
   epoch : UInt64
   end_offset : UInt64
 }
@@ -139,6 +140,18 @@ pub fn encode_snapshot(state : SnapshotState) -> Result[Bytes, MetadataFault] {
       }
     }
   }
+  for (name, finalized) in state.tracker.flags.to_array() {
+    match snapshot_record(state.epoch, encode_flag_entry(name, finalized)) {
+      Ok(record) => buf.write_bytes(record)
+      Err(fault) => return Err(fault)
+    }
+  }
+  for change in state.tracker.changes {
+    match snapshot_record(state.epoch, encode_change_entry(change)) {
+      Ok(record) => buf.write_bytes(record)
+      Err(fault) => return Err(fault)
+    }
+  }
   match snapshot_record(state.epoch, snapshot_footer_payload()) {
     Ok(record) => buf.write_bytes(record)
     Err(fault) => return Err(fault)
@@ -147,7 +160,37 @@ pub fn encode_snapshot(state : SnapshotState) -> Result[Bytes, MetadataFault] {
 }
 
 ///|
-fn decode_state_entry(payload : BytesView, machine : DeclareMachine) -> Unit? {
+/// Snapshot state entry for one feature flag (entry kind 3).
+fn encode_flag_entry(name : String, finalized : Bool) -> Bytes {
+  let name_bytes = @utf8.encode(name)
+  let buf = Buffer()
+  buf.write_byte(3)
+  buf.write_uint16_be(name_bytes.length().to_uint16())
+  buf.write_bytes(name_bytes)
+  buf.write_byte(if finalized { 1 } else { 0 })
+  buf.contents()
+}
+
+///|
+/// Snapshot state entry for one tracked change (entry kind 4).
+fn encode_change_entry(change : TrackedChange) -> Bytes {
+  let detail_bytes = @utf8.encode(change.detail)
+  let buf = Buffer()
+  buf.write_byte(4)
+  buf.write_uint64_be(change.end_offset)
+  buf.write_uint16_be(change.kind.to_uint16())
+  buf.write_byte(if change.tier == OneWay { 1 } else { 0 })
+  buf.write_uint16_be(detail_bytes.length().to_uint16())
+  buf.write_bytes(detail_bytes)
+  buf.contents()
+}
+
+///|
+fn decode_state_entry(
+  payload : BytesView,
+  machine : DeclareMachine,
+  tracker : ChangeTracker,
+) -> Unit? {
   if payload.length() < 1 {
     return None
   }
@@ -215,7 +258,62 @@ fn decode_state_entry(payload : BytesView, machine : DeclareMachine) -> Unit? {
       table.set(mutation_id, set)
       Some(())
     }
-    _ => None
+    3U => {
+      let name_len = match read_uint16_be(payload, 1) {
+        Ok(value) => value.to_int()
+        Err(_) => return None
+      }
+      if payload.length() != 4 + name_len {
+        return None
+      }
+      let name = @utf8.decode(payload[3:3 + name_len]) catch {
+        Malformed(_) => return None
+      }
+      match payload[3 + name_len].to_uint() {
+        0U => {
+          tracker.flags.set(name, false)
+          Some(())
+        }
+        1U => {
+          tracker.flags.set(name, true)
+          Some(())
+        }
+        _ => None
+      }
+    }
+    4U => {
+      let end_offset = match read_uint64_be(payload, 1) {
+        Ok(value) => value
+        Err(_) => return None
+      }
+      let kind_code = match read_uint16_be(payload, 9) {
+        Ok(value) => value
+        Err(_) => return None
+      }
+      let kind = match MmmlRecordType::from_uint16(kind_code) {
+        Some(value) => value
+        None => return None
+      }
+      let tier = match payload[11].to_uint() {
+        0U => Compatible
+        1U => OneWay
+        _ => return None
+      }
+      let detail_len = match read_uint16_be(payload, 12) {
+        Ok(value) => value.to_int()
+        Err(_) => return None
+      }
+      if payload.length() != 14 + detail_len {
+        return None
+      }
+      let detail = @utf8.decode(payload[14:14 + detail_len]) catch {
+        Malformed(_) => return None
+      }
+      tracker.changes.push({ end_offset, kind, tier, detail, })
+      Some(())
+    }
+    0U => None
+    _ => Some(())
   }
 }
 
@@ -257,6 +355,7 @@ pub fn decode_snapshot(
     Err(fault) => return Err(fault)
   }
   let machine = DeclareMachine::new()
+  let tracker = ChangeTracker::new()
   let mut position = MMML_HEADER_BYTES + 10
   let mut saw_footer = false
   for ;; {
@@ -298,7 +397,7 @@ pub fn decode_snapshot(
       }
       saw_footer = true
     } else {
-      match decode_state_entry(record.payload[:], machine) {
+      match decode_state_entry(record.payload[:], machine, tracker) {
         Some(_) => ()
         None => return Err(Malformed)
       }
@@ -308,7 +407,7 @@ pub fn decode_snapshot(
     return Err(Malformed)
   }
   machine.max_epoch = header.header.leader_epoch
-  Ok({ machine, epoch: header.header.leader_epoch, end_offset, })
+  Ok({ machine, tracker, epoch: header.header.leader_epoch, end_offset, })
 }
 
 ///|
@@ -442,12 +541,17 @@ pub async fn recover_snapshot(
     }
   }
   let mut machine = DeclareMachine::new()
+  let tracker = ChangeTracker::new()
   let mut epoch = 0UL
   let mut position = 0
   match best {
     None => ()
     Some(state) => {
       machine = state.machine
+      tracker.changes = state.tracker.changes
+      for (flag_name, finalized) in state.tracker.flags.to_array() {
+        tracker.flags.set(flag_name, finalized)
+      }
       epoch = state.epoch
       position = state.end_offset.to_int()
     }
@@ -492,8 +596,12 @@ pub async fn recover_snapshot(
       }
       None => ()
     }
+    match tracker.track((position + record_len).to_uint64(), record) {
+      Ok(_) => ()
+      Err(_) => return Err(Corruption(position.reinterpret_as_uint()))
+    }
     epoch = record.header.leader_epoch
     position = position + record_len
   }
-  Ok({ machine, epoch, end_offset: position.to_uint64(), })
+  Ok({ machine, tracker, epoch, end_offset: position.to_uint64(), })
 }

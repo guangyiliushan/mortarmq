@@ -18,12 +18,17 @@
 /// crash recovery, all under one gate.
 pub(all) struct MetadataService {
   mut machine : DeclareMachine
+  mut tracker : ChangeTracker
   mut gate : MetadataGuard
 }
 
 ///|
 pub fn MetadataService::new() -> MetadataService {
-  { machine: DeclareMachine::new(), gate: MetadataGuard::new(), }
+  {
+    machine: DeclareMachine::new(),
+    tracker: ChangeTracker::new(),
+    gate: MetadataGuard::new(),
+  }
 }
 
 ///|
@@ -84,7 +89,12 @@ pub async fn MetadataService::save(
     None => ()
   }
   match
-    save_snapshot(disk, dir, { machine: self.machine, epoch, end_offset, }) {
+    save_snapshot(disk, dir, {
+      machine: self.machine,
+      tracker: self.tracker,
+      epoch,
+      end_offset,
+    }) {
     Ok(_) => Ok(())
     Err(fault) => Err(fault.to_err_code())
   }
@@ -115,6 +125,7 @@ pub async fn MetadataService::recover(
   match recover_snapshot(disk, dir, log_bytes) {
     Ok(state) => {
       self.machine = state.machine
+      self.tracker = state.tracker
       self.gate.restore_healthy()
       Ok(state)
     }
@@ -134,4 +145,42 @@ pub fn MetadataService::partition_count(
   name : String,
 ) -> UInt? {
   self.machine.partition_count(name)
+}
+
+///|
+/// Whether the named feature is finalized (the rule-4 gate before any
+/// new-format write).
+pub fn MetadataService::is_finalized(
+  self : MetadataService,
+  name : String,
+) -> Bool {
+  self.tracker.is_finalized(name)
+}
+
+///|
+/// Whether any tracked metadata change landed after the given log
+/// position (the rule-5 downgrade gate).
+pub fn MetadataService::has_changes_since(
+  self : MetadataService,
+  end_offset : UInt64,
+) -> Bool {
+  self.tracker.has_changes_since(end_offset)
+}
+
+///|
+/// The one-way changes on record, in log order (the rollback-refusal
+/// explanation).
+pub fn MetadataService::one_way_changes(
+  self : MetadataService,
+) -> Array[TrackedChange] {
+  self.tracker.one_way_changes()
+}
+
+///|
+/// The downgrade preconditions of the compatible-tier rollback.
+pub fn MetadataService::downgrade_preconditions(
+  self : MetadataService,
+  upgrade_end_offset : UInt64,
+) -> Array[PreconditionCheck] {
+  self.tracker.downgrade_preconditions(upgrade_end_offset)
 }

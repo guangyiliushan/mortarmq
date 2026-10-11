@@ -24,11 +24,15 @@ pub fn decode_declare_bodies(MmmlRecordType, BytesView) -> Array[DeclareBody]?
 
 pub fn decode_declare_body(MmmlRecordType, BytesView) -> DeclareBody?
 
+pub fn decode_feature_flag(BytesView) -> (String, Bool)?
+
 pub fn decode_mmml_record(BytesView) -> Result[MmmlRecord, MetadataFault]
 
 pub fn decode_snapshot(BytesView) -> Result[SnapshotState, MetadataFault]
 
 pub fn encode_declare_bodies(Array[DeclareBody]) -> Bytes
+
+pub fn encode_feature_flag(String, Bool) -> Bytes
 
 pub fn encode_mmml_record(MmmlHeader, BytesView) -> Result[Bytes, MetadataFault]
 
@@ -52,6 +56,25 @@ pub fn MetadataFault::to_err_code(Self) -> @protocol.ErrCode
 pub fn MetadataFault::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+pub(all) enum ChangeTier {
+  Compatible
+  OneWay
+} derive(Eq, @debug.Debug)
+pub fn ChangeTier::equal(Self, Self) -> Bool
+pub fn ChangeTier::not_equal(Self, Self) -> Bool
+pub fn ChangeTier::to_repr(Self) -> @debug.Repr
+
+pub(all) struct ChangeTracker {
+  flags : Map[String, Bool]
+  mut changes : Array[TrackedChange]
+}
+pub fn ChangeTracker::downgrade_preconditions(Self, UInt64) -> Array[PreconditionCheck]
+pub fn ChangeTracker::has_changes_since(Self, UInt64) -> Bool
+pub fn ChangeTracker::is_finalized(Self, String) -> Bool
+pub fn ChangeTracker::new() -> Self
+pub fn ChangeTracker::one_way_changes(Self) -> Array[TrackedChange]
+pub fn ChangeTracker::track(Self, UInt64, MmmlRecord) -> Result[Unit, MetadataFault]
+
 pub(all) struct DeclareAck {
   created : Bool
 } derive(Eq, @debug.Debug)
@@ -115,10 +138,15 @@ pub fn MetadataMode::to_repr(Self) -> @debug.Repr
 
 pub(all) struct MetadataService {
   mut machine : DeclareMachine
+  mut tracker : ChangeTracker
   mut gate : MetadataGuard
 }
+pub fn MetadataService::downgrade_preconditions(Self, UInt64) -> Array[PreconditionCheck]
+pub fn MetadataService::has_changes_since(Self, UInt64) -> Bool
+pub fn MetadataService::is_finalized(Self, String) -> Bool
 pub fn MetadataService::mediate_mutation(Self, UInt64, UInt64, Array[DeclareBody]) -> Result[Array[DeclareAck], @protocol.ErrCode]
 pub fn MetadataService::new() -> Self
+pub fn MetadataService::one_way_changes(Self) -> Array[TrackedChange]
 pub fn MetadataService::partition_count(Self, String) -> UInt?
 pub fn MetadataService::quarantine_entries(Self) -> Array[QuarantineEntry]
 pub fn MetadataService::read_face(Self) -> MetadataMode
@@ -168,6 +196,14 @@ pub fn MmmlRecordType::not_equal(Self, Self) -> Bool
 pub fn MmmlRecordType::to_repr(Self) -> @debug.Repr
 pub fn MmmlRecordType::to_uint16(Self) -> UInt16
 
+pub(all) struct PreconditionCheck {
+  name : String
+  passed : Bool
+} derive(Eq, @debug.Debug)
+pub fn PreconditionCheck::equal(Self, Self) -> Bool
+pub fn PreconditionCheck::not_equal(Self, Self) -> Bool
+pub fn PreconditionCheck::to_repr(Self) -> @debug.Repr
+
 pub(all) struct QuarantineEntry {
   offset : UInt
   length : UInt
@@ -178,9 +214,20 @@ pub fn QuarantineEntry::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SnapshotState {
   machine : DeclareMachine
+  tracker : ChangeTracker
   epoch : UInt64
   end_offset : UInt64
 }
+
+pub(all) struct TrackedChange {
+  end_offset : UInt64
+  kind : MmmlRecordType
+  tier : ChangeTier
+  detail : String
+} derive(Eq, @debug.Debug)
+pub fn TrackedChange::equal(Self, Self) -> Bool
+pub fn TrackedChange::not_equal(Self, Self) -> Bool
+pub fn TrackedChange::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

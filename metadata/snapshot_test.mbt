@@ -92,7 +92,13 @@ fn encoded_snapshot(
   epoch : UInt64,
   end_offset : UInt64,
 ) -> Bytes raise {
-  match @metadata.encode_snapshot({ machine, epoch, end_offset, }) {
+  match
+    @metadata.encode_snapshot({
+      machine,
+      tracker: @metadata.ChangeTracker::new(),
+      epoch,
+      end_offset,
+    }) {
     Ok(bytes) => bytes
     Err(_) => fail("snapshot encoding failed")
   }
@@ -239,6 +245,7 @@ async test "save publishes via part rename and keeps two generations" {
   assert_eq(
     @metadata.save_snapshot(disk, dir, {
       machine: m,
+      tracker: @metadata.ChangeTracker::new(),
       epoch: 1UL,
       end_offset: 10UL,
     }),
@@ -247,6 +254,7 @@ async test "save publishes via part rename and keeps two generations" {
   assert_eq(
     @metadata.save_snapshot(disk, dir, {
       machine: m,
+      tracker: @metadata.ChangeTracker::new(),
       epoch: 2UL,
       end_offset: 20UL,
     }),
@@ -255,6 +263,7 @@ async test "save publishes via part rename and keeps two generations" {
   assert_eq(
     @metadata.save_snapshot(disk, dir, {
       machine: m,
+      tracker: @metadata.ChangeTracker::new(),
       epoch: 3UL,
       end_offset: 30UL,
     }),
@@ -283,6 +292,7 @@ async test "a killed save leaves the previous generation intact" {
   assert_eq(
     @metadata.save_snapshot(disk, dir, {
       machine,
+      tracker: @metadata.ChangeTracker::new(),
       epoch: 1UL,
       end_offset: log.length().to_uint64(),
     }),
@@ -292,6 +302,7 @@ async test "a killed save leaves the previous generation intact" {
   assert_eq(
     @metadata.save_snapshot(disk, dir, {
       machine,
+      tracker: @metadata.ChangeTracker::new(),
       epoch: 2UL,
       end_offset: 99UL,
     }),
@@ -333,6 +344,7 @@ async test "recover falls back to the previous generation when the newest is cor
   assert_eq(
     @metadata.save_snapshot(disk, dir, {
       machine: after_two,
+      tracker: @metadata.ChangeTracker::new(),
       epoch: 1UL,
       end_offset: (m1.length() + m2.length()).to_uint64(),
     }),
@@ -345,6 +357,7 @@ async test "recover falls back to the previous generation when the newest is cor
         (2UL, @metadata.DeclareBody::Create("payments", 1)),
         (3UL, @metadata.DeclareBody::Delete("orders")),
       ]),
+      tracker: @metadata.ChangeTracker::new(),
       epoch: 2UL,
       end_offset: (m1.length() + m2.length() + m3.length()).to_uint64(),
     }),
@@ -491,6 +504,7 @@ async test "a snapshot past the log end falls back to full replay" {
   assert_eq(
     @metadata.save_snapshot(disk, dir, {
       machine,
+      tracker: @metadata.ChangeTracker::new(),
       epoch: 1UL,
       end_offset: 9999UL,
     }),
@@ -621,6 +635,7 @@ async test "killed snapshot saves never expose half a pair" {
     assert_eq(
       @metadata.save_snapshot(disk, b"meta", {
         machine: empty,
+        tracker: @metadata.ChangeTracker::new(),
         epoch: 0UL,
         end_offset: 0UL,
       }),
@@ -630,6 +645,7 @@ async test "killed snapshot saves never expose half a pair" {
     assert_eq(
       @metadata.save_snapshot(disk, b"meta", {
         machine: pair,
+        tracker: @metadata.ChangeTracker::new(),
         epoch: 1UL,
         end_offset: packed.length().to_uint64(),
       })
@@ -650,6 +666,7 @@ async test "killed snapshot saves never expose half a pair" {
   assert_eq(
     @metadata.save_snapshot(disk, b"meta", {
       machine: pair,
+      tracker: @metadata.ChangeTracker::new(),
       epoch: 1UL,
       end_offset: packed.length().to_uint64(),
     }),
@@ -661,5 +678,112 @@ async test "killed snapshot saves never expose half a pair" {
       assert_eq(state.machine.partition_count("orders.dlq"), Some(3U))
     }
     Err(_) => fail("published pair snapshot did not recover")
+  }
+}
+
+///|
+fn st_decoded(bytes : Bytes) -> @metadata.MmmlRecord raise {
+  match @metadata.decode_mmml_record(bytes[:]) {
+    Ok(record) => record
+    Err(_) => fail("record decoding failed")
+  }
+}
+
+///|
+test "snapshot round-trips the change tracker" {
+  let tracker = @metadata.ChangeTracker::new()
+  ignore(
+    tracker.track(
+      10UL,
+      st_decoded(
+        mutation_record(1UL, 1UL, @metadata.DeclareBody::Create("orders", 3)),
+      ),
+    ),
+  )
+  match
+    tracker.track(
+      20UL,
+      st_decoded(
+        mutation_record(2UL, 1UL, @metadata.DeclareBody::Delete("orders")),
+      ),
+    ) {
+    Ok(_) => ()
+    Err(_) => fail("track failed")
+  }
+  let machine = @metadata.DeclareMachine::new()
+  let bytes = match
+    @metadata.encode_snapshot({
+      machine,
+      tracker,
+      epoch: 1UL,
+      end_offset: 20UL,
+    }) {
+    Ok(value) => value
+    Err(_) => fail("snapshot encoding failed")
+  }
+  match @metadata.decode_snapshot(bytes[:]) {
+    Ok(state) => {
+      assert_eq(state.tracker.one_way_changes(), tracker.one_way_changes())
+      assert_eq(state.tracker.has_changes_since(10UL), true)
+      assert_eq(state.tracker.has_changes_since(20UL), false)
+    }
+    Err(_) => fail("snapshot decoding failed")
+  }
+}
+
+///|
+async test "recovery continues tracking across the snapshot point" {
+  let m1 = mutation_record(1UL, 1UL, @metadata.DeclareBody::Create("orders", 3))
+  let m2 = mutation_record(2UL, 1UL, @metadata.DeclareBody::Delete("orders"))
+  let m3 = mutation_record(
+    3UL,
+    1UL,
+    @metadata.DeclareBody::Create("payments", 1),
+  )
+  let log = join([m1, m2, m3])
+  let fake = @harness.FakeDisk::new()
+  let disk : &@harness.Disk = fake
+  let mid_machine = machine_with([
+    (1UL, @metadata.DeclareBody::Create("orders", 3)),
+    (2UL, @metadata.DeclareBody::Delete("orders")),
+  ])
+  let mid_tracker = @metadata.ChangeTracker::new()
+  ignore(
+    mid_tracker.track(
+      m1.length().to_uint64(),
+      st_decoded(
+        mutation_record(1UL, 1UL, @metadata.DeclareBody::Create("orders", 3)),
+      ),
+    ),
+  )
+  ignore(
+    mid_tracker.track(
+      (m1.length() + m2.length()).to_uint64(),
+      st_decoded(
+        mutation_record(2UL, 1UL, @metadata.DeclareBody::Delete("orders")),
+      ),
+    ),
+  )
+  assert_eq(
+    @metadata.save_snapshot(disk, b"meta", {
+      machine: mid_machine,
+      tracker: mid_tracker,
+      epoch: 1UL,
+      end_offset: (m1.length() + m2.length()).to_uint64(),
+    }),
+    Ok(()),
+  )
+  match @metadata.recover_snapshot(disk, b"meta", log) {
+    Ok(state) => {
+      assert_eq(state.end_offset, log.length().to_uint64())
+      let one_way = state.tracker.one_way_changes()
+      assert_eq(one_way.length(), 1)
+      assert_eq(one_way[0].detail, "orders")
+      assert_eq(
+        state.tracker.has_changes_since((m1.length() + m2.length()).to_uint64()),
+        true,
+      )
+    }
+    Err(_) => fail("recovery over the snapshot and tail failed")
   }
 }
