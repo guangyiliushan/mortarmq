@@ -15,8 +15,7 @@
 ///   SHA-256; a key longer than one block is hashed down first, exactly
 ///   as RFC 2104 section 2 requires.
 /// * The output is a plain 32-byte tag with no structure of its own, so a
-///   caller compares it with the XOR-accumulator form in
-///   `security/auth.mbt` and never with `==`.
+///   caller compares it with `tag_eq` and never with `==`.
 /// * The only branch on secret material is the one up-front key-length
 ///   check, and that length is a public value.
 

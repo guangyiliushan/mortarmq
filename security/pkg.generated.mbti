@@ -24,6 +24,8 @@ pub fn sha256(BytesView) -> Bytes
 
 pub fn sha256_hex(BytesView) -> Bytes
 
+pub fn tag_eq(BytesView, BytesView) -> Bool
+
 pub fn token_line(Bytes, Bytes) -> Result[Bytes, TokensError]
 
 // Errors
