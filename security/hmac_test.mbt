@@ -83,11 +83,18 @@ test "a key of exactly one block takes the pad path, not the hash path" {
   let message = b"boundary"
   let padded = @security.hmac_sha256(at_block, message)
   let hashed = @security.hmac_sha256(over_block, message)
-  assert_eq(padded == hashed, false)
-  // The one-block key is used verbatim, so it must equal the same key
-  // with no trailing bytes rather than the 65-byte key's digest.
-  assert_eq(padded == @security.hmac_sha256(at_block, message), true)
-  assert_eq(padded.length(), @security.HMAC_DIGEST_BYTES)
+  // Both key schedules pin to outside values (cross-checked against an
+  // independent HMAC-SHA256 oracle at development time), so the pad path
+  // and the hash-down path each bite their key input and neither can
+  // silently collapse into the other.
+  assert_eq(
+    @security.digest_hex(padded),
+    b"75eb5ffe3a1f602eab7e09004e78064769aa0eed261e4a3888dfe62d6a945b4e",
+  )
+  assert_eq(
+    @security.digest_hex(hashed),
+    b"8667c9376a80b4946a91a671f539eb3769a0928f3ccbf5c819a0b5af61f86d10",
+  )
 }
 
 ///|
