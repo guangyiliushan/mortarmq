@@ -3,6 +3,7 @@ package "guangyiliushan/mortarmq/delivery"
 
 import {
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/protocol",
   "guangyiliushan/mortarmq/storage",
   "moonbitlang/core/debug",
 }
@@ -38,12 +39,14 @@ pub(all) suberror DeliveryError {
   AlreadyDeadLettered
   InvalidTransition
   DlqPathOverflow
+  DlqUnavailable
   Capacity
   Malformed
   DiskFault(@harness.HarnessFault)
 } derive(Eq, @debug.Debug)
 pub fn DeliveryError::equal(Self, Self) -> Bool
 pub fn DeliveryError::not_equal(Self, Self) -> Bool
+pub fn DeliveryError::to_err_code(Self) -> @protocol.ErrCode
 pub fn DeliveryError::to_repr(Self) -> @debug.Repr
 
 pub(all) suberror LedgerFault {

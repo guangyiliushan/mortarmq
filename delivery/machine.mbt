@@ -186,6 +186,7 @@ pub(all) suberror DeliveryError {
   AlreadyDeadLettered
   InvalidTransition
   DlqPathOverflow
+  DlqUnavailable
   Capacity
   Malformed
   DiskFault(@harness.HarnessFault)
@@ -510,7 +511,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
             fenced_delivery_id: delivery_id,
             dlq_sequence: 0UL,
             retry_due_wall: 0UL,
-              terminated: false,
+            terminated: false,
           }
         }
       }
@@ -1010,7 +1011,10 @@ pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
   }
   let dlq_sequence = match dlq_write(bytes) {
     Ok(sequence) => sequence
-    Err(code) => return Err(code)
+    // Any port failure is the registered 0x0031 condition: the DLQ write
+    // could not be completed, the source stays parked, and the completion
+    // is retried later.
+    Err(_) => return Err(DlqUnavailable)
   }
   let written = LedgerEvent::new(
     group_id=key.group_id,

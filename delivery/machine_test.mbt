@@ -364,12 +364,14 @@ async test "the delivery bundle is returned only after the durable write" {
   // Kill at the DELIVER write: no bundle exists, so nothing can be
   // emitted before it is durable.
   match machine.begin_delivery(disk, key(1), 7, 1000, None) {
-    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) => assert_eq(true, true)
+    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) =>
+      assert_eq(true, true)
     _ => fail("expected the kill at the DELIVER write")
   }
   match @delivery.scan_ledger(disk, path) {
     Ok(scan) => assert_eq(scan.events.length(), 0)
-    Err(@delivery.LedgerFault::DiskFault(@harness.PathMissing)) => assert_eq(true, true)
+    Err(@delivery.LedgerFault::DiskFault(@harness.PathMissing)) =>
+      assert_eq(true, true)
     Err(_) => fail("unexpected ledger scan outcome")
   }
   // The retried bundle implies the event: the log already holds it.
