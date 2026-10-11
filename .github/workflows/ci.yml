@@ -30,8 +30,9 @@ jobs:
     name: lint
     # Keeps this repository's own conventions enforced instead of aspirational:
     # workflow syntax, workflow security posture, resolvable doc references
-    # (CONTRIBUTING.md section 1.2), and formal model regressions. The remaining prose rules -- English-only
-    # source, no plan markers -- are review-enforced (section 2.3).
+    # (CONTRIBUTING.md section 1.2), formal model regressions, and the source
+    # hygiene scans (plan markers, control bytes). The remaining prose rule --
+    # English-only source -- stays review-enforced (section 2.3).
     # The job name stays short on purpose: it is a required check, and renaming
     # it costs a green run plus a manual re-selection in branch protection.
     runs-on: ubuntu-latest
@@ -61,6 +62,9 @@ jobs:
 
       - name: doc reference gate (CONTRIBUTING section 1.2)
         run: node .github/scripts/check-doc-refs.mjs
+
+      - name: source hygiene gate (plan markers, control bytes)
+        run: node .github/scripts/check-source-hygiene.mjs
 
       - name: commit message checker self-test
         run: bash .github/scripts/check-commit-messages.sh --self-test

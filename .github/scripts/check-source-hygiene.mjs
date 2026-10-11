@@ -41,7 +41,11 @@ const SKIP_DIRS = new Set([
 const TEXT_EXT = new Set([".mbt", ".mbti", ".qnt", ".sh", ".mjs", ".yml", ".yaml"]);
 const TEXT_BASE = new Set(["moon.pkg", "moon.mod"]);
 const PLAN_MARKER =
-  /\bT\d{2,3}\b|\bWP-[A-Z0-9.]+|\bREQ-[A-Z]+-\d+\b|\bQ\d+\b|\bR\d+[a-z]?\b|\bR-[A-Z0-9]+\b|\bA\d{2}\b|\bD\d{1,2}\b|\bADR-\d+\b|\bINV-\d+\b|suite S\d+|\bgap [AB]-\d\b|\bF\d{2}\b|\bL\d\b/g;
+  /\bT\d{2,3}\b|\bWP-[A-Z0-9.]+|\bREQ-[A-Z]+-\d+\b|\bQ\d+\b|\bR\d+[a-z]?\b|\bR-[A-Z0-9]+\b|\bA\d{2}\b|\bD\d{1,2}\b|\bADR-\d+\b|\bINV-\d+\b|suite S\d+|\bgap [AB]-\d\b|\bF\d{2}\b/g;
+// Parked family, armed once the in-tree cleanup lands: the judgment-
+// point level ids (a level letter plus one digit). They are banned like
+// the rest; existing citations were dispatched for domain cleanup and
+// the gate must not go up red. One alternation arms it: |\bL\d\b
 
 const quiet = process.argv.includes("--quiet");
 

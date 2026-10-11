@@ -24,6 +24,7 @@ All green before merge. `ci.yml` is the authority for command text, versions and
 | `actionlint` | `lint` | invalid workflow syntax (config: `.github/actionlint.yaml`) |
 | `zizmor --persona=auditor .github` | `lint` | over-broad permissions, unpinned actions, credential leakage |
 | `node .github/scripts/check-doc-refs.mjs` | `lint` | a section pointer that no longer resolves, or a required check in §2.1 that drifted from `ci.yml` |
+| `node .github/scripts/check-source-hygiene.mjs` | `lint` | a plan marker or a control byte on a source or CI surface (section 3.4) |
 | `bash .github/scripts/check-commit-messages.sh --self-test` | `lint` | a checker regression in subject parsing or rejection behavior |
 | `bash .github/scripts/check-commit-messages.sh` | `lint` | missing scope, invalid type/scope, oversized subject, merge subject, a commit without its `AI-assisted:` body line, or an empty selected commit range |
 | `quint` parse/typecheck/run + anti-vacuity mutation | `lint` | a formal model that stops compiling, an invariant that fails, or one that would still hold without its guard |
@@ -46,6 +47,7 @@ Commit a gate 3 `.mbti` diff with the change that caused it: an uncommitted `pro
 actionlint                                       # workflow syntax; config in .github/actionlint.yaml
 zizmor --persona=auditor .github                 # workflow security posture
 node .github/scripts/check-doc-refs.mjs          # section pointers and required-check names (section 2.1)
+node .github/scripts/check-source-hygiene.mjs   # plan markers and control bytes (section 3.4)
 quint parse/typecheck formal/*.qnt             # formal models compile (toolchain pin in formal/protocol.qnt)
 quint run --invariant=promiseCoversEveryAppliedEntry formal/fencing.qnt
 ```
@@ -252,7 +254,7 @@ Also:
 - Spell out `section` rather than `§` in code and CI comments — `§` renders badly in terminals and in CI logs.
 - A cross-reference that does remain is a repo-relative path: never absolute, never a URL.
 
-**Enforcement:** review (§2.3), not a script — the rule is the list above, and a reviewer applies it. The prose half is the one that rots silently: an id cited in a document is dead the moment the document it names leaves this repository, so name it only when the target ships with the site.
+**Enforcement:** the scanner (`node .github/scripts/check-source-hygiene.mjs`, wired into `lint`) red-lines plan markers and control bytes on the code and CI surfaces; the prose half stays review (§2.3) — an id cited in a document is dead the moment the document it names leaves this repository, so name it only when the target ships with the site.
 
 ### 3.5 Punctuation and typography
 
