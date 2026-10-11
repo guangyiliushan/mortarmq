@@ -1,1 +1,20 @@
-// Placeholder package: quorum replication, static membership and lease-based leader election.
+// Quorum replication, static membership and lease-based leader election.
+// The peer channel speaks the @net.Conn trait and never names a socket, so
+// the concrete transport wiring lives at the edge and this package stays
+// transport-neutral. It imports protocol for the shared error registry,
+// security for the keyed MAC, and env for the handshake nonce; the test
+// side adds async and socket so the handshake can run over a real
+// loopback listener.
+import {
+  "guangyiliushan/mortarmq/net",
+  "guangyiliushan/mortarmq/protocol",
+  "guangyiliushan/mortarmq/security",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/env",
+}
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/io",
+  "moonbitlang/async/socket",
+} for "test"

@@ -1,11 +1,111 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "guangyiliushan/mortarmq/cluster"
 
+import {
+  "guangyiliushan/mortarmq/net",
+  "guangyiliushan/mortarmq/protocol",
+  "moonbitlang/core/debug",
+}
+
 // Values
+pub const PEER_DOMAIN : Bytes = b"mortarmq-peer-v1"
+
+pub const PEER_LEN_BYTES : Int = 4
+
+pub const PEER_NONCE_BYTES : Int = 16
+
+pub const PEER_SECRET_MIN_BYTES : Int = 16
+
+pub const PEER_TAG_BYTES : Int = 32
+
+pub const STATIC_PEER_COUNT : Int = 3
+
+pub fn decode_peer_msg(BytesView) -> PeerMsg?
+
+pub fn encode_peer_msg(PeerMsg) -> Bytes
+
+pub async fn peer_handshake_initiator(ClusterConfig, &@net.Conn, PeerEntry) -> Result[UInt16, @protocol.ErrCode]
+
+pub async fn peer_handshake_responder(ClusterConfig, &@net.Conn) -> Result[UInt16, @protocol.ErrCode]
+
+pub async fn read_peer_msg(&@net.Conn) -> Result[PeerMsg, @protocol.ErrCode]
+
+pub async fn write_peer_msg(&@net.Conn, PeerMsg) -> Result[Unit, @protocol.ErrCode]
 
 // Errors
+pub(all) suberror ClusterFault {
+  NotThreePeers
+  DuplicatePeerId
+  DuplicatePeerAddr
+  SelfMissing
+  BadLeaderPriority
+  BadListenAddr
+  WeakPeerSecret
+} derive(Eq, @debug.Debug)
+pub fn ClusterFault::equal(Self, Self) -> Bool
+pub fn ClusterFault::not_equal(Self, Self) -> Bool
+pub fn ClusterFault::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+pub struct ClusterConfig {
+  // private fields
+}
+pub fn ClusterConfig::has_peer(Self, UInt16) -> Bool
+pub fn ClusterConfig::leader_priority(Self) -> Array[UInt16]
+pub fn ClusterConfig::listen_host(Self) -> String
+pub fn ClusterConfig::listen_port(Self) -> Int
+pub fn ClusterConfig::new(UInt16, Array[PeerEntry], Array[UInt16], String, Int, PeerSecret) -> Result[Self, ClusterFault]
+pub fn ClusterConfig::node_id(Self) -> UInt16
+pub fn ClusterConfig::peer_count(Self) -> Int
+pub fn ClusterConfig::peer_entry(Self, UInt16) -> PeerEntry?
+pub fn ClusterConfig::peers(Self) -> Array[PeerEntry]
+pub fn ClusterConfig::quorum(Self) -> Int
+pub fn ClusterConfig::secret(Self) -> PeerSecret
+
+pub struct ClusterNode {
+  // private fields
+}
+pub fn ClusterNode::config(Self) -> ClusterConfig
+pub async fn ClusterNode::dial_peer(Self, &@net.Conn, PeerEntry) -> Result[PeerLink, @protocol.ErrCode]
+pub fn ClusterNode::link_count(Self) -> Int
+pub fn ClusterNode::links(Self) -> Array[PeerLink]
+pub fn ClusterNode::new(ClusterConfig) -> Self
+pub fn ClusterNode::peers_connected(Self) -> Bool
+pub async fn ClusterNode::serve_peer(Self, &@net.Conn) -> Result[PeerLink, @protocol.ErrCode]
+
+pub(all) struct PeerEntry {
+  node_id : UInt16
+  host : String
+  port : Int
+} derive(Eq, @debug.Debug)
+pub fn PeerEntry::equal(Self, Self) -> Bool
+pub fn PeerEntry::not_equal(Self, Self) -> Bool
+pub fn PeerEntry::to_repr(Self) -> @debug.Repr
+
+pub(all) struct PeerLink {
+  peer_id : UInt16
+  outbound : Bool
+} derive(Eq, @debug.Debug)
+pub fn PeerLink::equal(Self, Self) -> Bool
+pub fn PeerLink::not_equal(Self, Self) -> Bool
+pub fn PeerLink::to_repr(Self) -> @debug.Repr
+
+pub(all) enum PeerMsg {
+  Hello(UInt16)
+  Challenge(UInt16, Bytes, Bytes)
+  Proof(UInt16, Bytes)
+  Welcome(UInt16)
+  Reject(UInt16)
+} derive(Eq, @debug.Debug)
+pub fn PeerMsg::equal(Self, Self) -> Bool
+pub fn PeerMsg::not_equal(Self, Self) -> Bool
+pub fn PeerMsg::to_repr(Self) -> @debug.Repr
+
+pub struct PeerSecret {
+  // private fields
+}
+pub fn PeerSecret::new(Bytes) -> Result[Self, ClusterFault]
+pub fn PeerSecret::tag(Self, BytesView) -> Bytes
 
 // Type aliases
 

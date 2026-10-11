@@ -8,9 +8,15 @@ import {
 // Values
 pub const AUTH_FAILURE_DELAY_MS : Int = 100
 
+pub const HMAC_BLOCK_BYTES : Int = 64
+
+pub const HMAC_DIGEST_BYTES : Int = 32
+
 pub async fn[D : Delay] authenticate(TokenStore, BytesView, D) -> Result[Bytes, AuthFail]
 
 pub fn digest_hex(Bytes) -> Bytes
+
+pub fn hmac_sha256(Bytes, BytesView) -> Bytes
 
 pub fn parse_tokens(BytesView) -> TokenStore
 
