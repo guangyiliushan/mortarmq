@@ -36,6 +36,39 @@ pub const PEER_LEN_BYTES : Int = 4
 pub const PEER_NONCE_BYTES : Int = 16
 
 ///|
+/// Largest body a frame may declare before the handshake has completed.
+///
+/// A challenge is the biggest thing either end sends while still
+/// unauthenticated: one type byte, a two-byte id, a nonce and a tag, so
+/// 1 + 2 + 16 + 32. Nothing else pre-authentication comes close. A peer
+/// that claims more than this is refused on the claim itself rather
+/// than handed a buffer sized by what it said it would send -- which is
+/// the difference between a four-byte refusal and a sixteen-megabyte
+/// allocation made on an unauthenticated word.
+pub const PEER_HANDSHAKE_MAX_BODY : UInt = 51U
+
+///|
+/// How long one frame may take to arrive in full, in milliseconds.
+///
+/// Mirrors the client channel's `HALF_FRAME_TIMEOUT_SECONDS`. A peer
+/// that stops in the middle of a frame is disconnected rather than
+/// waited for, and the stream is never re-synchronised afterwards:
+/// scanning forward for the next length prefix could not tell a real
+/// frame from payload bytes, so recovery would corrupt what follows
+/// instead of repairing it.
+pub const PEER_FRAME_TIMEOUT_MS : Int = 10000
+
+///|
+/// How many bytes one read of a frame body asks for at a time.
+///
+/// The bound that keeps a declared length from being an allocation
+/// size. What gets allocated follows what has actually arrived, one
+/// chunk at a time, whatever the peer claimed it was about to send -- a
+/// four-byte prefix that promises sixteen megabytes costs four bytes
+/// until four bytes more show up.
+pub const PEER_READ_CHUNK_BYTES : Int = 65536
+
+///|
 /// Size of an HMAC-SHA256 tag on the wire, in bytes.
 pub const PEER_TAG_BYTES : Int = 32
 
@@ -702,8 +735,42 @@ pub async fn write_peer_msg(
 /// cannot describe a frame reports `BadLength`; a body that does not
 /// decode to exactly one known message reports `MalformedPayload`. Both
 /// are registered codes, so a malformed peer frame is never swallowed.
-pub async fn read_peer_msg(
+
+///|
+/// Read one frame whose body may declare at most `max_body` bytes,
+/// giving up after `deadline_ms`.
+///
+/// The deadline is a parameter rather than a constant read inside so a
+/// test can exercise it in milliseconds instead of in seconds, and so a
+/// caller with a tighter budget of its own can pass one -- the same
+/// shape `send_append` uses for the quorum acknowledgement.
+async fn read_frame(
   conn : &@net.Conn,
+  max_body : UInt,
+  deadline_ms : Int,
+) -> Result[PeerMsg, @protocol.ErrCode] {
+  if deadline_ms <= 0 {
+    return Err(@protocol.MalformedPayload)
+  }
+  match
+    @async.with_timeout_opt(deadline_ms, () => read_frame_body(conn, max_body)) {
+    // The frame never arrived in full. The stream cannot be
+    // re-synchronised, so the connection closes: `BadLength` is the
+    // registered code whose action is exactly that, and what was not
+    // honoured is the length the frame declared.
+    None => Err(@protocol.BadLength)
+    Some(result) => result
+  }
+}
+
+///|
+/// Read one frame without a deadline of its own.
+///
+/// Split from `read_frame` only so the timeout wraps one expression;
+/// everything about the bound and the chunking lives here.
+async fn read_frame_body(
+  conn : &@net.Conn,
+  max_body : UInt,
 ) -> Result[PeerMsg, @protocol.ErrCode] {
   let head = match @net.Conn::read_exact(conn, PEER_LEN_BYTES) {
     Ok(bytes) => bytes
@@ -713,20 +780,59 @@ pub async fn read_peer_msg(
     None => return Err(@protocol.BadLength)
     Some(value) => value
   }
-  if body_len < 1U || body_len > @protocol.MAX_FRAME_LEN {
+  if body_len < 1U || body_len > max_body {
     return Err(@protocol.BadLength)
   }
-  let body = match @net.Conn::read_exact(conn, body_len.reinterpret_as_int()) {
-    Ok(bytes) => bytes
-    Err(code) => return Err(code)
-  }
+  // Chunks, not one allocation the size of the claim. Each read asks
+  // for at most `PEER_READ_CHUNK_BYTES`, so a peer that stops sending
+  // leaves the buffer holding what arrived and nothing more.
   let frame = Buffer()
   frame.write_bytes(head[:])
-  frame.write_bytes(body[:])
+  let mut remaining = body_len.reinterpret_as_int()
+  while remaining > 0 {
+    let step = if remaining < PEER_READ_CHUNK_BYTES {
+      remaining
+    } else {
+      PEER_READ_CHUNK_BYTES
+    }
+    let piece = match @net.Conn::read_exact(conn, step) {
+      Ok(bytes) => bytes
+      Err(code) => return Err(code)
+    }
+    frame.write_bytes(piece)
+    remaining = remaining - step
+  }
   match decode_peer_msg(frame.contents()[:]) {
     None => Err(@protocol.MalformedPayload)
     Some(msg) => Ok(msg)
   }
+}
+
+///|
+/// Read one message on an established peer link.
+///
+/// The full frame bound applies: by this point the far end has proved
+/// which node it is, and replication batches are the largest thing that
+/// travels.
+pub async fn read_peer_msg(
+  conn : &@net.Conn,
+  deadline_ms : Int,
+) -> Result[PeerMsg, @protocol.ErrCode] {
+  read_frame(conn, @protocol.MAX_FRAME_LEN, deadline_ms)
+}
+
+///|
+/// Read one message before the handshake has completed.
+///
+/// The pre-authentication bound applies: whatever the far end claims,
+/// it has not proved anything yet, so the claim is checked against what
+/// a handshake can actually carry rather than against the replication
+/// limit an authenticated peer is allowed.
+pub async fn read_handshake_msg(
+  conn : &@net.Conn,
+  deadline_ms : Int,
+) -> Result[PeerMsg, @protocol.ErrCode] {
+  read_frame(conn, PEER_HANDSHAKE_MAX_BODY, deadline_ms)
 }
 
 ///|

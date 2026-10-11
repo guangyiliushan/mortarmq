@@ -79,7 +79,7 @@ async fn handwritten_append(
             }
             reply.val = match
               @async.with_timeout_opt(handshake_budget_ms(), () => {
-                @cluster.read_peer_msg(conn)
+                @cluster.read_peer_msg(conn, @cluster.PEER_FRAME_TIMEOUT_MS)
               }) {
               None => None
               Some(result) =>

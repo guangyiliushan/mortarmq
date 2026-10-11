@@ -499,7 +499,7 @@ async test "a batch from a leader outside the static table is refused before the
               @cluster.write_peer_msg(conn, @cluster.PeerMsg::Append(forged)),
               Ok(()),
             )
-            match @cluster.read_peer_msg(conn) {
+            match @cluster.read_peer_msg(conn, @cluster.PEER_FRAME_TIMEOUT_MS) {
               Ok(@cluster.PeerMsg::Reject(code)) =>
                 assert_eq(code, @protocol.AuthFailed.to_uint16().to_uint16())
               _ => fail("the follower must refuse with a Reject frame")

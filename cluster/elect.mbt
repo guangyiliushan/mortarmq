@@ -65,7 +65,7 @@ pub async fn ClusterNode::send_prepare(
     Err(code) => return Err(code)
     Ok(_) => ()
   }
-  let reply = match read_peer_msg(conn) {
+  let reply = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -106,7 +106,7 @@ pub async fn ClusterNode::serve_prepare(
   epoch : LeaderEpoch,
   log : &ReplicaLog,
 ) -> Result[PrepareAckMsg, @protocol.ErrCode] {
-  let request = match read_peer_msg(conn) {
+  let request = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -179,7 +179,7 @@ pub async fn ClusterNode::send_install(
     Err(code) => return Err(code)
     Ok(_) => ()
   }
-  let reply = match read_peer_msg(conn) {
+  let reply = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -219,7 +219,7 @@ pub async fn ClusterNode::serve_install(
   epoch : LeaderEpoch,
   log : &ReplicaLog,
 ) -> Result[InstallAckMsg, @protocol.ErrCode] {
-  let request = match read_peer_msg(conn) {
+  let request = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }

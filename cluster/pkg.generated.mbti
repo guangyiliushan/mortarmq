@@ -14,9 +14,15 @@ pub const LEADER_HEARTBEAT_MS : UInt64 = 500
 
 pub const PEER_DOMAIN : Bytes = b"mortarmq-peer-v1"
 
+pub const PEER_FRAME_TIMEOUT_MS : Int = 10000
+
+pub const PEER_HANDSHAKE_MAX_BODY : UInt = 51
+
 pub const PEER_LEN_BYTES : Int = 4
 
 pub const PEER_NONCE_BYTES : Int = 16
+
+pub const PEER_READ_CHUNK_BYTES : Int = 65536
 
 pub const PEER_SECRET_MIN_BYTES : Int = 16
 
@@ -38,7 +44,9 @@ pub async fn peer_handshake_initiator(ClusterConfig, &@net.Conn, PeerEntry) -> R
 
 pub async fn peer_handshake_responder(ClusterConfig, &@net.Conn) -> Result[UInt16, @protocol.ErrCode]
 
-pub async fn read_peer_msg(&@net.Conn) -> Result[PeerMsg, @protocol.ErrCode]
+pub async fn read_handshake_msg(&@net.Conn, Int) -> Result[PeerMsg, @protocol.ErrCode]
+
+pub async fn read_peer_msg(&@net.Conn, Int) -> Result[PeerMsg, @protocol.ErrCode]
 
 pub async fn write_peer_msg(&@net.Conn, PeerMsg) -> Result[Unit, @protocol.ErrCode]
 

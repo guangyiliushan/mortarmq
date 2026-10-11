@@ -140,7 +140,9 @@ async fn ClusterNode::ship_batch(
     Ok(_) => ()
   }
   let reply = match
-    @async.with_timeout_opt(ack_deadline_ms, () => read_peer_msg(conn)) {
+    @async.with_timeout_opt(ack_deadline_ms, () => {
+      read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS)
+    }) {
     // The majority did not answer inside the deadline. The write stays
     // uncommitted, the cluster goes read-only, and the caller is told
     // no rather than left waiting or handed a success it cannot stand
@@ -204,7 +206,7 @@ pub async fn ClusterNode::serve_append(
   log : &ReplicaLog,
   epoch : LeaderEpoch,
 ) -> Result[AppendAck, @protocol.ErrCode] {
-  let request = match read_peer_msg(conn) {
+  let request = match read_peer_msg(conn, PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }

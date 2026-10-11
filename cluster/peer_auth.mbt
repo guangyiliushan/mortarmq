@@ -173,7 +173,7 @@ pub async fn peer_handshake_responder(
   config : ClusterConfig,
   conn : &@net.Conn,
 ) -> Result[UInt16, @protocol.ErrCode] {
-  let opener = match read_peer_msg(conn) {
+  let opener = match read_handshake_msg(conn, PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -203,7 +203,7 @@ pub async fn peer_handshake_responder(
     Ok(_) => ()
     Err(code) => return Err(code)
   }
-  let answer = match read_peer_msg(conn) {
+  let answer = match read_handshake_msg(conn, PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -267,7 +267,7 @@ pub async fn peer_handshake_initiator(
     Ok(_) => ()
     Err(code) => return Err(code)
   }
-  let challenge = match read_peer_msg(conn) {
+  let challenge = match read_handshake_msg(conn, PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
@@ -307,7 +307,7 @@ pub async fn peer_handshake_initiator(
     Ok(_) => ()
     Err(code) => return Err(code)
   }
-  let closing = match read_peer_msg(conn) {
+  let closing = match read_handshake_msg(conn, PEER_FRAME_TIMEOUT_MS) {
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
