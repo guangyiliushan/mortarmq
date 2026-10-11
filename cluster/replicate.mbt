@@ -85,6 +85,41 @@ pub async fn ClusterNode::send_append(
     Err(code) => return Err(code)
     Ok(sequence) => sequence
   }
+  self.ship_batch(
+    conn, log, leader_epoch, base_seq, payloads, flush_after_append, ack_deadline_ms,
+  )
+}
+
+///|
+/// Send one batch that is already in this log, and record what the
+/// follower reports back.
+///
+/// Split out from `send_append` because catch-up sends entries this
+/// replica already holds rather than ones it is writing now: the
+/// shipping half is identical and only the caller differs. Everything
+/// after the write -- the deadline, the refusal, the acknowledgement,
+/// the tier re-evaluation -- is common to both.
+///
+/// # Errors
+///
+/// As `send_append`, plus `MalformedPayload` (0x0003) for an empty
+/// batch, which has no base sequence to name.
+async fn ClusterNode::ship_batch(
+  self : ClusterNode,
+  conn : &@net.Conn,
+  log : &ReplicaLog,
+  leader_epoch : UInt64,
+  base_seq : UInt64,
+  payloads : Array[Bytes],
+  flush_after_append : Bool,
+  ack_deadline_ms : Int,
+) -> Result[AppendAck, @protocol.ErrCode] {
+  if payloads.length() == 0 {
+    return Err(@protocol.MalformedPayload)
+  }
+  if ack_deadline_ms <= 0 {
+    return Err(@protocol.MalformedPayload)
+  }
   let batch = Append({
     leader_id: self.node_id(),
     leader_epoch,
@@ -246,4 +281,90 @@ pub async fn ClusterNode::serve_append(
     Ok(_) => ()
   }
   Ok(ack)
+}
+
+///|
+/// Bring a follower that is behind up to this log's end.
+///
+/// The position is read from what that follower last reported rather
+/// than guessed: an acknowledgement carrying `dirty_seq` says exactly
+/// how much it has, and a follower that never acknowledged starts from
+/// the beginning. Batches are bounded so one round-trip cannot become
+/// an unbounded write, and the loop stops the moment the follower is
+/// caught up or stops making progress.
+///
+/// This is what a replica that was away needs on its return. It missed
+/// entries the rest of the cluster already has, and refusing it forever
+/// would leave the cluster permanently short of a member -- so the
+/// answer is to send what it is missing, not to leave it behind.
+///
+/// Returns the sequence this log ends at, which is where the follower
+/// now stands.
+///
+/// # Errors
+///
+/// * `MalformedPayload` (0x0003) for a non-positive batch size or
+///   deadline: a catch-up with neither would either overrun the
+///   protocol bound or never notice it had stalled.
+/// * `CatchupRequired` (0x6007) when the log cannot supply the next
+///   position, or when a batch made no progress. Stopping beats
+///   re-sending the same entries forever, and a log with a hole in it
+///   is a corruption for the storage layer to find, not for catch-up to
+///   paper over.
+/// * Whatever a round reports, including a quorum that timed out.
+pub async fn ClusterNode::catch_up(
+  self : ClusterNode,
+  conn : &@net.Conn,
+  log : &ReplicaLog,
+  epoch : LeaderEpoch,
+  peer_id : UInt16,
+  batch_limit : Int,
+  ack_deadline_ms : Int,
+) -> Result[UInt64, @protocol.ErrCode] {
+  if batch_limit <= 0 || ack_deadline_ms <= 0 {
+    return Err(@protocol.MalformedPayload)
+  }
+  let target = log.last_appended_seq()
+  let mut next = match self.follower_progress(peer_id) {
+    None => 1UL
+    Some(progress) => progress.dirty_seq + 1UL
+  }
+  while next <= target {
+    let payloads = match log.read(next, batch_limit) {
+      Err(code) => return Err(code)
+      Ok(found) => found
+    }
+    if payloads.length() == 0 {
+      // Nothing at this position: the log cannot fill the gap, and
+      // re-sending would send the same nothing again.
+      return Err(@protocol.CatchupRequired)
+    }
+    match
+      self.ship_batch(
+        conn,
+        log,
+        epoch.current(),
+        next,
+        payloads,
+        true,
+        ack_deadline_ms,
+      ) {
+      Err(code) => return Err(code)
+      Ok(_) => ()
+    }
+    let advanced = match self.follower_progress(peer_id) {
+      None => false
+      Some(progress) => progress.dirty_seq + 1UL > next
+    }
+    if !advanced {
+      // The batch went out and the position did not move: no progress,
+      // so stop rather than send it again.
+      return Err(@protocol.CatchupRequired)
+    }
+    next = match self.follower_progress(peer_id) {
+      None => next
+      Some(progress) => progress.dirty_seq + 1UL
+    }
+  }
+  Ok(target)
 }

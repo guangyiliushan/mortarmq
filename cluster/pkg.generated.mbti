@@ -98,6 +98,7 @@ pub struct ClusterNode {
   // private fields
 }
 pub fn ClusterNode::begin_election(Self) -> Unit
+pub async fn ClusterNode::catch_up(Self, &@net.Conn, &ReplicaLog, LeaderEpoch, UInt16, Int, Int) -> Result[UInt64, @protocol.ErrCode]
 pub fn ClusterNode::commit_horizon(Self, UInt64) -> UInt64
 pub fn ClusterNode::commit_seq(Self) -> UInt64
 pub fn ClusterNode::config(Self) -> ClusterConfig
@@ -268,4 +269,5 @@ pub(open) trait ReplicaLog {
   fn last_flushed_seq(Self) -> UInt64
   async fn append(Self, Array[Bytes], Bool) -> Result[UInt64, @protocol.ErrCode]
   async fn truncate(Self, UInt64) -> Result[Unit, @protocol.ErrCode]
+  async fn read(Self, UInt64, Int) -> Result[Array[Bytes], @protocol.ErrCode]
 }

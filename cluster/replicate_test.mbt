@@ -12,10 +12,11 @@
 struct LogState {
   mut appended : UInt64
   mut flushed : UInt64
-  // The sequences this log actually holds, in order. Counters alone
-  // cannot answer the question this file exists to answer -- what is
-  // left after a truncation -- so the entries are kept.
-  mut entries : Array[UInt64]
+  // What this log actually holds, in order: the sequence and the bytes
+  // that were written there. Counters alone cannot answer the questions
+  // this file exists to answer -- what is left after a truncation, and
+  // what a follower that fell behind is missing -- so both are kept.
+  mut entries : Array[(UInt64, Bytes)]
 }
 
 ///|
@@ -58,15 +59,12 @@ impl @cluster.ReplicaLog for TracedLog with fn append(
   durable : Bool,
 ) -> Result[UInt64, @protocol.ErrCode] {
   let first = self.state.val.appended + 1UL
-  let mut last = self.state.val.appended
-  for _ in payloads {
-    last = last + 1UL
-  }
+  let last = self.state.val.appended + payloads.length().to_uint64()
   self.state.val.appended = last
-  let mut held = first
-  while held <= last {
-    self.state.val.entries.push(held)
-    held = held + 1UL
+  let mut next = first
+  for index in 0..<payloads.length() {
+    self.state.val.entries.push((next, payloads[index]))
+    next = next + 1UL
   }
   self.trace.val.push((self.name + ".append", first))
   if durable {
@@ -86,7 +84,11 @@ impl @cluster.ReplicaLog for TracedLog with fn append(
 // `truncate` is deliberately not promoted here: it is reached through
 // the trait object `serve_append` holds, and promoting it would name a
 // method nothing calls directly.
-extend TracedLog with @cluster.ReplicaLog::{last_appended_seq, last_flushed_seq}
+extend TracedLog with @cluster.ReplicaLog::{
+  append,
+  last_appended_seq,
+  last_flushed_seq,
+}
 
 ///|
 impl @cluster.ReplicaLog for TracedLog with fn truncate(self, to_seq : UInt64) -> Result[
@@ -96,12 +98,12 @@ impl @cluster.ReplicaLog for TracedLog with fn truncate(self, to_seq : UInt64) -
   // Keep only what is at or below the cut, then recompute both
   // positions from what survived: a counter still pointing at a dropped
   // sequence would be a ghost of its own.
-  let kept : Array[UInt64] = []
+  let kept : Array[(UInt64, Bytes)] = []
   let mut last : UInt64 = 0UL
-  for sequence in self.state.val.entries {
-    if sequence <= to_seq {
-      kept.push(sequence)
-      last = sequence
+  for entry in self.state.val.entries {
+    if entry.0 <= to_seq {
+      kept.push(entry)
+      last = entry.0
     }
   }
   self.state.val.entries = kept
@@ -119,7 +121,29 @@ impl @cluster.ReplicaLog for TracedLog with fn truncate(self, to_seq : UInt64) -
 /// The whole point of a truncation test: a tail that was dropped must
 /// not still be readable afterwards.
 fn TracedLog::held(self : TracedLog) -> Array[UInt64] {
-  self.state.val.entries.copy()
+  self.state.val.entries.map(entry => entry.0)
+}
+
+///|
+impl @cluster.ReplicaLog for TracedLog with fn read(
+  self,
+  from_seq : UInt64,
+  limit : Int,
+) -> Result[Array[Bytes], @protocol.ErrCode] {
+  if limit <= 0 {
+    return Ok([])
+  }
+  let found : Array[Bytes] = []
+  let mut taken = 0
+  for entry in self.state.val.entries {
+    // Entries are held in order, so once `limit` are collected the
+    // rest are further along and adding them would overrun the batch.
+    if entry.0 >= from_seq && taken < limit {
+      found.push(entry.1)
+      taken = taken + 1
+    }
+  }
+  Ok(found)
 }
 
 ///|

@@ -82,4 +82,17 @@ pub(open) trait ReplicaLog {
   /// above its commit point, so the committed prefix is out of reach by
   /// construction. A `to_seq` at or above the current end is a no-op.
   async fn truncate(Self, to_seq : UInt64) -> Result[Unit, @protocol.ErrCode]
+
+  /// Read back the payloads of the entries starting at `from_seq`, up to
+  /// `limit` of them.
+  ///
+  /// Returns fewer than `limit` at the end of the log and an empty array
+  /// when `from_seq` is already past it. It never invents a sequence it
+  /// does not hold: a caller catching a follower up asks from a position
+  /// the follower reported rather than from a guess, and what comes back
+  /// is exactly what this replica has to offer.
+  async fn read(Self, from_seq : UInt64, limit : Int) -> Result[
+    Array[Bytes],
+    @protocol.ErrCode,
+  ]
 }
