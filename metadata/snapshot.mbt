@@ -36,7 +36,7 @@ pub const SNAPSHOT_SLOT_B : Bytes = b"mmml-snapshot-b.checkpoint"
 ///|
 /// One decoded snapshot: the rebuilt machine plus its log position.
 ///
-/// `end_offset` is the byte offset just past the last log record the
+/// `end_offset` is the byte offset past the last log record the
 /// snapshot includes (the resume point for replay); `epoch` is the
 /// leader_epoch of the last included record, 0 when the snapshot is of
 /// an empty log.

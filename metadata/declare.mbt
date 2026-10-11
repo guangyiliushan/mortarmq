@@ -63,7 +63,7 @@ pub extend DeclareOutcome with @moonbitlang/core/debug.Debug::{to_repr}
 /// keys with one shared mutation_id). Storing the whole set is what
 /// makes the fence total: a resubmission of the same id with a narrower,
 /// wider, or different body-set is `MutationFenced` under every key it
-/// touches, and a single-op mutation is just the one-element set.
+/// touches, and a single-op mutation is the one-element set.
 pub(all) struct DeclareMachine {
   topics : Map[String, UInt]
   accepted : Map[String, Map[UInt64, Array[DeclareBody]]]
@@ -139,8 +139,9 @@ pub fn DeclareMachine::submit(
 /// `IdempotentOk` per op unconditionally (REQ-STO-007 is
 /// epoch-independent); a known mutation_id with a different op-set is
 /// `MutationFenced` per op (0x2006, re-initiate); a new mutation_id from
-/// a stale leader_epoch is `MutationFenced` the same way (0x2006 covers
-/// "mutation_id/epoch 过期"); only then does the name/count check run,
+/// a stale leader_epoch is `MutationFenced` the same way (0x2006 also
+/// fences an expired mutation_id or epoch); only then does the name/count
+/// check run,
 /// where `NameCountMismatch` (0x2001) stays the S1 registry layer
 /// verdict. Refusals are whole-set: a mismatched name/count rejects the
 /// packed mutation atomically (R11: never half a pair). Rejected
@@ -252,9 +253,9 @@ pub fn DeclareBody::to_record_type(self : DeclareBody) -> MmmlRecordType {
 
 ///|
 /// v0 mutation payload layout, frozen alongside the 34-byte envelope:
-/// a u16 big-endian byte length of the UTF-8 name, the name bytes, and
-/// for creates a u32 big-endian partition count. Decoding is the exact
-/// inverse or rejects the bytes as malformed.
+/// a 2-byte big-endian byte length of the UTF-8 name, the name bytes,
+/// and for creates a 4-byte big-endian partition count. Decoding is the
+/// exact inverse or rejects the bytes as malformed.
 pub fn DeclareBody::to_payload(self : DeclareBody) -> Bytes {
   let name_bytes = match self {
     Create(name, _) => @utf8.encode(name)
@@ -309,7 +310,7 @@ pub fn decode_declare_body(
 ///|
 /// Encode the payload of a one-or-two-op mutation. The single-op bytes
 /// are exactly the v0 form (self-delimiting name length, name, and for
-/// creates a u32 partition count); the two-op packed form (R11 source
+/// creates a 4-byte partition count); the two-op packed form (R11 source
 /// plus `.dlq` twin) is the two single-op payloads concatenated, so a
 /// decoder reads ops until the bytes are exhausted and refuses anything
 /// past the second.
@@ -323,7 +324,7 @@ pub fn encode_declare_bodies(bodies : Array[DeclareBody]) -> Bytes {
 
 ///|
 /// Decode one self-delimiting op at `start`; returns the body and the
-/// offset just past it, or `None` when the bytes do not parse.
+/// offset past it, or `None` when the bytes do not parse.
 fn decode_body_at(
   record_type : MmmlRecordType,
   payload : BytesView,
