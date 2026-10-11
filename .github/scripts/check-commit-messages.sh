@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate Conventional Commit subjects for the MortarMQ component scopes.
+# Validate Conventional Commit subjects and the AI-assisted body line.
 # Usage:
 #   check-commit-messages.sh BASE HEAD
 #   check-commit-messages.sh              # GitHub Actions event mode
@@ -42,6 +42,20 @@ validate_subject() {
   fi
   if ! grep -Eq "$PATTERN" <<<"$subject"; then
     echo "invalid type/scope/description format"
+    return 1
+  fi
+}
+
+validate_body() {
+  local sha=$1
+
+  # Every commit this gate sees is newly selected work (a PR range or a
+  # pushed range), so each one carries the attribution body line that the
+  # contribution rules require. History before the attribution audit is
+  # exempt and is never fed to this gate: ranges always start at the
+  # boundary of the change under review.
+  if ! git log -1 --format=%B "$sha" | grep -q '^AI-assisted:'; then
+    echo "missing AI-assisted: body line"
     return 1
   fi
 }
@@ -106,11 +120,11 @@ run_range_self_test() {
 
     printf 'base\n' > file.txt
     git add file.txt
-    git commit -q -m 'ci(infra): create range test base'
+    git commit -q -m 'ci(infra): create range test base' -m 'AI-assisted: fixture'
 
     printf 'valid\n' > file.txt
     git add file.txt
-    git commit -q -m 'feat(a01): valid range subject'
+    git commit -q -m 'feat(a01): valid range subject' -m 'AI-assisted: fixture'
     local valid_head
     valid_head=$(git rev-parse HEAD)
 
@@ -140,7 +154,7 @@ run_range_self_test() {
 
     printf 'fixed\n' > file.txt
     git add file.txt
-    git commit -q -m 'fix(a01): valid fallback subject'
+    git commit -q -m 'fix(a01): valid fallback subject' -m 'AI-assisted: fixture'
     local fixed_head
     fixed_head=$(git rev-parse HEAD)
     if PUSH_BEFORE=0000000000000000000000000000000000000000 PUSH_AFTER="$fixed_head" bash "$checker" >/dev/null 2>&1; then
@@ -165,6 +179,15 @@ run_range_self_test() {
       exit 1
     fi
     printf 'push-range self-test passed\n'
+
+    printf 'bodyless\n' > file.txt
+    git add file.txt
+    git commit -q -m 'feat(a01): subject valid but body missing'
+    if bash "$checker" "$fixed_head" HEAD >/dev/null 2>&1; then
+      printf 'missing-body self-test accepted a commit without AI-assisted\n' >&2
+      exit 1
+    fi
+    printf 'missing-body self-test passed\n'
   )
   local status=$?
   rm -rf "$temp"
@@ -177,7 +200,13 @@ validate_commit_stream() {
   while read -r sha subject; do
     count=$((count + 1))
     if reason=$(validate_subject "$subject"); then
-      printf 'valid:   %s %s\n' "${sha:0:12}" "$subject"
+      if reason=$(validate_body "$sha"); then
+        printf 'valid:   %s %s\n' "${sha:0:12}" "$subject"
+      else
+        printf 'invalid: %s -- %s\n' "${sha:0:12}" "$reason"
+        printf '  subject: %s\n' "$subject"
+        failures=$((failures + 1))
+      fi
     else
       printf 'invalid: %s -- %s\n' "${sha:0:12}" "$reason"
       printf '  subject: %s\n' "$subject"
@@ -190,10 +219,10 @@ validate_commit_stream() {
     return 1
   fi
   if ((failures != 0)); then
-    printf 'commit subject gate failed: %d invalid of %d commit(s)\n' "$failures" "$count" >&2
+    printf 'commit message gate failed: %d invalid of %d commit(s)\n' "$failures" "$count" >&2
     return 1
   fi
-  printf 'commit subject gate passed: %d commit(s)\n' "$count"
+  printf 'commit message gate passed: %d commit(s)\n' "$count"
 }
 
 check_range() {

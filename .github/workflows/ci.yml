@@ -62,10 +62,10 @@ jobs:
       - name: doc reference gate (CONTRIBUTING section 1.2)
         run: node .github/scripts/check-doc-refs.mjs
 
-      - name: commit subject checker self-test
+      - name: commit message checker self-test
         run: bash .github/scripts/check-commit-messages.sh --self-test
 
-      - name: commit subject gate (PR or pushed commits)
+      - name: commit message gate (PR or pushed commits)
         env:
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
