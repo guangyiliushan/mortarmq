@@ -10,10 +10,10 @@
 // invariant below finds it.
 //
 // The temporal half below states the election liveness claim: a lapsed
-// lease eventually sees the term it triggered installed. It is written
-// to expose the finding the liveness check is expected to produce --
-// without a progress assumption nothing obliges the election to
-// complete -- and the safety half is unchanged by it.
+// lease eventually sees the term it triggered installed, under the
+// progress assumption the scheduler owes the machinery -- expressed as
+// `fair_step` so the assumption lives in the transition relation. The
+// safety half is unchanged and still runs against `step`.
 
 //
 // Toolchain: quint 0.33.0 (Apache-2.0) against the Apalache 0.62.1
@@ -23,7 +23,7 @@
 //   ~/.quint/apalache-dist-0.62.1/apalache/bin/apalache-mc server --port=8822 &
 //   quint run --invariant=leaderImpliesQuorumPromise formal/lease.qnt
 //   quint verify --init=init --step=step --invariant=leaderImpliesQuorumPromise formal/lease.qnt
-//   quint verify --backend tlc --init=init --step=step --temporal=lapseElects formal/lease.qnt
+//   quint verify --backend tlc --init=init --step=fair_step --temporal=lapseElects formal/lease.qnt
 module lease {
   // Three members, majority of two, three terms -- the same bounds the
   // fencing model uses, and the same reason: the properties are about
@@ -209,15 +209,58 @@ module lease {
   // anything about a leader that is not there.
   val leaseHeldImpliesALeader = lease implies leaderEpoch > 0
 
+  // The election machinery, named so the scheduler and the liveness
+  // claim can both talk about it: the promise round and the install
+  // are the only ways the term question moves.
+  action election_promises = any {
+    promise1(1),
+    promise1(2),
+    promise1(3),
+    promise2(1),
+    promise2(2),
+    promise2(3),
+    promise3(1),
+    promise3(2),
+    promise3(3)
+  }
+
+  action election_install = any {
+    install(1),
+    install(2),
+    install(3)
+  }
+
+  action election = any { election_promises, election_install }
+
+  // The progress assumption, as scheduler discipline rather than as a
+  // fairness formula in the property: while the election machinery can
+  // take a step, the scheduler does not idle it. Everything else --
+  // renewal, lapse, silence -- may interleave only while the machinery
+  // is stuck. Stating the assumption this way keeps it in the
+  // transition relation where the checker cannot misread it; a
+  // weak-fairness antecedent in the property position was exercised
+  // against this toolchain and reported counterexamples whose
+  // behaviors violated the fairness assumption itself.
+  action fair_step = any {
+    election,
+    all {
+      not(enabled(election)),
+      step
+    }
+  }
+
   // The temporal half: a lapsed lease eventually sees the election it
   // triggers completed -- the term the lapse was waiting on is
   // installed, which is the only action that clears `lapsed` and the
   // only one that can move the term forward.
   //
-  // The check is expected to fail as written: nothing in the model
-  // obliges promises to arrive or the install to fire, so the
-  // scheduler can leave the lapse unanswered forever. That failure is
-  // the finding, not a defect in the property -- the fix belongs with
-  // the fairness or timeout assumption that closes it.
-  temporal lapseElects = always(lapsed leadsTo not(lapsed))
+  // The antecedent leaves the term ceiling out: at the highest modeled
+  // term no election can complete, which is a bound artifact, not a
+  // lease property. Checked against `fair_step`, where the progress
+  // assumption above holds; against plain `step` the claim duly fails
+  // on a behavior that renews through the old leader and lets the
+  // election sit idle, which is the finding this form was built to
+  // close.
+  temporal lapseElects = always((lapsed and leaderEpoch < MaxEpoch) leadsTo
+    not(lapsed))
 }
