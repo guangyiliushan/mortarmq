@@ -150,8 +150,9 @@ async test "the 6th delivery is never enqueued after max attempts (L1)" {
     Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
     _ => fail("expected ACK on a dead-lettered entry to be refused")
   }
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      let events = scan.events
       // D,N,D,N,D,N,D,N,D,NT: five deliveries, four retries, one terminal.
       assert_eq(events.length(), 10)
       let mut delivers = 0

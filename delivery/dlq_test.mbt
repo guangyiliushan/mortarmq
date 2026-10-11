@@ -146,8 +146,9 @@ async test "dead-letter writes the envelope then terminates the source" {
     Err(_) => fail("captured envelope decoding failed")
   }
   // Frozen order: NACK_TERMINAL, DLQ_WRITTEN (dlq sequence), SOURCE_TERMINATED.
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      let events = scan.events
       assert_eq(events.length(), 4)
       assert_eq(events[1].event, @delivery.NackTerminal)
       assert_eq(events[2].event, @delivery.DlqWritten)
@@ -169,8 +170,8 @@ async test "dead-letter writes the envelope then terminates the source" {
     Ok(@delivery.Enqueued(sequence)) => assert_eq(sequence, 42UL)
     _ => fail("expected idempotent completion")
   }
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => assert_eq(events.length(), 4)
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => assert_eq(scan.events.length(), 4)
     Err(_) => fail("ledger scan failed")
   }
   let writer = match @delivery.LedgerWriter::new(path) {
@@ -231,8 +232,9 @@ async test "a .dlq topic never produces a second DLQ (L1 layer 1)" {
   }
   assert_eq(calls.val, 0)
   assert_eq(machine.state_of(dlq_key(1)), Some(@delivery.Quarantined))
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      let events = scan.events
       assert_eq(events.length(), 3)
       assert_eq(events[2].event, @delivery.SourceTerminated)
     }
@@ -742,8 +744,9 @@ async test "forged wire hints are adjudicated by the ledger" {
     Err(_) => fail("captured envelope decoding failed")
   }
   // The durable events carry the same ledger-adjudicated attempt.
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      let events = scan.events
       assert_eq(events.length(), 4)
       assert_eq(events[1].event, @delivery.NackTerminal)
       assert_eq(events[1].attempt, 1)
@@ -798,8 +801,9 @@ async test "a failed DLQ write re-runs its completion after restart" {
     _ => fail("expected the DLQ write failure")
   }
   // Only NACK_TERMINAL is durable: the pending branch of the contract.
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      let events = scan.events
       assert_eq(events.length(), 2)
       assert_eq(events[1].event, @delivery.NackTerminal)
     }
@@ -825,8 +829,9 @@ async test "a failed DLQ write re-runs its completion after restart" {
     _ => fail("expected the completion to re-run")
   }
   // The frozen order landed exactly once.
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      let events = scan.events
       assert_eq(events.length(), 4)
       assert_eq(events[2].event, @delivery.DlqWritten)
       assert_eq(events[3].event, @delivery.SourceTerminated)
@@ -897,8 +902,9 @@ async test "the quarantine terminal state survives restart" {
     Err(@delivery.AlreadyDeadLettered) => assert_eq(true, true)
     _ => fail("expected redelivery to stay refused")
   }
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      let events = scan.events
       // Exactly NACK_TERMINAL -> SOURCE_TERMINATED: no DLQ record exists.
       assert_eq(events.length(), 3)
       assert_eq(events[1].event, @delivery.NackTerminal)

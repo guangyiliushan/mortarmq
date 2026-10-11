@@ -451,25 +451,47 @@ pub async fn[D : @harness.Disk] LedgerWriter::sync(
 }
 
 ///|
-/// Scan a ledger stream and return every event up to the first torn or
-/// invalid tail chunk. Recovery-time tail truncation is a later recovery
-/// step; here a bad tail simply ends the valid prefix.
-pub async fn[D : @harness.Disk] read_ledger_events(
+/// One scan of a ledger stream: every valid event in order plus the byte
+/// offset of the first invalid region, if any.
+///
+/// A damaged chunk is skipped and reported, never silently swallowed:
+/// valid events after the damage survive (a mid-stream bit-flip must not
+/// cost the following DLQ_WRITTEN / SOURCE_TERMINATED / FENCED history),
+/// and `first_invalid` pins where the damage starts so recovery can
+/// repair or quarantine instead of guessing. A partial trailing region
+/// (a torn tail) reports the same way; the write-back truncation to the
+/// last valid boundary is the registered recovery-time follow-up.
+pub(all) struct LedgerScan {
+  events : Array[LedgerEvent]
+  first_invalid : Int?
+} derive(Debug)
+
+///|
+pub extend LedgerScan with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+/// Scan a ledger stream per the `LedgerScan` contract. A missing file is
+/// an empty scan's caller decision: `recover` folds it as a fresh log.
+pub async fn[D : @harness.Disk] scan_ledger(
   disk : D,
   path : Bytes,
-) -> Result[Array[LedgerEvent], LedgerFault] {
+) -> Result[LedgerScan, LedgerFault] {
   let data = match disk.read(path) {
     Ok(data) => data
     Err(code) => return Err(DiskFault(code))
   }
   let events : Array[LedgerEvent] = []
+  let mut first_invalid : Int? = None
   let mut offset = 0
   while offset + LEDGER_EVENT_BYTES <= data.length() {
     match decode_ledger_event(data[offset:offset + LEDGER_EVENT_BYTES]) {
       Ok(event) => events.push(event)
-      Err(_) => break
+      Err(_) => if first_invalid is None { first_invalid = Some(offset) }
     }
     offset = offset + LEDGER_EVENT_BYTES
   }
-  Ok(events)
+  if offset < data.length() && first_invalid is None {
+    first_invalid = Some(offset)
+  }
+  Ok({ events, first_invalid, })
 }

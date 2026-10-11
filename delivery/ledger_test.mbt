@@ -115,8 +115,8 @@ async test "the watermark gate refuses the append that projects past the high li
     _ => fail("expected the projected-usage refusal")
   }
   // The refusal ran no disk operation: exactly 16 events are durable.
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => assert_eq(events.length(), 16)
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => assert_eq(scan.events.length(), 16)
     Err(_) => fail("ledger scan failed")
   }
   // The projection is the contract: current usage is still 83%, so the
@@ -125,8 +125,8 @@ async test "the watermark gate refuses the append that projects past the high li
     Ok(_) => ()
     Err(_) => fail("ungated append failed")
   }
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => assert_eq(events.length(), 17)
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => assert_eq(scan.events.length(), 17)
     Err(_) => fail("ledger scan failed")
   }
 }
@@ -215,8 +215,9 @@ async test "ledger and record streams never mix (L1)" {
     Err(_) => fail("segment write failed")
   }
   // The ledger scan only accepts ledger events, exactly the two appended.
-  match @delivery.read_ledger_events(disk, ledger_path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, ledger_path) {
+    Ok(scan) => {
+      let events = scan.events
       assert_eq(events.length(), 2)
       assert_eq(events[0], first)
       assert_eq(events[1], second)
@@ -224,8 +225,8 @@ async test "ledger and record streams never mix (L1)" {
     Err(_) => fail("ledger scan failed")
   }
   // A record stream yields no ledger events.
-  match @delivery.read_ledger_events(disk, segment_path) {
-    Ok(events) => assert_eq(events.length(), 0)
+  match @delivery.scan_ledger(disk, segment_path) {
+    Ok(scan) => assert_eq(scan.events.length(), 0)
     Err(_) => fail("record stream must scan as an empty ledger")
   }
   // The record side rejects the ledger stream at both of its trust boundaries.
@@ -265,10 +266,157 @@ async test "ledger scan stops at a torn tail" {
     Ok(_) => ()
     Err(_) => fail("torn tail write failed")
   }
-  match @delivery.read_ledger_events(disk, ledger_path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, ledger_path) {
+    Ok(scan) => {
+      let events = scan.events
       assert_eq(events.length(), 1)
       assert_eq(events[0], first)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+}
+
+///|
+async test "a mid-stream bit-flip is reported and later events survive" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let writer = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  let first = sample_event(@delivery.Deliver)
+  let second = sample_event(@delivery.Ack)
+  let third = sample_event(@delivery.Fenced)
+  let fourth = sample_event(@delivery.DlqWritten)
+  match writer.append(disk, first, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  match writer.append(disk, second, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  match writer.append(disk, third, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  match writer.append(disk, fourth, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  // Flip a byte inside the second event's payload.
+  let raw = match disk.read(path) {
+    Ok(data) => data
+    Err(_) => fail("ledger read failed")
+  }
+  let flipped = raw[:60].to_owned() + b"\xff" + raw[61:].to_owned()
+  match disk.write(path, flipped) {
+    Ok(_) => ()
+    Err(_) => fail("corruption write failed")
+  }
+  // The damage is reported at its offset and the events after it survive:
+  // no more silent prefix-only scans that lose the loop-protection and
+  // fence history behind the damage.
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      assert_eq(scan.first_invalid, Some(52))
+      assert_eq(scan.events.length(), 3)
+      assert_eq(scan.events[0], first)
+      assert_eq(scan.events[1], third)
+      assert_eq(scan.events[2], fourth)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+  // The machine folds the surviving events and keeps the damage visible.
+  let writer2 = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  match @delivery.DeliveryMachine::recover(disk, 1, 0, writer2) {
+    Ok(machine) => {
+      assert_eq(machine.log_first_invalid(), Some(52))
+      // The post-gap FENCED and DLQ_WRITTEN history folded: the entry is
+      // dead-lettered and the fence memory survived the gap.
+      assert_eq(
+        machine.state_of(
+          @delivery.DeliveryKey::new(
+            group_id=1,
+            topic_id=1,
+            partition=0,
+            sequence=100UL,
+          ),
+        ),
+        Some(@delivery.DeadLetterQueued(2)),
+      )
+      match
+        machine.ack(
+          disk,
+          @delivery.DeliveryKey::new(
+            group_id=1,
+            topic_id=1,
+            partition=0,
+            sequence=100UL,
+          ),
+          7UL,
+          2000,
+          None,
+        ) {
+        Err(@delivery.StaleOwner) => assert_eq(true, true)
+        _ => fail("expected the surviving fence to answer STALE_OWNER")
+      }
+    }
+    Err(_) => fail("recover failed")
+  }
+}
+
+///|
+async test "a torn tail is reported and the valid prefix survives" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let writer = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  let first = sample_event(@delivery.Deliver)
+  match writer.append(disk, first, None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  let torn = @delivery.encode_ledger_event(sample_event(@delivery.Ack))
+  let raw = match disk.read(path) {
+    Ok(data) => data
+    Err(_) => fail("ledger read failed")
+  }
+  match disk.write(path, raw + torn[:20].to_owned()) {
+    Ok(_) => ()
+    Err(_) => fail("torn tail write failed")
+  }
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      assert_eq(scan.first_invalid, Some(52))
+      assert_eq(scan.events.length(), 1)
+      assert_eq(scan.events[0], first)
+    }
+    Err(_) => fail("ledger scan failed")
+  }
+}
+
+///|
+async test "a clean ledger scan reports no gap" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let writer = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  match writer.append(disk, sample_event(@delivery.Deliver), None) {
+    Ok(_) => ()
+    Err(_) => fail("append failed")
+  }
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      assert_eq(scan.first_invalid, None)
+      assert_eq(scan.events.length(), 1)
     }
     Err(_) => fail("ledger scan failed")
   }

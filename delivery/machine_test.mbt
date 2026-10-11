@@ -35,8 +35,9 @@ async test "DELIVER/ACK lands once and reports the wire bundle" {
     Err(_) => fail("ack failed")
   }
   assert_eq(machine.state_of(key(1)), Some(@delivery.Acked))
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      let events = scan.events
       assert_eq(events.length(), 2)
       assert_eq(events[0].event, @delivery.Deliver)
       assert_eq(events[0].delivery_id, 1UL)
@@ -82,8 +83,8 @@ async test "duplicate ACK is idempotent and acked entries never redeliver" {
     Ok(@delivery.Duplicate) => assert_eq(true, true)
     _ => fail("expected duplicate ACK")
   }
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => assert_eq(events.length(), 2)
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => assert_eq(scan.events.length(), 2)
     Err(_) => fail("ledger scan failed")
   }
 }
@@ -102,8 +103,8 @@ async test "ACK with a stale delivery_id is UNKNOWN_DELIVERY and writes nothing"
     _ => fail("expected UNKNOWN_DELIVERY")
   }
   assert_eq(machine.state_of(key(1)), Some(@delivery.Delivering(1UL, 7UL, 1)))
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => assert_eq(events.length(), 1)
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => assert_eq(scan.events.length(), 1)
     Err(_) => fail("ledger scan failed")
   }
 }
@@ -156,8 +157,9 @@ async test "ownership change fences in-flight deliveries and remembers the id" {
     _ => fail("expected the new owner's ACK to apply")
   }
   // The fence wrote one durable FENCED event before any in-memory effect.
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => {
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => {
+      let events = scan.events
       // D1, D2, A2, F1, D3, A3: the fence is durable before the redelivery.
       assert_eq(events.length(), 6)
       assert_eq(events[3].event, @delivery.Fenced)
@@ -277,8 +279,8 @@ async fn run_l4_case(kill_at : Int) -> Array[@delivery.LedgerEvent] {
     Err(@delivery.InvalidTransition) => ()
     _ => fail("expected ghost-delivery refusal after recovery")
   }
-  match @delivery.read_ledger_events(disk, path) {
-    Ok(events) => events
+  match @delivery.scan_ledger(disk, path) {
+    Ok(scan) => scan.events
     Err(_) => fail("ledger scan failed")
   }
 }

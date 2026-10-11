@@ -220,6 +220,7 @@ pub(all) struct DeliveryMachine {
   priv partition : UInt16
   priv writer : LedgerWriter
   priv groups : Map[UInt16, GroupState]
+  priv mut first_invalid : Int?
 }
 
 ///|
@@ -228,7 +229,16 @@ pub fn DeliveryMachine::new(
   partition : UInt16,
   writer : LedgerWriter,
 ) -> DeliveryMachine {
-  { topic_id, partition, writer, groups: Map([]), }
+  { topic_id, partition, writer, groups: Map([]), first_invalid: None, }
+}
+
+///|
+/// Report where the recovered log first went invalid, if it did. The
+/// damage is never silently rebuilt over: the offset stays queryable so
+/// the caller can quarantine or await the registered tail-truncation
+/// repair.
+pub fn DeliveryMachine::log_first_invalid(self : DeliveryMachine) -> Int? {
+  self.first_invalid
 }
 
 ///|
@@ -987,13 +997,14 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
   partition : UInt16,
   writer : LedgerWriter,
 ) -> Result[DeliveryMachine, DeliveryError] {
-  let events = match read_ledger_events(disk, writer.path()) {
-    Ok(events) => events
-    Err(DiskFault(@harness.PathMissing)) => []
+  let scan = match scan_ledger(disk, writer.path()) {
+    Ok(scan) => scan
+    Err(DiskFault(@harness.PathMissing)) => { events: [], first_invalid: None, }
     Err(code) => return Err(ledger_to_delivery_error(code))
   }
   let machine = DeliveryMachine::new(topic_id, partition, writer)
-  for event in events {
+  machine.first_invalid = scan.first_invalid
+  for event in scan.events {
     let group = machine.group_state(event.group_id)
     let prior_fenced = match group.entries.get(event.sequence) {
       Some(entry) => entry.fenced_delivery_id
