@@ -187,6 +187,9 @@ jobs:
       - name: gate 8 — property budget (commit tier <=60s)
         run: node .github/scripts/check-prop-budget.mjs
 
+      - name: gate 9 — m1 fault matrix (every case green)
+        run: node .github/scripts/check-m1-matrix.mjs
+
       - name: gate 8 — moon tree (dependency graph acyclic)
         shell: bash
         run: |
