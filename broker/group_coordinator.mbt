@@ -759,12 +759,13 @@ pub fn GroupCoordinator::join(
     }
   }
   let topic_known = self.topic_partitions.get(topic_id) is Some(_)
+  // The budget counts the whole registered universe, not just the topics
+  // with live subscribers: a topic left behind by a departed member is
+  // still a claim on the assignment space, and counting only subscribed
+  // topics lets join/leave churn re-arm the cap indefinitely.
   let mut universe = 0
-  for t in self.subscribed_topics() {
-    match self.topic_partitions.get(t) {
-      Some(count) => universe = universe + count.to_int()
-      None => ()
-    }
+  for _t, count in self.topic_partitions {
+    universe = universe + count.to_int()
   }
   if !topic_known {
     universe = universe + partition_count.to_int()

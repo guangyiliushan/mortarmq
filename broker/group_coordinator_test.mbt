@@ -32,6 +32,26 @@ fn notice_at(
 }
 
 ///|
+test "the assignment budget counts topics left by departed members" {
+  let coordinator = @broker.GroupCoordinator::new(1)
+  let first = expect_joined(
+    @broker.GroupCoordinator::join(coordinator, 100UL, 200, 2000),
+  )
+  match @broker.GroupCoordinator::leave(coordinator, first.member_id) {
+    Ok(_) => ()
+    Err(_) => fail("the leave must succeed")
+  }
+  // The departed member's 2000 partitions are still a claim on the
+  // assignment space: re-arming the cap through join/leave churn is the
+  // bypass the registered-universe count must close.
+  match @broker.GroupCoordinator::join(coordinator, 200UL, 2, 3000) {
+    Err(@protocol.GroupAssignmentLimit) => assert_eq(true, true)
+    Err(_) => fail("expected the assignment-budget refusal")
+    Ok(_) => fail("the registered-topic budget must refuse the bypass")
+  }
+}
+
+///|
 test "a lone member owns every partition of its topic" {
   let coordinator = @broker.GroupCoordinator::new(1)
   let joined = expect_joined(
