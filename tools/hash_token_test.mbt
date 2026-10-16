@@ -61,7 +61,10 @@ test "hash-token output round-trips through parse_tokens" {
   let digest = @security.sha256(b"correct-horse-battery-staple")
   match @tools.hash_token(b"correct-horse-battery-staple"[:], b"writer") {
     Ok(line) => {
-      let store = @security.parse_tokens((line + b"\n")[:])
+      let store = match @security.parse_tokens((line + b"\n")[:]) {
+        Some(store) => store
+        None => fail("the token_line store must parse")
+      }
       assert_eq(store.entries.length(), 1)
       assert_eq(store.entries[0].digest, digest)
       assert_eq(store.entries[0].role, b"writer")

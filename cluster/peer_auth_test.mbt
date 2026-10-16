@@ -426,9 +426,13 @@ async test "a leaked client token cannot open a peer link, and a peer secret is 
     Err(_) =>
       fail("a 24-byte token clears the floor, so this is not the separation")
   }
-  let store = @security.parse_tokens(
-    (@security.sha256_hex(client_token) + b"\tadmin\n")[:],
-  )
+  let store = match
+    @security.parse_tokens(
+      (@security.sha256_hex(client_token) + b"\tadmin\n")[:],
+    ) {
+    Some(store) => store
+    None => fail("the single-entry store must parse")
+  }
   let client_view : NoPause = { calls: Ref::Ref([]), }
   assert_eq(
     @security.authenticate(store, client_token, client_view),

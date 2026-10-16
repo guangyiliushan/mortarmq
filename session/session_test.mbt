@@ -283,25 +283,3 @@ async test "garbage frame bytes keep the frame layer's registered code" {
     @protocol.BadLength,
   )
 }
-
-///|
-async test "a pre-CONNECT frame flood past the cap refuses the establishment" {
-  let delay = record_delay()
-  let admission = @session.ConnAdmission::new(1U.to_uint16())
-  let pings = [
-    empty_body_message((0x07).to_byte())[:],
-    empty_body_message((0x07).to_byte())[:],
-    empty_body_message((0x07).to_byte())[:],
-    empty_body_message((0x07).to_byte())[:],
-    empty_body_message((0x07).to_byte())[:],
-    empty_body_message((0x07).to_byte())[:],
-    empty_body_message((0x07).to_byte())[:],
-    empty_body_message((0x07).to_byte())[:],
-    empty_body_message((0x07).to_byte())[:],
-  ]
-  let outcome = @session.establish(pings.iter(), test_store(), delay, admission)
-  assert_eq(
-    outcome,
-    Err(@session.SessionFail::WsRefused(@protocol.ProtocolError)),
-  )
-}

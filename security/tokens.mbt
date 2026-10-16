@@ -132,8 +132,11 @@ fn parse_line(line : BytesView) -> TokenEntry? {
 
 ///|
 /// Parse a whole tokens-file body. Empty and malformed lines are skipped:
-/// only well-formed entries exist in the returned store.
-pub fn parse_tokens(text : BytesView) -> TokenStore {
+/// only well-formed entries exist in the returned store. A repeated
+/// digest is refused whole (`None`) -- two lines naming one digest
+/// disagree about the role, and a later-entry-wins answer would depend
+/// on line order.
+pub fn parse_tokens(text : BytesView) -> TokenStore? {
   let entries : Array[TokenEntry] = []
   let length = text.length()
   let mut start = 0
@@ -151,5 +154,12 @@ pub fn parse_tokens(text : BytesView) -> TokenStore {
       start = index + 1
     }
   }
-  { entries, }
+  for i in 0..<entries.length() {
+    for j in 0..<i {
+      if entries[i].digest == entries[j].digest {
+        return None
+      }
+    }
+  }
+  Some({ entries, })
 }

@@ -24,10 +24,13 @@ fn record_delay() -> RecordDelay {
 }
 
 ///|
-fn test_store() -> @security.TokenStore {
+fn test_store() -> @security.TokenStore raise {
   let line1 = b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\tadmin"
   let line2 = b"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\tclient"
-  @security.parse_tokens((line1 + b"\n" + line2 + b"\n")[:])
+  match @security.parse_tokens((line1 + b"\n" + line2 + b"\n")[:]) {
+    Some(store) => store
+    None => fail("the fixture store must parse")
+  }
 }
 
 ///|
@@ -57,7 +60,10 @@ async test "authenticate rejects an unknown token with one 100ms pause" {
 
 ///|
 async test "every failure is the same verdict and the same pause" {
-  let empty_store = @security.parse_tokens(b"")
+  let empty_store = match @security.parse_tokens(b"") {
+    Some(store) => store
+    None => fail("the empty file must parse")
+  }
   let cases = [
     (test_store(), b"abx"), // near miss on "abc"
     (test_store(), b"unknown-token"),
@@ -77,11 +83,16 @@ async test "every failure is the same verdict and the same pause" {
 }
 
 ///|
-async test "the later entry wins when a file repeats one digest" {
+async test "a file that repeats one digest is refused whole" {
   let line1 = b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\tfirst"
   let line2 = b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\tsecond"
-  let store = @security.parse_tokens((line1 + b"\n" + line2 + b"\n")[:])
-  let delay = record_delay()
-  assert_eq(@security.authenticate(store, b"abc", delay), Ok(b"second"))
-  assert_eq(delay.calls.val, [])
+  // Two lines naming one digest disagree about the role, so the parser
+  // refuses the whole file instead of letting line order pick the role.
+  // The authenticate level keeps later-entry-wins for stores that are
+  // already built in memory; the file parser is what refuses the
+  // ambiguity before a store can exist.
+  assert_eq(
+    @security.parse_tokens((line1 + b"\n" + line2 + b"\n")[:]) is None,
+    true,
+  )
 }
