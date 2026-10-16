@@ -22,7 +22,7 @@ Segments follow a fixed four-way split: `0x0xxx` protocol/session, `0x2xxx` meta
 | 0x0008 | UNKNOWN_TOPIC | no | DECLARE first, or fix the name (error text carries an actionable hint: run `mortarmq topics create` first) |
 | 0x0009 | UNKNOWN_PARTITION | no | Fix the client |
 | 0x000a | INTERNAL | no | File an issue with the diagnostic code |
-| 0x000B | INVALID_TOPIC | no | Fix the topic name (syntax violation: wildcard / empty token / `$` prefix / over-long) |
+| 0x000B | INVALID_TOPIC | no | Fix the topic name (syntax violation: wildcard / empty token / `$` prefix / `.dlq` reserved suffix / over-long) |
 | 0x0010 | SEQ_GAP | no | Publish the missing gap or reset the producer |
 | 0x0011 | SEQ_EXPIRED | no | Re-register the producer |
 | 0x0012 | PRODUCER_EPOCH_STALE | no | Rediscover the leader / epoch |

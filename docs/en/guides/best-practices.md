@@ -49,7 +49,7 @@ It is not an error condition to alert on. The window auto-returns at 32 ACKs / 1
 
 ## 3. Topic design
 
-- **Naming rules are enforced, not advisory**: no wildcards, no empty tokens, no `$` prefix, ≤ 255 bytes. Violations return `0x000B INVALID_TOPIC`.
+- **Naming rules are enforced, not advisory**: no wildcards, no empty tokens, no `$` prefix, no `.dlq` suffix (reserved for the DLQ twin topic), ≤ 255 bytes. Violations return `0x000B INVALID_TOPIC`.
 - **One topic per business stream**, not per consumer. Consumers filter by group, not by proliferating topics.
 - **The `$` prefix is reserved.** It marks system topics; a user topic cannot claim it.
 

@@ -49,7 +49,7 @@ producer_id=0 && producer_seq>0    → 拒绝，0x0013
 
 ## 3. Topic 设计
 
-- **命名规则是强制的，不是建议**：不许通配符、不许空 token、不许 `$` 前缀、≤ 255 字节。违反返回 `0x000B INVALID_TOPIC`。
+- **命名规则是强制的，不是建议**：不许通配符、不许空 token、不许 `$` 前缀、不许 `.dlq` 后缀（保留给 DLQ 孪生 topic）、≤ 255 字节。违反返回 `0x000B INVALID_TOPIC`。
 - **一条业务流一个 topic**，不要按消费者拆。消费者靠 group 区分，不是靠复制 topic。
 - **`$` 前缀是保留的**，它标记系统 topic；用户 topic 不能占。
 

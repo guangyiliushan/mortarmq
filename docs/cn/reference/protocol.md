@@ -61,6 +61,7 @@ valid range: 1..=MAX_FRAME_LEN
 5. **SUB 不隐式 DECLARE**：对不存在的 topic 发 SUB 返回 0x0008。v0 中 `partition` 字段必须是 `0xFFFF`（归属由协调器分配）；其他取值预留给 v1 的直连分区模式。`credit_count` 与 `credit_bytes` 一起设定初始 credit 窗口（默认 256 条 / 2 MiB）。
 6. **单连接 FIFO**：请求与响应严格交错，靠 `request_op` 归属响应。v0 无 request_id（要并发就开多条连接）。
 7. **先认证**：CONNECT 之前只允许 CONNECT/PING/ERR；第二次 CONNECT 被拒。
+8. **topic_id 配对分配**：DECLARE 成功时为源 topic 与其保留的 `.dlq` 孪生各分配一个 id——源取奇数槽、孪生取偶数槽（1,2 / 3,4 / …）。注册表按对计数，容量上限 32767 对（共 `0xFFFF` 个槽位），因此 topic_id 不保证跨 topic 连续。
 
 ## 3. 错误码注册表（全局注册）
 

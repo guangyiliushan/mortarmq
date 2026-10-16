@@ -61,6 +61,7 @@ Core ops `0x01–0x09` (client command surface + common responses); extension op
 5. **SUB does not implicitly DECLARE**: SUB on a nonexistent topic returns 0x0008. In v0 the `partition` field must be `0xFFFF` (ownership is assigned by the coordinator); other values are reserved for v1 direct-partition mode. `credit_count` and `credit_bytes` together set the initial credit window (default 256 messages / 2 MiB).
 6. **Single-connection FIFO**: requests and responses interleave strictly; `request_op` attributes responses. No request_id in v0 (open multiple connections for concurrency).
 7. **Auth first**: before CONNECT, only CONNECT/PING/ERR are allowed; a second CONNECT is rejected.
+8. **Paired topic_id allocation**: a successful DECLARE assigns one id to the source topic and one to its reserved `.dlq` twin — the source takes the odd slot, the twin the even (1,2 / 3,4 / …). The registry counts in pairs with a ceiling of 32767 pairs across the 0xFFFF slots, so topic ids are not contiguous across topics.
 
 ## 3. Error Code Registry (globally registered)
 
