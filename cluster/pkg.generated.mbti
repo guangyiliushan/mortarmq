@@ -211,7 +211,7 @@ pub fn PeerLink::outbound(Self) -> Bool
 pub fn PeerLink::peer_id(Self) -> UInt16
 
 pub(all) enum PeerMsg {
-  Hello(UInt16)
+  Hello(UInt16, Bytes)
   Challenge(UInt16, Bytes, Bytes)
   Proof(UInt16, Bytes)
   Welcome(UInt16)
