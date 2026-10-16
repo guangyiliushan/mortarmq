@@ -498,3 +498,98 @@ test "slow consumer injection keeps the buffered total inside the window" {
   )
   assert_eq(bounded(summary, 256, 2097152), true)
 }
+
+///|
+fn admit_at(
+  window : @broker.CreditWindow,
+  partition : UInt16,
+  msg_bytes : Int,
+) -> Result[Unit, @broker.CreditError] {
+  @broker.CreditWindow::admit(
+    window,
+    partition,
+    5UL,
+    gen_three(),
+    msg_bytes.reinterpret_as_uint(),
+  )
+}
+
+///|
+/// The client returns a whole partition tranche and the partition then
+/// migrates: the fold-back must refund nothing twice and must leave the
+/// counters at the cap. The unclamped fold drove `outstanding_count`
+/// through unsigned wraparound (65516 on a 20-cap window) and re-granted
+/// a second copy of budget past the maximum.
+test "release after a full return stays inside the cap" {
+  let window = small_window(20, 2000)
+  for _i in 0..<20 {
+    assert_eq(admit_at(window, 7U.to_uint16(), 100), Ok(()))
+  }
+  assert_eq(
+    @broker.CreditWindow::report(window).outstanding_count,
+    20U.to_uint16(),
+  )
+  assert_eq(apply(window, @broker.Add, 20, 2000) is Ok(_), true)
+  assert_eq(
+    @broker.CreditWindow::release_partition(window, 7U.to_uint16(), 5UL),
+    true,
+  )
+  let after = @broker.CreditWindow::report(window)
+  assert_eq(after.outstanding_count, 0U.to_uint16())
+  assert_eq(after.outstanding_bytes, 0U)
+  assert_eq(after.granted_count, 20U.to_uint16())
+  assert_eq(after.granted_bytes, 2000U)
+}
+
+///|
+/// A partial client return before the migration: the fold-back refunds
+/// exactly the still-outstanding share, the returned share stays in the
+/// grant, and the window is immediately usable again instead of wedged
+/// on wrapped counters.
+test "release after a partial return refunds only the outstanding share" {
+  let window = small_window(10, 1000)
+  for _i in 0..<10 {
+    assert_eq(admit_at(window, 9U.to_uint16(), 50), Ok(()))
+  }
+  assert_eq(apply(window, @broker.Add, 4, 200) is Ok(_), true)
+  assert_eq(
+    @broker.CreditWindow::report(window).outstanding_count,
+    6U.to_uint16(),
+  )
+  assert_eq(
+    @broker.CreditWindow::release_partition(window, 9U.to_uint16(), 5UL),
+    true,
+  )
+  let after = @broker.CreditWindow::report(window)
+  assert_eq(after.outstanding_count, 0U.to_uint16())
+  assert_eq(after.outstanding_bytes, 0U)
+  assert_eq(after.granted_count, 10U.to_uint16())
+  assert_eq(after.granted_bytes, 1000U)
+  assert_eq(admit_at(window, 9U.to_uint16(), 50), Ok(()))
+}
+
+///|
+/// Two booked tranches, the client returns only partition 2's share, and
+/// partition 2 migrates: the refund is bounded by partition 2's
+/// still-outstanding share, so partition 1's booked tranche keeps
+/// accounting for itself.
+test "a migrating partition refunds only its own outstanding share" {
+  let window = small_window(10, 1000)
+  for _i in 0..<4 {
+    assert_eq(admit_at(window, 1U.to_uint16(), 100), Ok(()))
+  }
+  for _i in 0..<6 {
+    assert_eq(admit_at(window, 2U.to_uint16(), 100), Ok(()))
+  }
+  assert_eq(apply(window, @broker.Add, 6, 600) is Ok(_), true)
+  assert_eq(
+    @broker.CreditWindow::release_partition(window, 2U.to_uint16(), 5UL),
+    true,
+  )
+  let after = @broker.CreditWindow::report(window)
+  assert_eq(after.outstanding_count, 0U.to_uint16())
+  assert_eq(after.outstanding_bytes, 0U)
+  assert_eq(after.granted_count, 10U.to_uint16())
+  assert_eq(after.granted_bytes, 1000U)
+  assert_eq(admit_at(window, 1U.to_uint16(), 100), Ok(()))
+}

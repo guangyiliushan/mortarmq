@@ -274,8 +274,11 @@ pub fn CreditWindow::admit(
   1U).to_uint16()
   self.core.val.outstanding_bytes = self.core.val.outstanding_bytes + msg_bytes
   // Fold the attempt into the partition tranche. A tranche left by an
-  // earlier ownership epoch means its release event was missed; fold that
-  // tranche back first so the ledger sum stays equal to `outstanding`.
+  // earlier ownership epoch means its release event was missed; fold
+  // that tranche back first. The fold refunds only what is still
+  // outstanding -- the client may already have returned part of the
+  // tranche through `CREDIT` -- so the booked tranches bound
+  // `outstanding` from above rather than summing to it.
   let prior = match self.core.val.in_flight.get(partition) {
     None => { msg_count: 0U.to_uint16(), msg_bytes: 0U, owner_epoch, }
     Some(entry) =>
@@ -406,13 +409,43 @@ fn CreditWindow::fold_back(
   self : CreditWindow,
   entry : PartitionInFlight,
 ) -> Unit {
-  self.core.val.outstanding_count = (self.core.val.outstanding_count.to_uint() -
-  entry.msg_count.to_uint()).to_uint16()
-  self.core.val.outstanding_bytes = self.core.val.outstanding_bytes -
+  // The client may already have returned part or all of this tranche
+  // through `CREDIT`, so the booked amounts are an upper bound, not a
+  // truth. Fold back only what is still outstanding and re-grant only
+  // into the room the maximum leaves: an unclamped fold drives
+  // `outstanding` through unsigned wraparound when the client returned
+  // the whole tranche, and re-grants a second copy of budget the client
+  // already holds, breaking the `granted + outstanding <= max` bound.
+  let back_count = if entry.msg_count.to_uint() >
+    self.core.val.outstanding_count.to_uint() {
+    self.core.val.outstanding_count.to_uint()
+  } else {
+    entry.msg_count.to_uint()
+  }
+  let back_bytes = if entry.msg_bytes > self.core.val.outstanding_bytes {
+    self.core.val.outstanding_bytes
+  } else {
     entry.msg_bytes
+  }
+  self.core.val.outstanding_count = (self.core.val.outstanding_count.to_uint() -
+  back_count).to_uint16()
+  self.core.val.outstanding_bytes = self.core.val.outstanding_bytes - back_bytes
+  let room_count = self.max_count.to_uint() -
+    self.core.val.credit_count.to_uint()
+  let grant_count = if back_count > room_count {
+    room_count
+  } else {
+    back_count
+  }
   self.core.val.credit_count = (self.core.val.credit_count.to_uint() +
-  entry.msg_count.to_uint()).to_uint16()
-  self.core.val.credit_bytes = self.core.val.credit_bytes + entry.msg_bytes
+  grant_count).to_uint16()
+  let room_bytes = self.max_bytes - self.core.val.credit_bytes
+  let grant_bytes = if back_bytes > room_bytes {
+    room_bytes
+  } else {
+    back_bytes
+  }
+  self.core.val.credit_bytes = self.core.val.credit_bytes + grant_bytes
   self.core.val.credit_epoch = self.core.val.credit_epoch + 1UL
 }
 
