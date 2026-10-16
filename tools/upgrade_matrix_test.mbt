@@ -9,7 +9,7 @@ async test "the matrix pins its green and blocked sets" {
   let reports = @tools.run_upgrade_matrix(env)
   assert_eq(reports, [
     { id: "F1", status: @tools.Green, },
-    { id: "F2", status: @tools.Green, },
+    { id: "F2", status: @tools.Blocked("segment-identity"), },
     { id: "F3", status: @tools.Blocked("code-allocation"), },
     { id: "F4", status: @tools.Blocked("code-allocation"), },
     { id: "F5", status: @tools.Blocked("negotiation-mechanism"), },

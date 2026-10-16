@@ -199,13 +199,22 @@ pub async fn case_f1(env : @harness.SimEnv) -> Unit {
 ///|
 /// Case F2: a compatible-tier change extends the format with the version
 /// bytes unchanged, so a version-one reader applies the old rules and
-/// skips the unknown tail; the golden behavior is byte-exact recovery.
+/// skips the unknown tail. The v0 segment container cannot honor that
+/// contract: a segment file carries no file-level identity, so an
+/// unknown tail on a sealed segment is indistinguishable from a torn
+/// write, and the series recovery policy quarantines the whole segment
+/// instead of skipping the tail. The executable surface below proves
+/// exactly that, and the case reports blocked on the missing
+/// segment-identity surface (the reconciliation item the retention work
+/// registered).
 pub async fn case_f2(env : @harness.SimEnv) -> Unit {
   assert_narrow_contract(env.disk)
   let writer = @storage.SegmentWriter::new(
     b"data/partitions/7/0003/partition.segment",
     segment_max_bytes=120,
   )
+  // Two 58-byte records fill segment .0 to 116 of 120 bytes; the third
+  // append rolls the writer, sealing .0 beside an active .1.
   let first = @storage.SegmentWriter::append(writer, env.disk, b"", b"v0")
   if first is Err(_) {
     fail("the first append failed")
@@ -214,36 +223,39 @@ pub async fn case_f2(env : @harness.SimEnv) -> Unit {
   if second is Err(_) {
     fail("the second append failed")
   }
-  let path = b"data/partitions/7/0003/partition.segment.0"
-  let body = match @harness.Disk::read(env.disk, path) {
+  let third = match
+    @storage.SegmentWriter::append(writer, env.disk, b"", b"v2") {
+    Ok(record) => record
+    Err(_) => fail("the third append failed")
+  }
+  let sealed_path = b"data/partitions/7/0003/partition.segment.0"
+  let body = match @harness.Disk::read(env.disk, sealed_path) {
     Ok(bytes) => bytes
-    Err(_) => fail("the segment read failed")
+    Err(_) => fail("the sealed segment read failed")
   }
   // A future compatible-tier extension appends an unknown tail block
   // after the version-one records; their version bytes stay 1.
   let extended = body + b"\xab\xcd\xef"
-  if @harness.Disk::write(env.disk, path, extended) is Err(_) {
+  if @harness.Disk::write(env.disk, sealed_path, extended) is Err(_) {
     fail("the extension write failed")
   }
-  let recovered = @storage.recover_segment(env.disk, path, b"data/absent")
+  let recovered = @storage.recover_series(
+    env.disk,
+    b"data/partitions/7/0003/partition.segment",
+    2,
+  )
   let state = match recovered {
     Ok(state) => state
-    Err(_) => fail("recovery over the extended segment failed")
+    Err(_) => fail("series recovery over the extended segment failed")
   }
-  assert_eq(state.records.length(), 2)
-  let buf = Buffer()
-  for record in state.records {
-    let encoded = @storage.encode_record_header(
-      record.header,
-      record.key,
-      record.value,
-    )
-    match encoded {
-      Ok(bytes) => buf.write_bytes(bytes)
-      Err(_) => fail("the recovered record failed to re-encode")
-    }
-  }
-  assert_eq(buf.contents() == body, true)
+  // The unknown tail reads as a torn write on a sealed segment: the
+  // recovery policy quarantines the segment, the valid prefix never
+  // reaches the recovered stream, and the aligned active segment
+  // surfaces no gap.
+  assert_eq(state.quarantined.length(), 1)
+  assert_eq(state.records.length(), 1)
+  assert_eq(state.gaps.length(), 0)
+  assert_eq(state.records[0].header.sequence, third.sequence)
 }
 
 ///|
@@ -353,7 +365,7 @@ pub async fn run_upgrade_matrix(env : @harness.SimEnv) -> Array[CaseReport] {
   case_f1(env)
   reports.push({ id: "F1", status: Green, })
   case_f2(env)
-  reports.push({ id: "F2", status: Green, })
+  reports.push({ id: "F2", status: Blocked("segment-identity"), })
   assert_narrow_contract(env.disk)
   reports.push({ id: "F3", status: Blocked("code-allocation"), })
   assert_narrow_contract(env.disk)
