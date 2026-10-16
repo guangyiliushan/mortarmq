@@ -1,8 +1,9 @@
 /// Frame codec properties CF1-CF4: round-trip equality, hostile bytes never
 /// panic, length boundaries fail at the exact field, and malformed samples
 /// never pollute later decodes. Each property pins seed and count so a
-/// failure reproduces exactly. CF1-C3 run on the commit tier and CF4 on the
-/// daily tier; the tier schedule is enforced by the CI workflows.
+/// failure reproduces exactly; all four run pinned on the commit tier,
+/// and the daily sweep re-runs the CF4 generator with a random seed,
+/// count=1000, max_size=256 (frame_props_daily_test.mbt).
 ///
 /// quickcheck is pinned by the toolchain (moon 0.1.20260920 /
 /// moonbitlang/core 0.10.14+7d59c7ec9), see the note in moon.mod.
