@@ -24,7 +24,7 @@ pub(all) enum ErrCode {
   UnknownTopic // 0x0008 DECLARE first or fix the name
   UnknownPartition // 0x0009 fix the client
   Internal // 0x000A file an issue carrying the diagnostic code
-  InvalidTopic // 0x000B fix the topic name (wildcard / empty token / $ prefix / too long)
+  InvalidTopic // 0x000B fix the topic name (wildcard / empty token / $ prefix / .dlq suffix / too long)
   SeqGap // 0x0010 fill the gap or reset the producer
   SeqExpired // 0x0011 re-register the producer
   ProducerEpochStale // 0x0012 rediscover the leader / epoch
