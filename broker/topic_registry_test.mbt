@@ -338,3 +338,18 @@ test "replay of the source DECLARE skips twin creation" {
     Ok(expected(3, 1, true)),
   )
 }
+
+///|
+test "a topic name over 255 bytes is refused at declare" {
+  let registry = @broker.TopicRegistry::new()
+  let over = Bytes::makei(256, _index => b'a')
+  match @broker.TopicRegistry::declare_topic(registry, over, 1) {
+    Err(@protocol.InvalidTopic) => assert_eq(true, true)
+    _ => fail("a 256-byte name must be refused")
+  }
+  let edge = Bytes::makei(255, _index => b'a')
+  match @broker.TopicRegistry::declare_topic(registry, edge, 1) {
+    Ok(_) => assert_eq(true, true)
+    Err(_) => fail("a 255-byte name must be accepted")
+  }
+}

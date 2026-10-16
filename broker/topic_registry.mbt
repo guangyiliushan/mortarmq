@@ -78,6 +78,13 @@ priv struct TopicEntry {
 }
 
 ///|
+/// A user-supplied topic name is at most 255 bytes of UTF-8 -- the value
+/// the naming rules promise -- before the reserved-suffix and prefix
+/// checks run. The internally generated `.dlq` twin is exempt: it is
+/// system-produced, not user naming.
+const MAX_TOPIC_NAME_BYTES : Int = 255
+
+///|
 const DLQ_SUFFIX : Bytes = b".dlq"
 
 ///|
@@ -218,6 +225,9 @@ pub fn TopicRegistry::declare_topic(
   partition_count : UInt16,
 ) -> Result[DeclareOutcome, @protocol.ErrCode] {
   if topic.length() == 0 {
+    return Err(@protocol.InvalidTopic)
+  }
+  if topic.length() > MAX_TOPIC_NAME_BYTES {
     return Err(@protocol.InvalidTopic)
   }
   if has_dlq_suffix(topic) {
