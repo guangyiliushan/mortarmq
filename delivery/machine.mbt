@@ -43,8 +43,11 @@
 ///   names are the pinned ones.
 ///   It durably writes one `FENCED` event per in-flight entry of the old
 ///   owner (sequences ascending) before any in-memory effect; the fenced
-///   delivery id is remembered forever and every late ACK carrying it
-///   answers `StaleOwner`, while other stale ids answer `UnknownDelivery`
+///   delivery id is remembered for as long as the entry lives, and every
+///   late ACK carrying it answers `StaleOwner` until the contiguous-acked
+///   prefix prunes the entry -- below that waterline the history is Acked
+///   and a late ACK answers `Duplicate` -- while other stale ids answer
+///   `UnknownDelivery`
 ///   (0x0023). The two-layer fence story: the epoch layer rejects old
 ///   ownership epochs with 0x0022 before this layer sees the frame; this
 ///   layer attributes by `delivery_id` alone because the ACK frame carries
@@ -226,10 +229,10 @@ pub(all) struct DeliveryMachine {
   priv writer : LedgerWriter
   priv groups : Map[UInt16, GroupState]
   /// The contiguous-acked prefix per group, anchored at sequence zero:
-  /// every sequence strictly below the stored bound is Acked and its entry
-  /// pruned, so the live ledger stays bounded by the in-flight window
-  /// instead of the full delivery history. Queries below the bound answer
-  /// from the bound itself.
+  /// every sequence strictly below the stored bound is Acked with its
+  /// entry pruned, so the live ledger stays bounded by the in-flight
+  /// window. Recovery rebuilds the bound from the folded entries, so the
+  /// answers below the bound survive a restart unchanged.
   priv acked_watermarks : Map[UInt16, UInt64]
   priv mut first_invalid : Int?
 }
@@ -394,13 +397,16 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
 /// Acknowledge one delivery.
 ///
 /// The decision order is the two-layer fence story reduced to one layer's
-/// share: the fenced delivery instance answers `StaleOwner` forever ("old
-/// owner ACK/NACK is fenced"); the matching in-flight ACK appends its event
-/// and becomes `Acked`; every ACK against an `Acked` entry answers
-/// `Duplicate` (a client retry of a durable ACK); anything else answers
-/// `UnknownDelivery` (0x0023, the client no-ops), which also covers a late
-/// ACK after timeout or after the restart policy (the message redelivers
-/// instead).
+/// share: the fenced delivery instance answers `StaleOwner` for as long
+/// as its entry lives ("old owner ACK/NACK is fenced"); the matching
+/// in-flight ACK appends its event and becomes `Acked`; every ACK against
+/// an `Acked` entry answers `Duplicate` (a client retry of a durable
+/// ACK); anything else answers `UnknownDelivery` (0x0023, the client
+/// no-ops), which also covers a late ACK after timeout or after the
+/// restart policy (the message redelivers instead). Once the
+/// contiguous-acked prefix prunes an entry, the waterline itself answers
+/// `Duplicate` for it -- the message is acknowledged and no fence can
+/// revive it.
 pub async fn[D : @harness.Disk] DeliveryMachine::ack(
   self : DeliveryMachine,
   disk : D,
@@ -454,7 +460,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
           fenced_delivery_id: entry.fenced_delivery_id,
           dlq_sequence: 0UL,
           retry_due_wall: 0UL,
-          terminated: false,
+          terminated: true,
         }
         // Advance the contiguous-acked prefix and prune everything it
         // covers: the live ledger keeps the in-flight window, and the
@@ -493,8 +499,10 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
 ///
 /// Every in-flight entry of `group_id` still owned by `old_owner` first gets
 /// its durable `FENCED` event (sequences ascending), then all of them become
-/// redeliverable; the fenced delivery id is remembered and its late ACKs
-/// answer `StaleOwner`. Entries already `Acked` or not owned by `old_owner`
+/// redeliverable; the fenced delivery id is remembered for as long as the
+/// entry lives and its late ACKs answer `StaleOwner` until the
+/// contiguous-acked prefix prunes the entry, after which the acked history
+/// answers `Duplicate`. Entries already `Acked` or not owned by `old_owner`
 /// are untouched.
 pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
   self : DeliveryMachine,
@@ -622,9 +630,9 @@ fn[R : @harness.Rng] backoff_delay(attempt : UInt16, rng : R) -> UInt {
 /// `DeadLetterQueued(attempt)` -- the durable DLQ record for this path
 /// lands in the completion step, and no sixth delivery is ever billed.
 /// `Terminal`/`Poison` enter the DLQ flow through the same pending park;
-/// `Slow` is refused. The fenced delivery's NACK answers `StaleOwner`; a
-/// NACK for a resolved or non-current delivery is the same idempotent
-/// no-op as its ACK twin.
+/// `Slow` is refused. The fenced delivery's NACK answers `StaleOwner` for
+/// as long as its entry lives; a NACK for a resolved or non-current
+/// delivery is the same idempotent no-op as its ACK twin.
 pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
   self : DeliveryMachine,
   disk : D,
@@ -1189,6 +1197,14 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
         machine.writer.adopt(raw.length(), true)
       } else {
         match disk.write(writer.path(), raw[0:boundary].to_owned()) {
+          Ok(_) => ()
+          Err(code) => return Err(ledger_to_delivery_error(DiskFault(code)))
+        }
+        // The truncation is durability work like any other recovery-time
+        // repair: flush it, so a real host disk cannot roll the cut back
+        // and turn the healed tail into mid-stream damage on the next
+        // boot.
+        match disk.fsync(writer.path()) {
           Ok(_) => machine.writer.heal(boundary, boundary)
           Err(code) => return Err(ledger_to_delivery_error(DiskFault(code)))
         }
@@ -1341,9 +1357,71 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
               terminated: false,
             }
           }
+        RetryScheduled(attempt) =>
+          if attempt >= MAX_ATTEMPTS {
+            // A fenced final attempt that crashed between its FENCED and
+            // NACK_TERMINAL journals folds to here: no redelivery is left
+            // and neither begin nor the dead-letter completion will take
+            // the entry, so the same recovery-class repair routes it into
+            // the DLQ flow. The fenced delivery id is the instance the
+            // fence remembers; the ledger event is bookkeeping, the
+            // envelope source identity keys the DLQ record.
+            let repair = LedgerEvent::new(
+              group_id~,
+              event=NackTerminal,
+              sequence~,
+              delivery_id=entry.fenced_delivery_id,
+              owner_conn=0UL,
+              attempt~,
+              delay_ms=0U,
+              reason=NackReason::Retry,
+              timestamp=0UL,
+            )
+            match machine.writer.append(disk, repair, None) {
+              Ok(_) => ()
+              Err(code) => return Err(ledger_to_delivery_error(code))
+            }
+            group.entries[sequence] = {
+              state: DeadLetterQueued(attempt),
+              fenced_delivery_id: entry.fenced_delivery_id,
+              dlq_sequence: entry.dlq_sequence,
+              retry_due_wall: 0UL,
+              terminated: false,
+            }
+          }
         _ => ()
       }
     }
+  }
+  // Rebuild the acked prefix from the folded entries and prune it: the
+  // waterline is a conclusion of the log, not a live-only optimization,
+  // so the answers below the bound survive a restart unchanged.
+  let mut rebuild_index = 0
+  while rebuild_index < group_ids.length() {
+    let group_id = group_ids[rebuild_index]
+    let group = match machine.groups.get(group_id) {
+      Some(group) => group
+      None => continue
+    }
+    let mut bound = 0UL
+    let mut advancing = true
+    while advancing {
+      match group.entries.get(bound) {
+        Some(entry) =>
+          match entry.state {
+            Acked => {
+              ignore(group.entries.remove(bound))
+              bound = bound + 1UL
+            }
+            _ => advancing = false
+          }
+        None => advancing = false
+      }
+    }
+    if bound > 0UL {
+      machine.acked_watermarks[group_id] = bound
+    }
+    rebuild_index = rebuild_index + 1
   }
   Ok(machine)
 }

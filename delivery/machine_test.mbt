@@ -501,6 +501,54 @@ async test "a late ack during the fenced terminal journaling answers StaleOwner"
 }
 
 ///|
+/// The waterline is a conclusion of the log: recovery rebuilds it from
+/// the folded entries and prunes the acked prefix, so a fenced late ACK
+/// answered Duplicate before the restart stays Duplicate after it.
+async test "recovery rebuilds the acked prefix and its answers" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = open_machine(path)
+  for sequence in [0UL, 1UL, 2UL] {
+    match machine.begin_delivery(disk, key(sequence), 7, 1000, None) {
+      Ok(_) => ()
+      Err(_) => fail("begin_delivery failed")
+    }
+  }
+  match machine.ack(disk, key(0), 1UL, 1500, None) {
+    Ok(@delivery.Applied) => assert_eq(true, true)
+    _ => fail("the seq-0 ack failed")
+  }
+  match machine.ack(disk, key(1), 2UL, 1500, None) {
+    Ok(@delivery.Applied) => assert_eq(true, true)
+    _ => fail("the seq-1 ack failed")
+  }
+  assert_eq(machine.acked_watermark(1), 2UL)
+  // Restart: the fold rebuilds the prefix from the journal and prunes it.
+  let writer2 = match @delivery.LedgerWriter::new(path) {
+    Ok(writer) => writer
+    Err(_) => fail("writer construction failed")
+  }
+  let restarted = match
+    @delivery.DeliveryMachine::recover(disk, 1, 0, writer2) {
+    Ok(machine) => machine
+    Err(_) => fail("recover failed")
+  }
+  assert_eq(restarted.acked_watermark(1), 2UL)
+  assert_eq(restarted.state_of(key(0)), Some(@delivery.Acked))
+  assert_eq(restarted.state_of(key(1)), Some(@delivery.Acked))
+  assert_eq(restarted.state_of(key(2)), Some(@delivery.RetryScheduled(1)))
+  // The pruned prefix answers the same after the restart as before it.
+  match restarted.ack(disk, key(0), 1UL, 2000, None) {
+    Ok(@delivery.Duplicate) => assert_eq(true, true)
+    _ => fail("the pruned prefix must answer Duplicate after a restart")
+  }
+  match restarted.begin_delivery(disk, key(0), 9, 2000, None) {
+    Err(@delivery.InvalidTransition) => assert_eq(true, true)
+    _ => fail("the pruned prefix must refuse a begin after a restart")
+  }
+}
+
+///|
 /// The acked prefix prunes contiguous history from sequence zero: the
 /// pruned prefix still answers (duplicate ACK, acked state, refused
 /// begin), while an out-of-order ack holds the bound back instead of
