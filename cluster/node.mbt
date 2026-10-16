@@ -82,7 +82,8 @@ fn PeerLink::channel(self : PeerLink) -> &@net.Conn {
 /// number, because a quorum question is answered from individual
 /// positions: which replicas are durable at or past a given sequence.
 /// Both fields only ever move forward; an acknowledgement that would
-/// move one backwards is refused instead of applied.
+/// move one backwards is absorbed by the max clamp and leaves the
+/// position where it stands.
 pub(all) struct FollowerProgress {
   peer_id : UInt16
   flushed_seq : UInt64

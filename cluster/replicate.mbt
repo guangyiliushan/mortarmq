@@ -57,8 +57,8 @@
 ///   protocol frame bound; refused locally rather than by the far end,
 ///   so the caller learns which batch was too large.
 /// * Whatever the follower refused, carried back from its `Reject`
-///   frame, and `AuthFailed` (0x0006) if an acknowledgement arrives
-///   from a node outside the static table.
+///   frame, and `AuthFailed` (0x0006) if an acknowledgement names an id
+///   other than the one this link proved.
 /// * `ReadOnlyDegraded` (0x6002) when the deadline expires first: the
 ///   write is not committed and is not acknowledged.
 pub async fn ClusterNode::send_append(

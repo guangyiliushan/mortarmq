@@ -76,8 +76,8 @@
 ///   the caller can run the round again.
 /// * `UncleanElectionRejected` (0x600B) when a member has committed
 ///   further than this candidate has.
-/// * `AuthFailed` (0x0006) when the answer comes from outside the
-///   static table.
+/// * `AuthFailed` (0x0006) when the answer names an id other than the
+///   one this link proved.
 /// * Whatever the connection reports, and whatever the member refused.
 pub async fn ClusterNode::send_prepare(
   self : ClusterNode,
@@ -236,8 +236,8 @@ pub async fn ClusterNode::serve_prepare(
 ///   answering somebody else's round.
 /// * `ElectionTimeout` (0x600C) when the member does not answer inside
 ///   the round's own deadline.
-/// * `AuthFailed` (0x0006) when the answer comes from outside the
-///   static table.
+/// * `AuthFailed` (0x0006) when the answer names an id other than the
+///   one this link proved.
 pub async fn ClusterNode::send_install(
   self : ClusterNode,
   link : PeerLink,
