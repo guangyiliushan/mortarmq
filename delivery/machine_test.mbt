@@ -499,3 +499,67 @@ async test "a late ack during the fenced terminal journaling answers StaleOwner"
     _ => fail("expected StaleOwner in the fenced mid-window")
   }
 }
+
+///|
+/// The acked prefix prunes contiguous history from sequence zero: the
+/// pruned prefix still answers (duplicate ACK, acked state, refused
+/// begin), while an out-of-order ack holds the bound back instead of
+/// pruning past a live sequence.
+async test "the acked prefix prunes history and keeps answering" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = open_machine(path)
+  for sequence in [0UL, 1UL, 2UL, 3UL] {
+    match machine.begin_delivery(disk, key(sequence), 7, 1000, None) {
+      Ok(_) => ()
+      Err(_) => fail("begin_delivery failed")
+    }
+  }
+  // Out of order: seq 1 acks first, but seq 0 is still in flight, so the
+  // prefix bound holds and the entry stays. Delivery ids bill in begin
+  // order: seq 0 -> 1, seq 1 -> 2, seq 2 -> 3, seq 3 -> 4.
+  match machine.ack(disk, key(1), 2UL, 1500, None) {
+    Ok(@delivery.Applied) => assert_eq(true, true)
+    _ => fail("the out-of-order ack failed")
+  }
+  assert_eq(machine.acked_watermark(1), 0UL)
+  assert_eq(machine.state_of(key(1)), Some(@delivery.Acked))
+  // Seq 0 closes the gap: the bound advances across 0 and 1 and the
+  // pruned prefix keeps answering.
+  match machine.ack(disk, key(0), 1UL, 1600, None) {
+    Ok(@delivery.Applied) => assert_eq(true, true)
+    _ => fail("the gap-closing ack failed")
+  }
+  assert_eq(machine.acked_watermark(1), 2UL)
+  assert_eq(machine.state_of(key(0)), Some(@delivery.Acked))
+  assert_eq(machine.state_of(key(1)), Some(@delivery.Acked))
+  match machine.ack(disk, key(0), 1UL, 1700, None) {
+    Ok(@delivery.Duplicate) => assert_eq(true, true)
+    _ => fail("a pruned prefix must answer Duplicate")
+  }
+  match machine.begin_delivery(disk, key(0), 7, 1700, None) {
+    Err(@delivery.InvalidTransition) => assert_eq(true, true)
+    _ => fail("a pruned prefix must refuse a begin")
+  }
+  // Seq 2 acks: the bound advances to 3, seq 3 stays live.
+  match machine.ack(disk, key(2), 3UL, 1800, None) {
+    Ok(@delivery.Applied) => assert_eq(true, true)
+    _ => fail("the seq-2 ack failed")
+  }
+  assert_eq(machine.acked_watermark(1), 3UL)
+  assert_eq(machine.state_of(key(3)), Some(@delivery.Delivering(4UL, 7UL, 1)))
+  let rng = @harness.SplitMix64::new(4UL)
+  match
+    machine.nack(
+      disk,
+      rng,
+      key(2),
+      3UL,
+      @delivery.DeliveryOutcome::Retry,
+      1800,
+      None,
+    ) {
+    Err(@delivery.AlreadyAcked) => assert_eq(true, true)
+    _ => fail("a pruned prefix must answer the already-acked refusal")
+  }
+}

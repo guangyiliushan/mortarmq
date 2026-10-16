@@ -423,7 +423,7 @@ async test "a clean ledger scan reports no gap" {
 }
 
 ///|
-async test "a torn tail heals on append and stays queryable" {
+async test "a torn tail heals at recovery and stays queryable" {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   let writer = match @delivery.LedgerWriter::new(path) {
@@ -450,14 +450,18 @@ async test "a torn tail heals on append and stays queryable" {
     Ok(_) => ()
     Err(_) => fail("torn tail write failed")
   }
-  // The writer heals the tail instead of bricking: the tear is a storage
-  // fact, not an executor bug.
-  assert_eq(writer.torn_at(), None)
+  // Recovery heals the tail instead of bricking: the tear is a storage
+  // fact, not an executor bug. The truncation is one recovery-time write,
+  // and the writer records where the boundary ran.
+  match @delivery.DeliveryMachine::recover(disk, 1, 0, writer) {
+    Ok(_) => assert_eq(writer.torn_at(), Some(104))
+    Err(_) => fail("recover should heal the torn tail")
+  }
+  let third = sample_event(@delivery.Fenced)
   match writer.append(disk, third, None) {
     Ok(_) => ()
-    Err(_) => fail("append after the tear should heal and proceed")
+    Err(_) => fail("append after the heal should proceed")
   }
-  assert_eq(writer.torn_at(), Some(104))
   match @delivery.scan_ledger(disk, path) {
     Ok(scan) => {
       assert_eq(scan.first_invalid, None)
@@ -502,8 +506,13 @@ async test "mid-stream damage refuses the append until recovery repairs it" {
     Ok(_) => ()
     Err(_) => fail("corruption write failed")
   }
-  // A hole with good events behind it is real corruption: the append
-  // refuses rather than silently cut live history away.
+  // A hole with good events behind it is real corruption: recovery folds
+  // the survivors, flags the writer, and the append refuses rather than
+  // silently cut live history away.
+  match @delivery.DeliveryMachine::recover(disk, 1, 0, writer) {
+    Ok(_) => assert_eq(true, true)
+    Err(_) => fail("recover folds the surviving events")
+  }
   match writer.append(disk, sample_event(@delivery.Deliver), None) {
     Err(@delivery.LedgerFault::Malformed) => assert_eq(true, true)
     _ => fail("expected the mid-stream refusal")

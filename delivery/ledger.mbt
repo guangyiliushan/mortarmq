@@ -362,15 +362,18 @@ fn is_ledger_path(path : Bytes) -> Bool {
 ///|
 /// Append-only writer for one `delivery.mql` stream.
 ///
-/// The frozen v0 write path is read-modify-write over `Disk::write`; a host
-/// adapter may later switch to true append IO behind the same seam. Each
-/// `append` runs the storage watermark gate first (`check_append` projects
-/// this event against the volume), then writes, then group-syncs every 128
-/// events; `sync` forces the fsync early.
+/// The write path is true append IO over `Disk::append`: one O(event) write
+/// per journal, with the group-sync fsync every 128 events and `sync`
+/// forcing it early. The stream's validity is a recovery-time fact: torn
+/// tails are truncated back to the last valid boundary exactly once, when
+/// `DeliveryMachine::recover` heals the writer, and mid-stream damage sets
+/// the writer damaged so appends refuse until a registered repair lands.
 pub(all) struct LedgerWriter {
   priv path : Bytes
+  priv mut size : Int
   priv mut unflushed_events : Int
   priv mut torn_at : Int?
+  priv mut damaged : Bool
 }
 
 ///|
@@ -378,7 +381,7 @@ pub fn LedgerWriter::new(path : Bytes) -> Result[LedgerWriter, LedgerFault] {
   if !is_ledger_path(path) {
     return Err(Malformed)
   }
-  Ok({ path, unflushed_events: 0, torn_at: None, })
+  Ok({ path, size: 0, unflushed_events: 0, torn_at: None, damaged: false, })
 }
 
 ///|
@@ -394,18 +397,43 @@ pub fn LedgerWriter::unflushed_events(self : LedgerWriter) -> Int {
 ///|
 /// Report the byte offset of the most recently healed torn tail, if the
 /// writer ever had to cut one. The tear is a storage fact, not an
-/// executor bug: the tail is truncated to the last valid boundary and
-/// writing continues, but the damage stays queryable.
+/// executor bug: recovery truncates the tail to the last valid boundary
+/// and writing continues, but the damage stays queryable.
 pub fn LedgerWriter::torn_at(self : LedgerWriter) -> Int? {
   self.torn_at
 }
 
 ///|
-/// Append one event: the watermark gate, then read-modify-write, then a
+/// The logical valid length of the stream this writer appends to: zero
+/// until recovery adopts the file, then the last valid boundary.
+pub fn LedgerWriter::size(self : LedgerWriter) -> Int {
+  self.size
+}
+
+///|
+/// Recovery-time adoption: after `DeliveryMachine::recover` folds the
+/// stream it tells the writer how far the valid content runs and whether
+/// mid-stream damage (which refuses appends) stands between.
+fn LedgerWriter::adopt(self : LedgerWriter, size : Int, damaged : Bool) -> Unit {
+  self.size = size
+  self.damaged = damaged
+}
+
+///|
+/// Recovery-time healing: the tail was truncated back to the last valid
+/// boundary on disk; the writer records both facts and appends from there.
+fn LedgerWriter::heal(self : LedgerWriter, size : Int, boundary : Int) -> Unit {
+  self.size = size
+  self.torn_at = Some(boundary)
+}
+
+///|
+/// Append one event: the watermark gate, then one O(event) append, then a
 /// group commit once the frozen 128-event threshold is reached. The gate
 /// is the storage watermark (`None` skips it, matching the segment
 /// writer's call shape); a refusal is `Capacity` and runs no disk
-/// operation.
+/// operation. A writer flagged with mid-stream damage refuses until
+/// recovery repairs the log.
 pub async fn[D : @harness.Disk] LedgerWriter::append(
   self : LedgerWriter,
   disk : D,
@@ -420,42 +448,14 @@ pub async fn[D : @harness.Disk] LedgerWriter::append(
       }
     None => ()
   }
-  let raw = match disk.read(self.path) {
-    Ok(data) => data
-    Err(@harness.PathMissing) => b""
-    Err(other) => return Err(DiskFault(other))
+  if self.damaged {
+    return Err(Malformed)
   }
-  // Torn tails heal: cut to the last valid boundary and remember where.
-  // Damage with valid events after it is mid-stream corruption and the
-  // append refuses it until recovery repairs the log.
-  let mut first_invalid : Int? = None
-  let mut valid_after_damage = false
-  let mut offset = 0
-  while offset + LEDGER_EVENT_BYTES <= raw.length() {
-    match decode_ledger_event(raw[offset:offset + LEDGER_EVENT_BYTES]) {
-      Ok(_) => if first_invalid is Some(_) { valid_after_damage = true }
-      Err(_) => if first_invalid is None { first_invalid = Some(offset) }
-    }
-    offset = offset + LEDGER_EVENT_BYTES
-  }
-  if offset < raw.length() && first_invalid is None {
-    first_invalid = Some(offset)
-  }
-  let existing = match first_invalid {
-    None => raw
-    Some(boundary) =>
-      if valid_after_damage {
-        return Err(Malformed)
-      } else {
-        self.torn_at = Some(boundary)
-        raw[0:boundary].to_owned()
-      }
-  }
-  let next = existing + encode_ledger_event(event)
-  match disk.write(self.path, next) {
+  match disk.append(self.path, encode_ledger_event(event)) {
     Ok(_) => ()
     Err(code) => return Err(DiskFault(code))
   }
+  self.size = self.size + LEDGER_EVENT_BYTES
   self.unflushed_events = self.unflushed_events + 1
   if self.unflushed_events >= GROUP_COMMIT_EVENTS {
     match self.sync(disk) {

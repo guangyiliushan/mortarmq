@@ -158,6 +158,7 @@ pub(all) struct DeliveryMachine {
   // private fields
 }
 pub async fn[D : @harness.Disk] DeliveryMachine::ack(Self, D, DeliveryKey, UInt64, UInt64, @storage.Watermark?) -> Result[AckResult, DeliveryError]
+pub fn DeliveryMachine::acked_watermark(Self, UInt16) -> UInt64
 pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(Self, D, DeliveryKey, UInt64, UInt64, @storage.Watermark?) -> Result[DeliveryAttempt, DeliveryError]
 pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(Self, D, DeliveryKey, DeadLetterRequest, (Bytes) -> Result[UInt64, DeliveryError], UInt64, @storage.Watermark?) -> Result[DeadLetterResult, DeliveryError]
 pub fn DeliveryMachine::counts(Self, UInt16) -> DeliveryCounts
@@ -255,6 +256,7 @@ pub(all) struct LedgerWriter {
 pub async fn[D : @harness.Disk] LedgerWriter::append(Self, D, LedgerEvent, @storage.Watermark?) -> Result[Unit, LedgerFault]
 pub fn LedgerWriter::new(Bytes) -> Result[Self, LedgerFault]
 pub fn LedgerWriter::path(Self) -> Bytes
+pub fn LedgerWriter::size(Self) -> Int
 pub async fn[D : @harness.Disk] LedgerWriter::sync(Self, D) -> Result[Unit, LedgerFault]
 pub fn LedgerWriter::torn_at(Self) -> Int?
 pub fn LedgerWriter::unflushed_events(Self) -> Int

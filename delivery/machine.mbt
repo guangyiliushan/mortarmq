@@ -225,6 +225,12 @@ pub(all) struct DeliveryMachine {
   priv partition : UInt16
   priv writer : LedgerWriter
   priv groups : Map[UInt16, GroupState]
+  /// The contiguous-acked prefix per group, anchored at sequence zero:
+  /// every sequence strictly below the stored bound is Acked and its entry
+  /// pruned, so the live ledger stays bounded by the in-flight window
+  /// instead of the full delivery history. Queries below the bound answer
+  /// from the bound itself.
+  priv acked_watermarks : Map[UInt16, UInt64]
   priv mut first_invalid : Int?
 }
 
@@ -234,7 +240,30 @@ pub fn DeliveryMachine::new(
   partition : UInt16,
   writer : LedgerWriter,
 ) -> DeliveryMachine {
-  { topic_id, partition, writer, groups: Map([]), first_invalid: None, }
+  {
+    topic_id,
+    partition,
+    writer,
+    groups: Map([]),
+    acked_watermarks: Map([]),
+    first_invalid: None,
+  }
+}
+
+///|
+/// Report the contiguous-acked prefix of one group, anchored at sequence
+/// zero: every sequence strictly below the returned bound is Acked with
+/// its entry pruned, so the live ledger stays bounded by the in-flight
+/// window instead of the full delivery history. Zero means nothing is
+/// prunable yet.
+pub fn DeliveryMachine::acked_watermark(
+  self : DeliveryMachine,
+  group_id : UInt16,
+) -> UInt64 {
+  match self.acked_watermarks.get(group_id) {
+    Some(waterline) => waterline
+    None => 0UL
+  }
 }
 
 ///|
@@ -291,7 +320,8 @@ fn ledger_to_delivery_error(code : LedgerFault) -> DeliveryError {
 /// A first call bills `attempt = 1`; a redelivery (after the restart policy
 /// or a retry path made the entry redeliverable) bills `attempt + 1` with a
 /// fresh `delivery_id`. An entry already in flight, and an already-acked
-/// entry (the no-ghost rule), are both refused with `InvalidTransition`.
+/// entry (the no-ghost rule), are both refused with `InvalidTransition`;
+/// the acked waterline answers the same refusal for pruned history.
 pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
   self : DeliveryMachine,
   disk : D,
@@ -305,6 +335,11 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
     Err(code) => return Err(code)
   }
   let group = self.group_state(key.group_id)
+  // The acked prefix mirrors the already-acked refusal for pruned
+  // history: a sequence below the bound was delivered and acknowledged.
+  if key.sequence < self.acked_watermark(key.group_id) {
+    return Err(InvalidTransition)
+  }
   let prior_entry = group.entries.get(key.sequence)
   let attempt : UInt16 = match prior_entry {
     None => 1
@@ -379,6 +414,11 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
     Err(code) => return Err(code)
   }
   let group = self.group_state(key.group_id)
+  // The acked prefix answers for pruned history: every sequence below the
+  // bound is Acked, so a late ACK is the same idempotent duplicate.
+  if key.sequence < self.acked_watermark(key.group_id) {
+    return Ok(Duplicate)
+  }
   let entry = match group.entries.get(key.sequence) {
     Some(entry) => entry
     None => return Err(UnknownDelivery)
@@ -415,6 +455,30 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
           dlq_sequence: 0UL,
           retry_due_wall: 0UL,
           terminated: false,
+        }
+        // Advance the contiguous-acked prefix and prune everything it
+        // covers: the live ledger keeps the in-flight window, and the
+        // prefix bound itself keeps answering for the pruned history.
+        let mut bound = self.acked_watermark(key.group_id)
+        let mut advancing = true
+        while advancing {
+          let advance = match group.entries.get(bound) {
+            Some(entry) =>
+              match entry.state {
+                Acked => true
+                _ => false
+              }
+            None => false
+          }
+          if advance {
+            ignore(group.entries.remove(bound))
+            bound = bound + 1UL
+          } else {
+            advancing = false
+          }
+        }
+        if bound > self.acked_watermark(key.group_id) {
+          self.acked_watermarks[key.group_id] = bound
         }
         self.groups[key.group_id] = group
         return Ok(Applied)
@@ -576,6 +640,11 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
     Err(code) => return Err(code)
   }
   let group = self.group_state(key.group_id)
+  // The acked prefix answers for pruned history: an acknowledged sequence
+  // never comes back, so its NACK is the already-acked refusal.
+  if key.sequence < self.acked_watermark(key.group_id) {
+    return Err(AlreadyAcked)
+  }
   let entry = match group.entries.get(key.sequence) {
     Some(entry) => entry
     None => return Err(UnknownDelivery)
@@ -646,6 +715,11 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(
     Err(code) => return Err(code)
   }
   let group = self.group_state(key.group_id)
+  // Same acked-prefix rule as nack: pruned history is acked history, and
+  // a timeout against it is the already-acked refusal.
+  if key.sequence < self.acked_watermark(key.group_id) {
+    return Err(AlreadyAcked)
+  }
   let entry = match group.entries.get(key.sequence) {
     Some(entry) => entry
     None => return Err(UnknownDelivery)
@@ -1097,6 +1171,29 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
   }
   let machine = DeliveryMachine::new(topic_id, partition, writer)
   machine.first_invalid = scan.first_invalid
+  // Heal the stream before anything appends to it. A torn tail is an
+  // unfinished append from a crash: truncate it back to the last valid
+  // boundary exactly once, here at recovery. Mid-stream damage -- valid
+  // events behind a bad chunk -- is real corruption: the writer refuses
+  // appends until a registered repair lands, and the surviving events
+  // stay folded above.
+  let raw = match disk.read(writer.path()) {
+    Ok(data) => data
+    Err(@harness.PathMissing) => b""
+    Err(code) => return Err(ledger_to_delivery_error(DiskFault(code)))
+  }
+  match scan.first_invalid {
+    None => machine.writer.adopt(raw.length(), false)
+    Some(boundary) =>
+      if scan.events.length() > boundary / LEDGER_EVENT_BYTES {
+        machine.writer.adopt(raw.length(), true)
+      } else {
+        match disk.write(writer.path(), raw[0:boundary].to_owned()) {
+          Ok(_) => machine.writer.heal(boundary, boundary)
+          Err(code) => return Err(ledger_to_delivery_error(DiskFault(code)))
+        }
+      }
+  }
   for event in scan.events {
     let group = machine.group_state(event.group_id)
     let prior_fenced = match group.entries.get(event.sequence) {
@@ -1270,6 +1367,9 @@ pub fn DeliveryMachine::state_of(
   self : DeliveryMachine,
   key : DeliveryKey,
 ) -> DeliveryState? {
+  if key.sequence < self.acked_watermark(key.group_id) {
+    return Some(Acked)
+  }
   match self.groups.get(key.group_id) {
     None => None
     Some(group) =>
