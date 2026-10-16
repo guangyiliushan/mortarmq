@@ -30,10 +30,10 @@
 ///
 /// # Durability
 ///
-/// An append publishes its bytes with a write followed by an fsync of the
-/// segment file. The in-memory state advances once the write succeeds, so a
+/// An append publishes its bytes with an append followed by an fsync of the
+/// segment file. The in-memory state advances once the append succeeds, so a
 /// failed fsync still leaves the complete record in the file and the next
-/// append builds on it; only a failed write leaves both the file and the
+/// append builds on it; only a failed append leaves both the file and the
 /// writer unchanged. An append that returns an error therefore never
 /// silently drops bytes that a later append would overwrite.
 
@@ -88,16 +88,17 @@ priv struct SegmentWriterState {
   base_path : Bytes
   segment_max_bytes : Int
   mut segment_index : Int
-  mut active_body : Bytes
+  mut active_len : Int
   mut next_sequence : UInt64
 } derive(Debug)
 
 ///|
 /// Own one partition's append-only segment file series.
 ///
-/// The writer is a pure state machine over the disk seam: it holds the
-/// active segment's record area in memory as the source of truth for the
-/// next write, and every append goes through the caller-supplied disk.
+/// The writer is a pure state machine over the disk seam: it tracks the
+/// active segment's length as the source of truth for the next write, and
+/// every record goes straight to the file through `Disk::append` -- the
+/// full segment body never passes through memory.
 /// Rotation is decided before any disk operation runs, so a failed append
 /// leaves the segment index and the record area exactly as they were.
 pub(all) struct SegmentWriter {
@@ -144,7 +145,7 @@ pub fn SegmentWriter::new(
       base_path,
       segment_max_bytes,
       segment_index: 0,
-      active_body: b"",
+      active_len: 0,
       next_sequence: start_sequence,
     }),
   }
@@ -171,7 +172,7 @@ pub fn SegmentWriter::active_path(self : SegmentWriter) -> Bytes {
 ///|
 /// Report how many bytes the active segment record area holds.
 pub fn SegmentWriter::active_bytes(self : SegmentWriter) -> Int {
-  self.state.val.active_body.length()
+  self.state.val.active_len
 }
 
 ///|
@@ -288,24 +289,23 @@ pub async fn SegmentWriter::append(
   // Decide the target segment without mutating state, so a failed write
   // leaves the series exactly as it was.
   let mut target_index = self.state.val.segment_index
-  let mut base_body = self.state.val.active_body
-  let must_roll = base_body.length() > 0 &&
-    base_body.length() + record.length() > self.state.val.segment_max_bytes
+  let mut base_len = self.state.val.active_len
+  let must_roll = base_len > 0 &&
+    base_len + record.length() > self.state.val.segment_max_bytes
   if must_roll {
     target_index = target_index + 1
-    base_body = b""
+    base_len = 0
   }
-  let file_offset = base_body.length()
-  let new_body = base_body + record
+  let file_offset = base_len
   let path = segment_path_of(self.state.val.base_path, target_index)
-  match @harness.Disk::write(disk, path, new_body) {
+  match @harness.Disk::append(disk, path, record) {
     Ok(_) => ()
     Err(fault) => return Err(Disk(fault))
   }
   // The bytes are in the file: advance the in-memory source of truth before
   // the fsync so a later append can only build on the durable record.
   self.state.val.segment_index = target_index
-  self.state.val.active_body = new_body
+  self.state.val.active_len = base_len + record.length()
   self.state.val.next_sequence = header.sequence + 1UL
   match @harness.Disk::fsync(disk, path) {
     Ok(_) => ()
