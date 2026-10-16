@@ -148,6 +148,7 @@ test "the committed ceiling never moves backwards and is the number the rule say
       let node = @cluster.ClusterNode::new(config)
       let own = quorum_slice(draw, 1U)
       let mut ceiling = node.commit_horizon(own)
+      let mut accepted_seen = false
       for step in 0..<4 {
         let peer = if step % 2 == 0 { 2U.to_uint16() } else { 3U.to_uint16() }
         // Half the steps replay a position the peer may already have
@@ -201,6 +202,7 @@ test "the committed ceiling never moves backwards and is the number the rule say
         // position bound it -- and each of those gives a different
         // number here.
         if accepted {
+          accepted_seen = true
           let expected = quorum_ceiling(
             own,
             quorum_position(node, 2U.to_uint16()),
@@ -212,7 +214,11 @@ test "the committed ceiling never moves backwards and is the number the rule say
           }
         }
       }
-      true
+      // A sample where every ack was refused proves nothing about the
+      // ceiling: require at least one accepted acknowledgement per
+      // sample, so a record_append_ack that always refuses cannot ride
+      // green on vacuous samples.
+      accepted_seen
     },
     count~,
     max_shrinks=20,
