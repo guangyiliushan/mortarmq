@@ -38,11 +38,24 @@ test "token_line rejects empty and unprintable roles" {
 test "parse_tokens reads well-formed entries in order" {
   let line1 = b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\tadmin"
   let line2 = b"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\tclient"
-  let store = @security.parse_tokens((line1 + b"\n" + line2 + b"\n")[:])
+  let store = match @security.parse_tokens((line1 + b"\n" + line2 + b"\n")[:]) {
+    Some(store) => store
+    None => fail("the two-entry store must parse")
+  }
   assert_eq(store.entries.length(), 2)
   assert_eq(store.entries[0].role, b"admin")
   assert_eq(store.entries[0].digest, @security.sha256(b"abc"))
   assert_eq(store.entries[1].role, b"client")
+}
+
+///|
+test "parse_tokens refuses a repeated digest whole" {
+  let line = b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\tadmin"
+  let again = b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\twriter"
+  assert_eq(
+    @security.parse_tokens((line + b"\n" + again + b"\n")[:]) is None,
+    true,
+  )
 }
 
 ///|
@@ -65,15 +78,23 @@ test "parse_tokens treats malformed lines as absent entries" {
     b"\n" +
     bad_role +
     b"\n"
-  let store = @security.parse_tokens(text[:])
+  let store = match @security.parse_tokens(text[:]) {
+    Some(store) => store
+    None => fail("the malformed-line store must parse")
+  }
   assert_eq(store.entries.length(), 1)
   assert_eq(store.entries[0].role, b"admin")
 }
 
 ///|
 test "parse_tokens tolerates CRLF line endings" {
-  let line = b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\tadmin"
-  let store = @security.parse_tokens((line + b"\r\n" + line + b"\r\n")[:])
+  let line1 = b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\tadmin"
+  let line2 = b"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\tclient"
+  let store = match
+    @security.parse_tokens((line1 + b"\r\n" + line2 + b"\r\n")[:]) {
+    Some(store) => store
+    None => fail("the CRLF store must parse")
+  }
   assert_eq(store.entries.length(), 2)
   assert_eq(store.entries[0].role, b"admin")
 }
@@ -83,7 +104,11 @@ test "token_line output parses back to the same entry" {
   let digest = @security.sha256(b"correct-horse-battery-staple")
   let line = @security.token_line(digest, b"writer")
   let store = match line {
-    Ok(text) => @security.parse_tokens((text + b"\n")[:])
+    Ok(text) =>
+      match @security.parse_tokens((text + b"\n")[:]) {
+        Some(store) => store
+        None => fail("the token_line store must parse")
+      }
     Err(_) => abort("token_line must accept a valid role")
   }
   assert_eq(store.entries.length(), 1)
