@@ -34,7 +34,7 @@
 ///
 /// # Errors
 ///
-/// * `Internal` -- the encode or the disk append failed.
+/// * `Internal` -- the encode, the disk append, or its fsync failed.
 ///
 /// Example:
 ///
