@@ -161,7 +161,11 @@ fn refusal(msg : PeerMsg) -> @protocol.ErrCode? {
 /// registered code that refused the link. The sequence is `Hello`,
 /// `Challenge`, `Proof`, `Welcome`; any other shape, any id that is not
 /// in the static table, and any tag that does not verify all end in a
-/// `Reject` frame carrying the same code the caller receives.
+/// `Reject` frame carrying the same code the caller receives. The
+/// `Welcome` frame carries no tag because it needs none: by the time it
+/// is written the responder has already proven itself through the
+/// Challenge tag, so an unauthenticated id echo cannot promote a link
+/// the tags did not authenticate.
 ///
 /// # Example
 ///
