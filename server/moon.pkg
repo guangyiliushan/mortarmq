@@ -6,9 +6,9 @@
 // invalid configuration and binds exactly what it names. The client
 // protocol face lands with its own transport wiring.
 //
-// Targets: the async event loop and the socket package define this
-// surface for native; the face is a broker process concern, so the
-// package is bounded to native like net/tcp.
+// Targets: the async event loop and the socket surface this server uses
+// are defined for native here, and the broker process is a native
+// concern, so the package is bounded to native.
 supported_targets = "+native"
 
 pkgtype(kind: "executable")

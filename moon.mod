@@ -22,6 +22,6 @@ keywords = [ "mq", "message-queue", "broker" ]
 
 description = "A message queue written natively in MoonBit: wire-protocol access, produce/consume, partitioned topics, at-least-once delivery with DLQ handling, and durable crash recovery"
 
-// The server runs on the native target; bench and client pass an explicit --target when they need another backend.
+// The server runs on the native target; client passes an explicit --target when it needs another backend.
 
 preferred_target = "native"
