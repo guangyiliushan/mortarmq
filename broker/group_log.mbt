@@ -67,6 +67,13 @@ pub async fn[D : @harness.Disk] persist_group_state(
     Err(_) => return Err(@protocol.Internal)
   }
   match disk.write(log, existing + record) {
+    Ok(_) => ()
+    Err(_) => return Err(@protocol.Internal)
+  }
+  // The group state is the truth its failover reload walks back, so the
+  // append is fsynced before it reports success, matching the checkpoint
+  // and snapshot publication discipline.
+  match disk.fsync(log) {
     Ok(_) => Ok(())
     Err(_) => Err(@protocol.Internal)
   }
