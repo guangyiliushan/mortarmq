@@ -202,6 +202,7 @@ pub extend FakeDisk with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 pub extend FakeDisk with Disk::{
   write,
+  append,
   read,
   fsync,
   rename,
@@ -314,6 +315,25 @@ pub impl Disk for FakeDisk with fn write(self, path : Bytes, data : Bytes) -> Re
     return Err(DiskFull)
   }
   self.state.val.files[path] = data
+  Ok(())
+}
+
+///|
+pub impl Disk for FakeDisk with fn append(self, path : Bytes, data : Bytes) -> Result[
+  Unit,
+  HarnessFault,
+] {
+  if count_op_and_check_kill(self.state.val) {
+    return Err(Killed)
+  }
+  if self.state.val.disk_full {
+    return Err(DiskFull)
+  }
+  let existing = match self.state.val.files.get(path) {
+    Some(data) => data
+    None => b""
+  }
+  self.state.val.files[path] = existing + data
   Ok(())
 }
 

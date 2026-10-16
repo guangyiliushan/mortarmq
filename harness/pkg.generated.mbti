@@ -44,6 +44,7 @@ pub impl Clock for FakeClock
 pub(all) struct FakeDisk {
   // private fields
 } derive(@debug.Debug)
+pub async fn FakeDisk::append(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
 pub fn FakeDisk::capabilities(Self) -> DiskCapabilities
 pub async fn FakeDisk::fsync(Self, Bytes) -> Result[Unit, HarnessFault]
 pub fn FakeDisk::new() -> Self
@@ -98,6 +99,7 @@ pub(open) trait Clock {
 
 pub(open) trait Disk {
   async fn write(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
+  async fn append(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
   async fn read(Self, Bytes) -> Result[Bytes, HarnessFault]
   async fn fsync(Self, Bytes) -> Result[Unit, HarnessFault]
   async fn rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
