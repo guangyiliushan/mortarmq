@@ -75,14 +75,16 @@ fn peer_tag(
   role : Byte,
   initiator : UInt16,
   responder : UInt16,
-  nonce : BytesView,
+  initiator_nonce : BytesView,
+  responder_nonce : BytesView,
 ) -> Bytes {
   let buf = Buffer()
   buf.write_bytes(PEER_DOMAIN)
   buf.write_byte(role)
   put_u16(buf, initiator)
   put_u16(buf, responder)
-  buf.write_bytes(nonce)
+  buf.write_bytes(initiator_nonce)
+  buf.write_bytes(responder_nonce)
   secret.tag(buf.contents()[:])
 }
 
@@ -180,8 +182,8 @@ pub async fn peer_handshake_responder(
     Err(code) => return Err(code)
     Ok(msg) => msg
   }
-  let initiator = match opener {
-    Hello(node_id) => node_id
+  let (initiator, initiator_nonce) = match opener {
+    Hello(node_id, nonce) => (node_id, nonce)
     _ => return refuse(conn, @protocol.MalformedPayload)
   }
   // An id that is not in the static table is not a member, whatever
@@ -200,6 +202,7 @@ pub async fn peer_handshake_responder(
     PEER_ROLE_RESPONDER,
     initiator,
     responder_id,
+    initiator_nonce[:],
     nonce[:],
   )
   match write_peer_msg(conn, Challenge(responder_id, nonce, own_tag)) {
@@ -229,6 +232,7 @@ pub async fn peer_handshake_responder(
     PEER_ROLE_INITIATOR,
     initiator,
     responder_id,
+    initiator_nonce[:],
     nonce[:],
   )
   if !@security.tag_eq(presented[:], expected[:]) {
@@ -266,7 +270,11 @@ pub async fn peer_handshake_initiator(
   conn : &@net.Conn,
   expected : PeerEntry,
 ) -> Result[UInt16, @protocol.ErrCode] {
-  match write_peer_msg(conn, Hello(config.node_id())) {
+  let initiator_nonce = match fresh_nonce() {
+    None => return refuse(conn, @protocol.Internal)
+    Some(value) => value
+  }
+  match write_peer_msg(conn, Hello(config.node_id(), initiator_nonce)) {
     Ok(_) => ()
     Err(code) => return Err(code)
   }
@@ -294,6 +302,7 @@ pub async fn peer_handshake_initiator(
     PEER_ROLE_RESPONDER,
     config.node_id(),
     responder_id,
+    initiator_nonce[:],
     nonce[:],
   )
   if !@security.tag_eq(presented[:], expected_tag[:]) {
@@ -304,6 +313,7 @@ pub async fn peer_handshake_initiator(
     PEER_ROLE_INITIATOR,
     config.node_id(),
     responder_id,
+    initiator_nonce[:],
     nonce[:],
   )
   match write_peer_msg(conn, Proof(config.node_id(), own_tag)) {

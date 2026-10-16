@@ -233,6 +233,137 @@ async test "a wrong shared secret refuses the link on both ends" {
 }
 
 ///|
+/// The replay the challenge-response design has to kill: a Challenge
+/// captured from one genuine session must be worthless in the next one,
+/// because the initiator's fresh nonce re-keys both tags. An attacker
+/// replays the captured Challenge byte for byte and the link refuses;
+/// under responder-nonce-only tags the same script completed the
+/// handshake.
+async test "a replayed challenge refuses the link" {
+  let secret = fixture_secret()
+  // Session one: a scripted initiator with a known nonce harvests a
+  // genuine Challenge from the real responder, then walks away.
+  let captured : Ref[Bytes?] = Ref::Ref(None)
+  let server = bind_loopback()
+  let port = server.addr.port()
+  let responder_config = handshake_config(
+    1U.to_uint16(),
+    port,
+    2U.to_uint16(),
+    secret,
+  )
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server.close()
+      match
+        @async.with_timeout_opt(handshake_budget_ms(), () => server.accept()) {
+        None => ()
+        Some(accepted) => {
+          let concrete : LoopConn = { tcp: accepted.0, }
+          let conn : &@net.Conn = concrete
+          ignore(
+            @async.with_timeout_opt(handshake_budget_ms(), () => {
+              @cluster.peer_handshake_responder(responder_config, conn)
+            }),
+          )
+          @net.Conn::close(conn)
+        }
+      }
+    }
+    let conn = match dial_loopback(port) {
+      Ok(conn) => conn
+      Err(_) => fail("the capture dial failed")
+    }
+    // A fixed initiator nonce: the captured Challenge is valid only for
+    // sessions that reuse exactly these bytes.
+    let fixed_nonce : Bytes = b"\x5a\x5a\x5a\x5a\x5a\x5a\x5a\x5a\x5a\x5a\x5a\x5a\x5a\x5a\x5a\x5a"
+    match
+      @net.Conn::write_all(
+        conn,
+        @cluster.encode_peer_msg(
+          @cluster.PeerMsg::Hello(2U.to_uint16(), fixed_nonce),
+        ),
+      ) {
+      Ok(_) => ()
+      Err(_) => fail("the capture hello failed")
+    }
+    let header = match @net.Conn::read_exact(conn, 4) {
+      Ok(bytes) => bytes
+      Err(_) => fail("no challenge length arrived")
+    }
+    let body_len = ((header[0].to_uint() << 24) |
+    (header[1].to_uint() << 16) |
+    (header[2].to_uint() << 8) |
+    header[3].to_uint()).reinterpret_as_int()
+    let body = match @net.Conn::read_exact(conn, body_len) {
+      Ok(bytes) => bytes
+      Err(_) => fail("no challenge body arrived")
+    }
+    captured.val = Some(header + body)
+    // Unblock the responder: it is waiting on a Proof that never comes.
+    ignore(
+      @net.Conn::write_all(
+        conn,
+        @cluster.encode_peer_msg(@cluster.PeerMsg::Reject(0x0006U.to_uint16())),
+      ),
+    )
+    @net.Conn::close(conn)
+  }
+  let challenge = match captured.val {
+    Some(bytes) => bytes
+    None => fail("no challenge was captured")
+  }
+  // Session two: the real initiator runs against a replaying attacker
+  // that answers its fresh Hello with the captured Challenge.
+  let server2 = bind_loopback()
+  let port2 = server2.addr.port()
+  let initiator_config = handshake_config(
+    2U.to_uint16(),
+    port2,
+    2U.to_uint16(),
+    secret,
+  )
+  let victim_outcome : Ref[Result[UInt16, @protocol.ErrCode]] = Ref::Ref(
+    Err(@protocol.Internal),
+  )
+  @async.with_task_group() <| group => {
+    group.spawn_bg() <| () => {
+      defer server2.close()
+      match
+        @async.with_timeout_opt(handshake_budget_ms(), () => server2.accept()) {
+        None => ()
+        Some(accepted) => {
+          let concrete : LoopConn = { tcp: accepted.0, }
+          let conn : &@net.Conn = concrete
+          // Consume the victim's Hello (4 length bytes + type + id +
+          // nonce), then replay the captured Challenge verbatim.
+          ignore(@net.Conn::read_exact(conn, 4 + 19))
+          ignore(@net.Conn::write_all(conn, challenge))
+          @net.Conn::close(conn)
+        }
+      }
+    }
+    let conn = match dial_loopback(port2) {
+      Ok(conn) => conn
+      Err(_) => fail("the victim dial failed")
+    }
+    let expected = match initiator_config.peer_entry(1U.to_uint16()) {
+      None => fail("node 1 must be in the initiator's table")
+      Some(entry) => entry
+    }
+    let bounded = @async.with_timeout_opt(handshake_budget_ms(), () => {
+      @cluster.peer_handshake_initiator(initiator_config, conn, expected)
+    })
+    @net.Conn::close(conn)
+    victim_outcome.val = match bounded {
+      None => Err(@protocol.Internal)
+      Some(outcome) => outcome
+    }
+  }
+  assert_eq(victim_outcome.val, Err(@protocol.AuthFailed))
+}
+
+///|
 async test "a node id outside the receiving table refuses the link" {
   // The initiator's own table contains 9, so its configuration is well
   // formed; the responder's table does not contain 9, so the responder

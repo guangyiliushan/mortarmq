@@ -18,15 +18,21 @@ fn fixture_tag(seed : Int) -> Bytes {
 }
 
 ///|
-test "a Hello frame is four length bytes, one type byte, then the id" {
-  let hello = @cluster.PeerMsg::Hello(7U.to_uint16())
-  assert_eq(@cluster.encode_peer_msg(hello), b"\x00\x00\x00\x03\x01\x00\x07")
+test "a Hello frame is length, type, id, then the 16-byte nonce" {
+  let hello = @cluster.PeerMsg::Hello(
+    7U.to_uint16(),
+    b"\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22",
+  )
+  assert_eq(
+    @cluster.encode_peer_msg(hello),
+    b"\x00\x00\x00\x13\x01\x00\x07\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22\x22",
+  )
 }
 
 ///|
 test "every message round-trips through encode and decode" {
   let messages : Array[@cluster.PeerMsg] = [
-    @cluster.PeerMsg::Hello(65535U.to_uint16()),
+    @cluster.PeerMsg::Hello(65535U.to_uint16(), fixture_nonce()),
     @cluster.PeerMsg::Challenge(3U.to_uint16(), fixture_nonce(), fixture_tag(0)),
     @cluster.PeerMsg::Proof(1U.to_uint16(), fixture_tag(7)),
     @cluster.PeerMsg::Welcome(2U.to_uint16()),

@@ -131,11 +131,12 @@ const PEER_MSG_INSTALL_ACK : Byte = 0x0B
 /// registered protocol code so a refusal is always something the other
 /// end can name.
 pub(all) enum PeerMsg {
-  /// The initiator opens with its node id, before any secret material
-  /// has moved.
-  Hello(UInt16)
-  /// The responder answers with its id, a fresh nonce, and its own tag
-  /// over that nonce.
+  /// The initiator opens with its node id and a fresh nonce, before any
+  /// secret material has moved. The nonce re-keys the transcript on
+  /// every run, so a captured handshake cannot be replayed.
+  Hello(UInt16, Bytes)
+  /// The responder answers with its id, a fresh nonce of its own, and
+  /// its tag over both nonces.
   Challenge(UInt16, Bytes, Bytes)
   /// The initiator proves it holds the shared secret.
   Proof(UInt16, Bytes)
@@ -394,17 +395,25 @@ fn take_bytes(view : BytesView, offset : Int, length : Int) -> Bytes? {
 ///
 /// ```mbt check
 /// test {
-///   let frame = @cluster.encode_peer_msg(@cluster.PeerMsg::Hello(7U.to_uint16()))
-///   // length 3 = type byte plus the two id bytes, big-endian.
-///   assert_eq(frame, b"\x00\x00\x00\x03\x01\x00\x07")
+///   let frame = @cluster.encode_peer_msg(
+///     @cluster.PeerMsg::Hello(
+///       7U.to_uint16(),
+///       b"\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11",
+///     ),
+///   )
+///   // length 19 = the type byte, the two id bytes, and the 16-byte nonce.
+///   assert_eq(
+///     frame, b"\x00\x00\x00\x13\x01\x00\x07\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11",
+///   )
 /// }
 /// ```
 pub fn encode_peer_msg(msg : PeerMsg) -> Bytes {
   let body = Buffer()
   match msg {
-    Hello(node_id) => {
+    Hello(node_id, nonce) => {
       body.write_byte(PEER_MSG_HELLO)
       put_u16(body, node_id)
+      body.write_bytes(nonce)
     }
     Challenge(node_id, nonce, tag) => {
       body.write_byte(PEER_MSG_CHALLENGE)
@@ -496,10 +505,20 @@ pub fn encode_peer_msg(msg : PeerMsg) -> Bytes {
 ///
 /// ```mbt check
 /// test {
-///   let frame = @cluster.encode_peer_msg(@cluster.PeerMsg::Hello(7U.to_uint16()))
+///   let frame = @cluster.encode_peer_msg(
+///     @cluster.PeerMsg::Hello(
+///       7U.to_uint16(),
+///       b"\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11",
+///     ),
+///   )
 ///   assert_eq(
 ///     @cluster.decode_peer_msg(frame[:]),
-///     Some(@cluster.PeerMsg::Hello(7U.to_uint16())),
+///     Some(
+///       @cluster.PeerMsg::Hello(
+///         7U.to_uint16(),
+///         b"\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11",
+///       ),
+///     ),
 ///   )
 ///   // A payload of the wrong size for its type decodes to None.
 ///   assert_eq(@cluster.decode_peer_msg(b"\x00\x00\x00\x02\x01"), None)
@@ -532,14 +551,18 @@ fn decode_peer_body(frame : BytesView, body_len : UInt) -> PeerMsg? {
   let base = PEER_LEN_BYTES + 1
   let payload_len = frame.length() - PEER_LEN_BYTES - 1
   if kind == PEER_MSG_HELLO {
-    if payload_len != 2 {
+    if payload_len != 2 + PEER_NONCE_BYTES {
       return None
     }
     let node_id = match get_u16(frame, base) {
       None => return None
       Some(value) => value
     }
-    return Some(Hello(node_id))
+    let nonce = match take_bytes(frame, base + 2, PEER_NONCE_BYTES) {
+      None => return None
+      Some(value) => value
+    }
+    return Some(Hello(node_id, nonce))
   }
   if kind == PEER_MSG_CHALLENGE {
     if payload_len != 2 + PEER_NONCE_BYTES + PEER_TAG_BYTES {
