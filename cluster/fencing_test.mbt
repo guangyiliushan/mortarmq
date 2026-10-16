@@ -22,8 +22,8 @@ async fn handwritten_append(
   follower_log : TracedLog,
   follower_epoch : @cluster.LeaderEpoch,
   batch : @cluster.AppendBatch,
-  committed_seq? : UInt64 = 0UL,
-  observed? : Ref[@cluster.ClusterNode?] = Ref::Ref(None),
+  committed_seq~ : UInt64 = 0UL,
+  observed~ : Ref[@cluster.ClusterNode?] = Ref::Ref(None),
 ) -> (Result[@cluster.AppendAck, @protocol.ErrCode], @cluster.PeerMsg?) {
   let secret = fixture_secret()
   let server = bind_loopback()

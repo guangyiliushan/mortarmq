@@ -68,7 +68,7 @@ pub async fn ClusterNode::send_append(
   leader_epoch : UInt64,
   payloads : Array[Bytes],
   flush_after_append : Bool,
-  ack_deadline_ms : Int,
+  ack_deadline_ms : Int32,
 ) -> Result[AppendAck, @protocol.ErrCode] {
   // The tier speaks before the log does. A cluster that has already
   // told a producer no would put this payload on its own disk and still
@@ -122,7 +122,7 @@ async fn ClusterNode::ship_batch(
   base_seq : UInt64,
   payloads : Array[Bytes],
   flush_after_append : Bool,
-  ack_deadline_ms : Int,
+  ack_deadline_ms : Int32,
 ) -> Result[AppendAck, @protocol.ErrCode] {
   let ran_out : Ref[Bool] = Ref::Ref(false)
   let outcome = self.ship_batch_round(
@@ -175,7 +175,7 @@ async fn ClusterNode::ship_batch_round(
   base_seq : UInt64,
   payloads : Array[Bytes],
   flush_after_append : Bool,
-  ack_deadline_ms : Int,
+  ack_deadline_ms : Int32,
   ran_out : Ref[Bool],
 ) -> Result[AppendAck, @protocol.ErrCode] {
   if payloads.length() == 0 {
@@ -418,8 +418,8 @@ pub async fn ClusterNode::catch_up(
   link : PeerLink,
   log : &ReplicaLog,
   epoch : LeaderEpoch,
-  batch_limit : Int,
-  ack_deadline_ms : Int,
+  batch_limit : Int32,
+  ack_deadline_ms : Int32,
 ) -> Result[UInt64, @protocol.ErrCode] {
   if batch_limit <= 0 || ack_deadline_ms <= 0 {
     return Err(@protocol.MalformedPayload)

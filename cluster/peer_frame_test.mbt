@@ -3,7 +3,7 @@
 /// decoder claims to refuse.
 
 ///|
-fn nonce_byte(index : Int) -> Byte {
+fn nonce_byte(index : Int32) -> Byte {
   (index + 1).to_byte()
 }
 
@@ -13,7 +13,7 @@ fn fixture_nonce() -> Bytes {
 }
 
 ///|
-fn fixture_tag(seed : Int) -> Bytes {
+fn fixture_tag(seed : Int32) -> Bytes {
   Bytes::makei(@cluster.PEER_TAG_BYTES, index => (index + seed).to_byte())
 }
 
@@ -118,7 +118,7 @@ test "nonce and tag constants are the sizes the handshake signs over" {
 /// would be asking the encoder to reproduce the very mistake. Bytes are
 /// written as numbers rather than literals so the frame's layout stays
 /// readable next to the field order it encodes.
-fn append_prefix(flush_flag : Byte, entry_count : UInt) -> Bytes {
+fn append_prefix(flush_flag : Byte, entry_count : UInt32) -> Bytes {
   let frame = Buffer()
   // length 0x00000018 = one type byte plus twenty-three payload bytes
   for _ in 0..<3 {

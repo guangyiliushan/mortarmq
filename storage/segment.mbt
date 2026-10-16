@@ -39,7 +39,7 @@
 
 ///|
 /// Default rotation threshold of one segment record area: 64 MiB.
-pub const SEGMENT_MAX_BYTES : Int = 67108864
+pub const SEGMENT_MAX_BYTES : Int32 = 67108864
 
 ///|
 /// Where one append landed and how large it is on disk.
@@ -49,10 +49,10 @@ pub const SEGMENT_MAX_BYTES : Int = 67108864
 /// including that prefix -- the two extents a sparse index entry anchors.
 pub(all) struct AppendedRecord {
   sequence : UInt64
-  segment_index : Int
+  segment_index : Int32
   segment_path : Bytes
-  file_offset : Int
-  record_len : Int
+  file_offset : Int32
+  record_len : Int32
 } derive(Eq, Debug)
 
 ///|
@@ -86,9 +86,9 @@ pub extend AppendFault with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 priv struct SegmentWriterState {
   base_path : Bytes
-  segment_max_bytes : Int
-  mut segment_index : Int
-  mut active_len : Int
+  segment_max_bytes : Int32
+  mut segment_index : Int32
+  mut active_len : Int32
   mut next_sequence : UInt64
 } derive(Debug)
 
@@ -137,8 +137,8 @@ pub extend SegmentWriter with @moonbitlang/core/debug.Debug::{to_repr}
 /// ```
 pub fn SegmentWriter::new(
   base_path : Bytes,
-  segment_max_bytes? : Int = SEGMENT_MAX_BYTES,
-  start_sequence? : UInt64 = 0UL,
+  segment_max_bytes~ : Int32 = SEGMENT_MAX_BYTES,
+  start_sequence~ : UInt64 = 0UL,
 ) -> SegmentWriter {
   {
     state: Ref::Ref({
@@ -153,13 +153,16 @@ pub fn SegmentWriter::new(
 
 ///|
 /// Derive the file path of one segment of the series.
-pub fn SegmentWriter::segment_path(self : SegmentWriter, index : Int) -> Bytes {
+pub fn SegmentWriter::segment_path(
+  self : SegmentWriter,
+  index : Int32,
+) -> Bytes {
   segment_path_of(self.state.val.base_path, index)
 }
 
 ///|
 /// Derive the file path of one segment of the series.
-pub fn segment_path_of(base_path : Bytes, index : Int) -> Bytes {
+pub fn segment_path_of(base_path : Bytes, index : Int32) -> Bytes {
   base_path + b"." + @utf8.encode(index.to_string())
 }
 
@@ -171,7 +174,7 @@ pub fn SegmentWriter::active_path(self : SegmentWriter) -> Bytes {
 
 ///|
 /// Report how many bytes the active segment record area holds.
-pub fn SegmentWriter::active_bytes(self : SegmentWriter) -> Int {
+pub fn SegmentWriter::active_bytes(self : SegmentWriter) -> Int32 {
   self.state.val.active_len
 }
 
@@ -183,7 +186,7 @@ pub fn SegmentWriter::next_sequence(self : SegmentWriter) -> UInt64 {
 
 ///|
 /// Report how many segments the series holds, sealed and active.
-pub fn SegmentWriter::segment_count(self : SegmentWriter) -> Int {
+pub fn SegmentWriter::segment_count(self : SegmentWriter) -> Int32 {
   self.state.val.segment_index + 1
 }
 
@@ -253,11 +256,11 @@ pub async fn SegmentWriter::append(
   disk : &@harness.Disk,
   key : Bytes,
   value : Bytes,
-  producer_id? : UInt64 = 0UL,
-  producer_seq? : UInt64 = 0UL,
-  timestamp_unix_ms? : UInt64 = 0UL,
-  leader_epoch? : UInt = 0,
-  replication_flags? : Byte = b'\x00',
+  producer_id~ : UInt64 = 0UL,
+  producer_seq~ : UInt64 = 0UL,
+  timestamp_unix_ms~ : UInt64 = 0UL,
+  leader_epoch~ : UInt32 = 0,
+  replication_flags~ : Byte = b'\x00',
   watermark? : Watermark,
 ) -> Result[AppendedRecord, AppendFault] {
   let flags : UInt16 = if key.length() > 0 { 1 } else { 0 }

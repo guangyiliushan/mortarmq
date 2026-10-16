@@ -48,7 +48,7 @@
 ///   mut payload : Bytes
 /// }
 ///
-/// impl @net.Conn for FixedConn with fn read_exact(self, len : Int) -> Result[
+/// impl @net.Conn for FixedConn with fn read_exact(self, len : Int32) -> Result[
 ///   Bytes,
 ///   @protocol.ErrCode,
 /// ] {
@@ -82,7 +82,7 @@
 /// ```
 pub(open) trait Conn {
   /// Pull exactly `len` bytes forward through the stream, waiting as needed.
-  async fn read_exact(Self, len : Int) -> Result[Bytes, @protocol.ErrCode]
+  async fn read_exact(Self, len : Int32) -> Result[Bytes, @protocol.ErrCode]
 
   /// Push every byte of `data` onto the stream before returning.
   async fn write_all(Self, data : Bytes) -> Result[Unit, @protocol.ErrCode]

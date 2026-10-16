@@ -21,7 +21,7 @@ test "wire limits match their documented values" {
 
 ///|
 test "error code table registration lock: 51 codes map one-to-one" {
-  let registry : Array[(UInt, @protocol.ErrCode)] = [
+  let registry : Array[(UInt32, @protocol.ErrCode)] = [
     (0x0001U, @protocol.BadLength),
     (0x0002U, @protocol.UnknownOp),
     (0x0003U, @protocol.MalformedPayload),
@@ -84,7 +84,7 @@ test "error code table registration lock: 51 codes map one-to-one" {
 
 ///|
 test "unregistered segments are rejected (reserved-segment semantics)" {
-  let holes : Array[UInt] = [
+  let holes : Array[UInt32] = [
     0x0000U, 0x000CU, 0x000DU, 0x0014U, 0x0028U, 0x0032U, 0x00FFU, 0x2008U, 0x2009U,
     0x4008U, 0x4009U, 0x600DU, 0x600EU,
   ]
@@ -96,7 +96,7 @@ test "unregistered segments are rejected (reserved-segment semantics)" {
 ///|
 test "decoding is injective over the whole set (quickcheck seed=20261001 is reproducible)" {
   @quickcheck.check(
-    (code : UInt) => {
+    (code : UInt32) => {
       match @protocol.ErrCode::from_uint16(code) {
         Some(err) => err.to_uint16() == code
         None => true

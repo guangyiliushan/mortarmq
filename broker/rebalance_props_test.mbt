@@ -15,22 +15,28 @@
 /// declarative-target recomputation.
 
 ///|
-fn cb_partitions(draw : UInt) -> Int {
+fn cb_partitions(draw : UInt32) -> Int32 {
   (draw % 8U).reinterpret_as_int() + 1
 }
 
 ///|
-fn cb_steps(draw : UInt) -> Int {
+fn cb_steps(draw : UInt32) -> Int32 {
   ((draw >> 4) % 5U).reinterpret_as_int() + 2
 }
 
 ///|
-fn cb_owner(coordinator : @broker.GroupCoordinator, partition : Int) -> UInt64? {
+fn cb_owner(
+  coordinator : @broker.GroupCoordinator,
+  partition : Int32,
+) -> UInt64? {
   @broker.GroupCoordinator::owner_of(coordinator, 1, partition.to_uint16())
 }
 
 ///|
-fn cb_epoch(coordinator : @broker.GroupCoordinator, partition : Int) -> UInt64? {
+fn cb_epoch(
+  coordinator : @broker.GroupCoordinator,
+  partition : Int32,
+) -> UInt64? {
   @broker.GroupCoordinator::ownership_epoch_of(
     coordinator,
     1,
@@ -44,8 +50,8 @@ fn cb_epoch(coordinator : @broker.GroupCoordinator, partition : Int) -> UInt64? 
 /// live (connection, member) lists and that event's NOTICE payloads.
 fn cb_run(
   coordinator : @broker.GroupCoordinator,
-  draw : UInt,
-  partitions : Int,
+  draw : UInt32,
+  partitions : Int32,
   per_step : (
     @broker.GroupCoordinator,
     Array[UInt64],
@@ -98,7 +104,7 @@ fn cb_run(
 ///|
 test "CB1 every subscribed partition converges to exactly one owner (quickcheck seed=20261020 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let coordinator = @broker.GroupCoordinator::new(1)
       let partitions = cb_partitions(draw)
       cb_run(coordinator, draw, partitions, fn(
@@ -134,7 +140,7 @@ test "CB1 every subscribed partition converges to exactly one owner (quickcheck 
 ///|
 test "CB3 one event migrates only the affected partitions and never their epochs (quickcheck seed=20261021 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let coordinator = @broker.GroupCoordinator::new(1)
       let partitions = cb_partitions(draw)
       let prev_owner : Array[UInt64?] = []
@@ -208,10 +214,10 @@ test "CB3 one event migrates only the affected partitions and never their epochs
 ///|
 test "CB4 assignment_epoch advances exactly once per membership change (quickcheck seed=20261022 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let coordinator = @broker.GroupCoordinator::new(1)
       let partitions = cb_partitions(draw)
-      let prev : Array[UInt] = [0U]
+      let prev : Array[UInt32] = [0U]
       cb_run(coordinator, draw, partitions, fn(
         current,
         _connections,

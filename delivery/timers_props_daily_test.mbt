@@ -27,7 +27,7 @@ fn daily_seed() -> UInt64 {
 }
 
 ///|
-fn daily_count() -> UInt {
+fn daily_count() -> UInt32 {
   if daily_mode() {
     1000U
   } else {
@@ -36,7 +36,7 @@ fn daily_count() -> UInt {
 }
 
 ///|
-fn daily_max_size() -> UInt {
+fn daily_max_size() -> UInt32 {
   if daily_mode() {
     256U
   } else {
@@ -45,7 +45,7 @@ fn daily_max_size() -> UInt {
 }
 
 ///|
-fn daily_schedule(draw : UInt) -> (Array[UInt64], Array[UInt64], Array[Bool]) {
+fn daily_schedule(draw : UInt32) -> (Array[UInt64], Array[UInt64], Array[Bool]) {
   let ticks : Array[UInt64] = []
   let sequences : Array[UInt64] = []
   let cancelled : Array[Bool] = []
@@ -67,7 +67,7 @@ fn daily_schedule(draw : UInt) -> (Array[UInt64], Array[UInt64], Array[Bool]) {
 /// Daily sweep: cancelled timers stay silent at scale.
 test "daily sweep: a cancelled timer never fires (pin seed=20261017; daily mode logs the run seed)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (ticks, sequences, cancelled) = daily_schedule(draw)
       let timers = @delivery.RetryTimers::new()
       let mut index = 0

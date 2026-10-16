@@ -48,7 +48,7 @@ pub const FOLLOWER_LEASE_MS : UInt64 = 2000
 /// inside it costs one round and is answered with `ElectionTimeout`:
 /// the round can be run again, so the connection stays open and
 /// nothing is written to it afterwards.
-pub const PREPARE_TIMEOUT_MS : Int = 1000
+pub const PREPARE_TIMEOUT_MS : Int32 = 1000
 
 ///|
 /// One follower's belief that its leader is still alive.

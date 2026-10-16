@@ -8,7 +8,7 @@
 const SR_BASE : Bytes = b"sr-part.segment"
 
 ///|
-fn sr_len(value : Bytes) -> Int {
+fn sr_len(value : Bytes) -> Int32 {
   @storage.RECORD_HEADER_BYTES + value.length()
 }
 
@@ -50,7 +50,7 @@ fn sr_join(parts : Array[Bytes]) -> Bytes {
 }
 
 ///|
-fn sr_flip(bytes : Bytes, index : Int) -> Bytes {
+fn sr_flip(bytes : Bytes, index : Int32) -> Bytes {
   let buf = Buffer()
   buf.write_bytes(bytes[:index])
   buf.write_byte(bytes[index] ^ b'\xff')
@@ -80,7 +80,7 @@ async fn sr_build_series(disk : &@harness.Disk) -> @storage.SegmentWriter {
 }
 
 ///|
-fn sr_note(offset : Int, reason_text : Bytes) -> Bytes {
+fn sr_note(offset : Int32, reason_text : Bytes) -> Bytes {
   b"first_bad_offset=" +
   @utf8.encode(offset.to_string()) +
   b"\nreason=" +
@@ -453,7 +453,7 @@ async test "every kill point leaves a recoverable series and the writer keeps wr
 }
 
 ///|
-fn sr_flip_bit(bytes : Bytes, byte_index : Int, bit : Int) -> Bytes {
+fn sr_flip_bit(bytes : Bytes, byte_index : Int32, bit : Int32) -> Bytes {
   let buf = Buffer()
   buf.write_bytes(bytes[:byte_index])
   buf.write_byte((bytes[byte_index].to_uint() ^ (1U << bit)).to_byte())

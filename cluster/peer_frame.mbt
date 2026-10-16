@@ -25,7 +25,7 @@
 
 ///|
 /// Bytes the length prefix occupies, matching the client frame.
-pub const PEER_LEN_BYTES : Int = 4
+pub const PEER_LEN_BYTES : Int32 = 4
 
 ///|
 /// Size of the handshake nonce, in bytes.
@@ -33,7 +33,7 @@ pub const PEER_LEN_BYTES : Int = 4
 /// Fresh per handshake from the platform entropy source; long enough
 /// that two handshakes never collide and short enough that the
 /// challenge stays one line on a packet capture.
-pub const PEER_NONCE_BYTES : Int = 16
+pub const PEER_NONCE_BYTES : Int32 = 16
 
 ///|
 /// Largest body a frame may declare before the handshake has completed.
@@ -45,7 +45,7 @@ pub const PEER_NONCE_BYTES : Int = 16
 /// than handed a buffer sized by what it said it would send -- which is
 /// the difference between a four-byte refusal and a sixteen-megabyte
 /// allocation made on an unauthenticated word.
-pub const PEER_HANDSHAKE_MAX_BODY : UInt = 51U
+pub const PEER_HANDSHAKE_MAX_BODY : UInt32 = 51U
 
 ///|
 /// How long one frame may take to arrive in full, in milliseconds.
@@ -63,7 +63,7 @@ pub const PEER_HANDSHAKE_MAX_BODY : UInt = 51U
 /// frame cannot be told apart from the header of the next one -- keeping
 /// it would corrupt every frame decoded after, so the only safe answer
 /// is the same one in both cases.
-pub const PEER_FRAME_TIMEOUT_MS : Int = 10000
+pub const PEER_FRAME_TIMEOUT_MS : Int32 = 10000
 
 ///|
 /// How many bytes one read of a frame body asks for at a time.
@@ -73,11 +73,11 @@ pub const PEER_FRAME_TIMEOUT_MS : Int = 10000
 /// chunk at a time, whatever the peer claimed it was about to send -- a
 /// four-byte prefix that promises sixteen megabytes costs four bytes
 /// until four bytes more show up.
-pub const PEER_READ_CHUNK_BYTES : Int = 65536
+pub const PEER_READ_CHUNK_BYTES : Int32 = 65536
 
 ///|
 /// Size of an HMAC-SHA256 tag on the wire, in bytes.
-pub const PEER_TAG_BYTES : Int = 32
+pub const PEER_TAG_BYTES : Int32 = 32
 
 ///|
 /// Peer-channel message types. The values are this channel's own
@@ -312,7 +312,7 @@ fn put_u16(buf : Buffer, value : UInt16) -> Unit {
 
 ///|
 /// Append a 4-byte big-endian frame length.
-fn put_u32(buf : Buffer, value : UInt) -> Unit {
+fn put_u32(buf : Buffer, value : UInt32) -> Unit {
   buf.write_byte(((value >> 24) & 0xFFU).reinterpret_as_int().to_byte())
   buf.write_byte(((value >> 16) & 0xFFU).reinterpret_as_int().to_byte())
   buf.write_byte(((value >> 8) & 0xFFU).reinterpret_as_int().to_byte())
@@ -323,7 +323,7 @@ fn put_u32(buf : Buffer, value : UInt) -> Unit {
 /// Read a 2-byte big-endian value at `offset`, or `None` when fewer
 /// than two bytes remain. Every read goes through here, so no field can be read
 /// outside the frame it belongs to.
-fn get_u16(view : BytesView, offset : Int) -> UInt16? {
+fn get_u16(view : BytesView, offset : Int32) -> UInt16? {
   if offset < 0 || offset + 2 > view.length() {
     return None
   }
@@ -345,7 +345,7 @@ fn put_u64(buf : Buffer, value : UInt64) -> Unit {
 ///|
 /// Read an 8-byte big-endian value at `offset`, or `None` when fewer
 /// than eight bytes remain.
-fn get_u64(view : BytesView, offset : Int) -> UInt64? {
+fn get_u64(view : BytesView, offset : Int32) -> UInt64? {
   if offset < 0 || offset + 8 > view.length() {
     return None
   }
@@ -359,7 +359,7 @@ fn get_u64(view : BytesView, offset : Int) -> UInt64? {
 ///|
 /// Read a 4-byte big-endian value at `offset`, or `None` when fewer
 /// than four bytes remain.
-fn get_u32(view : BytesView, offset : Int) -> UInt? {
+fn get_u32(view : BytesView, offset : Int32) -> UInt32? {
   if offset < 0 || offset + 4 > view.length() {
     return None
   }
@@ -373,7 +373,7 @@ fn get_u32(view : BytesView, offset : Int) -> UInt? {
 ///|
 /// Copy `length` bytes at `offset` into a fresh `Bytes`, or `None` when
 /// the window falls outside the frame.
-fn take_bytes(view : BytesView, offset : Int, length : Int) -> Bytes? {
+fn take_bytes(view : BytesView, offset : Int32, length : Int32) -> Bytes? {
   if offset < 0 || length < 0 || offset + length > view.length() {
     return None
   }
@@ -537,7 +537,7 @@ pub fn decode_peer_msg(frame : BytesView) -> PeerMsg? {
 /// Split from `decode_peer_msg` so the length check happens once and the
 /// per-type payload checks below each see a frame that is already known
 /// to hold exactly the bytes the length field promised.
-fn decode_peer_body(frame : BytesView, body_len : UInt) -> PeerMsg? {
+fn decode_peer_body(frame : BytesView, body_len : UInt32) -> PeerMsg? {
   if body_len < 1U {
     return None
   }
@@ -641,11 +641,11 @@ fn decode_peer_body(frame : BytesView, body_len : UInt) -> PeerMsg? {
 ///|
 /// Fixed prefix of an `APPEND` payload: id, epoch, base sequence, the
 /// flush flag and the entry count.
-const APPEND_PREFIX_BYTES : Int = 2 + 8 + 8 + 1 + 4
+const APPEND_PREFIX_BYTES : Int32 = 2 + 8 + 8 + 1 + 4
 
 ///|
 /// Fixed size of an `APPEND_ACK` payload: id, epoch, flushed, dirty.
-const APPEND_ACK_BYTES : Int = 2 + 8 + 8 + 8
+const APPEND_ACK_BYTES : Int32 = 2 + 8 + 8 + 8
 
 ///|
 /// Decode one `APPEND` payload, or `None` if any part of it does not
@@ -656,7 +656,11 @@ const APPEND_ACK_BYTES : Int = 2 + 8 + 8 + 8
 /// entry whose length runs past the end, and a trailing byte after the
 /// last entry all fail the same way: there is no partially-parsed
 /// batch.
-fn decode_append(frame : BytesView, base : Int, payload_len : Int) -> PeerMsg? {
+fn decode_append(
+  frame : BytesView,
+  base : Int32,
+  payload_len : Int32,
+) -> PeerMsg? {
   if payload_len < APPEND_PREFIX_BYTES {
     return None
   }
@@ -723,8 +727,8 @@ fn decode_append(frame : BytesView, base : Int, payload_len : Int) -> PeerMsg? {
 /// variable part.
 fn decode_append_ack(
   frame : BytesView,
-  base : Int,
-  payload_len : Int,
+  base : Int32,
+  payload_len : Int32,
 ) -> PeerMsg? {
   if payload_len != APPEND_ACK_BYTES {
     return None
@@ -780,8 +784,8 @@ pub async fn write_peer_msg(
 /// shape `send_append` uses for the quorum acknowledgement.
 async fn read_frame(
   conn : &@net.Conn,
-  max_body : UInt,
-  deadline_ms : Int,
+  max_body : UInt32,
+  deadline_ms : Int32,
 ) -> Result[PeerMsg, @protocol.ErrCode] {
   if deadline_ms <= 0 {
     return Err(@protocol.MalformedPayload)
@@ -804,7 +808,7 @@ async fn read_frame(
 /// everything about the bound and the chunking lives here.
 async fn read_frame_body(
   conn : &@net.Conn,
-  max_body : UInt,
+  max_body : UInt32,
 ) -> Result[PeerMsg, @protocol.ErrCode] {
   let head = match @net.Conn::read_exact(conn, PEER_LEN_BYTES) {
     Ok(bytes) => bytes
@@ -850,7 +854,7 @@ async fn read_frame_body(
 /// travels.
 pub async fn read_peer_msg(
   conn : &@net.Conn,
-  deadline_ms : Int,
+  deadline_ms : Int32,
 ) -> Result[PeerMsg, @protocol.ErrCode] {
   read_frame(conn, @protocol.MAX_FRAME_LEN, deadline_ms)
 }
@@ -864,7 +868,7 @@ pub async fn read_peer_msg(
 /// limit an authenticated peer is allowed.
 pub async fn read_handshake_msg(
   conn : &@net.Conn,
-  deadline_ms : Int,
+  deadline_ms : Int32,
 ) -> Result[PeerMsg, @protocol.ErrCode] {
   read_frame(conn, PEER_HANDSHAKE_MAX_BODY, deadline_ms)
 }
@@ -874,20 +878,24 @@ pub async fn read_handshake_msg(
 /// or positions, an id plus three, and so on. None of them has a
 /// variable part, which is why each decoder is a length check and a
 /// handful of reads.
-const PREPARE_PAYLOAD_BYTES : Int = 2 + 32
+const PREPARE_PAYLOAD_BYTES : Int32 = 2 + 32
 
 ///|
-const PREPARE_ACK_PAYLOAD_BYTES : Int = 2 + 32
+const PREPARE_ACK_PAYLOAD_BYTES : Int32 = 2 + 32
 
 ///|
-const INSTALL_PAYLOAD_BYTES : Int = 2 + 16
+const INSTALL_PAYLOAD_BYTES : Int32 = 2 + 16
 
 ///|
-const INSTALL_ACK_PAYLOAD_BYTES : Int = 2 + 16
+const INSTALL_ACK_PAYLOAD_BYTES : Int32 = 2 + 16
 
 ///|
 /// Decode one `PREPARE` payload.
-fn decode_prepare(frame : BytesView, base : Int, payload_len : Int) -> PeerMsg? {
+fn decode_prepare(
+  frame : BytesView,
+  base : Int32,
+  payload_len : Int32,
+) -> PeerMsg? {
   if payload_len != PREPARE_PAYLOAD_BYTES {
     return None
   }
@@ -926,8 +934,8 @@ fn decode_prepare(frame : BytesView, base : Int, payload_len : Int) -> PeerMsg? 
 /// Decode one `PREPARE_ACK` payload.
 fn decode_prepare_ack(
   frame : BytesView,
-  base : Int,
-  payload_len : Int,
+  base : Int32,
+  payload_len : Int32,
 ) -> PeerMsg? {
   if payload_len != PREPARE_ACK_PAYLOAD_BYTES {
     return None
@@ -965,7 +973,11 @@ fn decode_prepare_ack(
 
 ///|
 /// Decode one `INSTALL` payload.
-fn decode_install(frame : BytesView, base : Int, payload_len : Int) -> PeerMsg? {
+fn decode_install(
+  frame : BytesView,
+  base : Int32,
+  payload_len : Int32,
+) -> PeerMsg? {
   if payload_len != INSTALL_PAYLOAD_BYTES {
     return None
   }
@@ -988,8 +1000,8 @@ fn decode_install(frame : BytesView, base : Int, payload_len : Int) -> PeerMsg? 
 /// Decode one `INSTALL_ACK` payload.
 fn decode_install_ack(
   frame : BytesView,
-  base : Int,
-  payload_len : Int,
+  base : Int32,
+  payload_len : Int32,
 ) -> PeerMsg? {
   if payload_len != INSTALL_ACK_PAYLOAD_BYTES {
     return None

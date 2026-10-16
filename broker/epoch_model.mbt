@@ -38,8 +38,8 @@
 /// `assignment_epoch`; the member must wait for the next NOTICE and must
 /// not act in the meantime.
 pub fn fence_installed(
-  installed : UInt,
-  assignment_epoch : UInt,
+  installed : UInt32,
+  assignment_epoch : UInt32,
 ) -> Result[Unit, @protocol.ErrCode] {
   if installed != assignment_epoch {
     return Err(@protocol.StaleGeneration)
@@ -104,8 +104,8 @@ pub fn fence_ownership_epoch(
 /// }
 /// ```
 pub fn fence_operation(
-  installed : UInt,
-  assignment_epoch : UInt,
+  installed : UInt32,
+  assignment_epoch : UInt32,
   claiming : UInt64,
   owner : UInt64,
   claimed_ownership : UInt64,

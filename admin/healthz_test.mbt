@@ -7,7 +7,7 @@
 /// The four states under test with every surface's expected output as
 /// literals: the tier name, the gauge code, and the reason JSON
 /// fragment the body must carry.
-fn states() -> Array[(@cluster.QuorumState, String, UInt, String)] {
+fn states() -> Array[(@cluster.QuorumState, String, UInt32, String)] {
   [
     (@cluster.QuorumState::Healthy, "healthy", 0U, "null"),
     (@cluster.QuorumState::Soft, "soft", 1U, "null"),

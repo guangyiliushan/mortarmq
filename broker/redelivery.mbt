@@ -79,7 +79,7 @@ pub async fn[D : @harness.Disk] redeliver_one(
   owner_conn : UInt64,
   owner_epoch : UInt64,
   ownership_generation : UInt64,
-  msg_bytes : UInt,
+  msg_bytes : UInt32,
   now_unix_ms : UInt64,
   watermark : @storage.Watermark?,
 ) -> Result[@delivery.DeliveryAttempt, RedeliverError] {

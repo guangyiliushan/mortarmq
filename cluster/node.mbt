@@ -122,7 +122,7 @@ priv struct NodeCore {
   mut last_truncation : UInt64?
   // How many election rounds have ended by running out the clock rather
   // than by an answer.
-  mut election_timeouts : Int
+  mut election_timeouts : Int32
   // Whether a leader has ever been observed here, and whether its lease
   // is currently held. The two are separate on purpose: a node that has
   // never heard of a leader and a node whose leader lapsed are both
@@ -281,7 +281,7 @@ pub fn ClusterNode::links(self : ClusterNode) -> Array[PeerLink] {
 /// one per other member. One short means a peer never completed a
 /// handshake, and more than two cannot happen: the table holds one link
 /// per member, so a reconnect replaces rather than adds.
-pub fn ClusterNode::link_count(self : ClusterNode) -> Int {
+pub fn ClusterNode::link_count(self : ClusterNode) -> Int32 {
   self.core.val.links.length()
 }
 
@@ -622,7 +622,7 @@ pub fn ClusterNode::last_truncation(self : ClusterNode) -> UInt64? {
 /// this way are a cluster that cannot find a leader at all. Either way
 /// the round is over rather than the connection, so the number is the
 /// only place the difference shows up.
-pub fn ClusterNode::election_timeouts(self : ClusterNode) -> Int {
+pub fn ClusterNode::election_timeouts(self : ClusterNode) -> Int32 {
   self.core.val.election_timeouts
 }
 
@@ -809,7 +809,7 @@ pub fn ClusterNode::record_install_ack(
 /// The candidate promised its own term durably before asking anyone, so
 /// a round with no answers yet already holds one -- and a quorum of
 /// three is that one plus two members, not two members on their own.
-pub fn ClusterNode::prepared_count(self : ClusterNode) -> Int {
+pub fn ClusterNode::prepared_count(self : ClusterNode) -> Int32 {
   self.core.val.promised.length() + 1
 }
 
@@ -818,7 +818,7 @@ pub fn ClusterNode::prepared_count(self : ClusterNode) -> Int {
 ///
 /// The candidate's own term is the same durable record its promise
 /// wrote, so it is already taken up on the node that proposed it.
-pub fn ClusterNode::installed_count(self : ClusterNode) -> Int {
+pub fn ClusterNode::installed_count(self : ClusterNode) -> Int32 {
   self.core.val.installed.length() + 1
 }
 

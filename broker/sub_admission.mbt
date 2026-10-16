@@ -27,8 +27,8 @@
 pub(all) struct SubOutcome {
   subscription_id : UInt16
   member_id : UInt64
-  membership_epoch : UInt
-  assignment_epoch : UInt
+  membership_epoch : UInt32
+  assignment_epoch : UInt32
 } derive(Eq, Debug)
 
 ///|

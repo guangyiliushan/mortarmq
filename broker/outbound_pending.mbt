@@ -56,8 +56,8 @@ pub extend PendingLevel with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 /// The mutable gauge of one connection.
 priv struct PendingCore {
-  mut queued_bytes : UInt
-  mut written_bytes : UInt
+  mut queued_bytes : UInt32
+  mut written_bytes : UInt32
 }
 
 ///|
@@ -67,8 +67,8 @@ priv struct PendingCore {
 /// `OutboundPending::with_defaults` for the default parameter table
 /// (soft 75% of a 64 MiB hard limit).
 pub struct OutboundPending {
-  priv soft_bytes : UInt
-  priv hard_bytes : UInt
+  priv soft_bytes : UInt32
+  priv hard_bytes : UInt32
   priv core : Ref[PendingCore]
 }
 
@@ -80,8 +80,8 @@ pub struct OutboundPending {
 /// `>= 75%` entry and `> hard` escalation. The contract is
 /// `soft_bytes <= hard_bytes`; the constructor does not police it.
 pub fn OutboundPending::new(
-  soft_bytes : UInt,
-  hard_bytes : UInt,
+  soft_bytes : UInt32,
+  hard_bytes : UInt32,
 ) -> OutboundPending {
   {
     soft_bytes,
@@ -118,7 +118,7 @@ pub fn OutboundPending::with_defaults() -> OutboundPending {
 /// (stop new `MSG` at soft slow). The counter itself never acts.
 pub fn OutboundPending::queued(
   self : OutboundPending,
-  bytes : UInt,
+  bytes : UInt32,
 ) -> PendingLevel {
   self.core.val.queued_bytes = self.core.val.queued_bytes + bytes
   self.level()
@@ -130,7 +130,7 @@ pub fn OutboundPending::queued(
 ///
 /// The subtraction saturates at zero: more written than queued is a
 /// caller bug and the gauge floors rather than wrapping.
-pub fn OutboundPending::written(self : OutboundPending, bytes : UInt) -> Unit {
+pub fn OutboundPending::written(self : OutboundPending, bytes : UInt32) -> Unit {
   let pending = self.pending_bytes()
   self.core.val.written_bytes = if bytes > pending {
     self.core.val.queued_bytes
@@ -142,7 +142,7 @@ pub fn OutboundPending::written(self : OutboundPending, bytes : UInt) -> Unit {
 ///|
 /// Read the approximate gauge: queued minus written. See the module
 /// note for what the approximation does and does not cover.
-pub fn OutboundPending::pending_bytes(self : OutboundPending) -> UInt {
+pub fn OutboundPending::pending_bytes(self : OutboundPending) -> UInt32 {
   self.core.val.queued_bytes - self.core.val.written_bytes
 }
 

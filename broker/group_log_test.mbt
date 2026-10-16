@@ -13,7 +13,7 @@ fn log_path() -> Bytes {
 ///|
 fn log_owner(
   coordinator : @broker.GroupCoordinator,
-  partition : Int,
+  partition : Int32,
 ) -> UInt64? {
   @broker.GroupCoordinator::owner_of(coordinator, 1, partition.to_uint16())
 }
@@ -275,7 +275,7 @@ async test "group records ride the shared log without disturbing the metadata re
 ///|
 test "the production path restores exactly (quickcheck seed=20261025 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let coordinator = @broker.GroupCoordinator::new(1)
       let partitions = (draw % 8U).reinterpret_as_int() + 1
       if !fail_run(coordinator, draw, partitions) {

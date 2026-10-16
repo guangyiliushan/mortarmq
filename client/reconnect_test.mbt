@@ -22,7 +22,7 @@ fn fixed_rng(value : UInt64) -> FixedRng {
 ///|
 fn saved_sub(
   group : Bytes,
-  topic_id : Int,
+  topic_id : Int32,
   ack_floor : UInt64,
 ) -> @client.Subscription {
   {

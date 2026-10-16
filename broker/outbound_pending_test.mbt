@@ -3,7 +3,7 @@
 /// classification whose thresholds keep their designed semantics.
 
 ///|
-fn gauge(soft : Int, hard : Int) -> @broker.OutboundPending {
+fn gauge(soft : Int32, hard : Int32) -> @broker.OutboundPending {
   @broker.OutboundPending::new(
     soft.reinterpret_as_uint(),
     hard.reinterpret_as_uint(),

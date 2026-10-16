@@ -5,7 +5,7 @@
 ///|
 fn state(
   next_sequence : UInt64,
-  durable_offset : UInt,
+  durable_offset : UInt32,
 ) -> @storage.SegmentCheckpoint {
   { next_sequence, durable_offset, }
 }

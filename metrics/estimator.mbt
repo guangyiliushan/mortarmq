@@ -21,7 +21,7 @@
 /// A sliding-window quantile estimator: two streams, one current.
 pub(all) struct Estimator {
   streams : Array[Array[UInt64]]
-  mut current_index : Int
+  mut current_index : Int32
   mut last_move_ms : UInt64
   move_window_ms : UInt64
 }
@@ -97,7 +97,7 @@ fn sorted_samples(streams : Array[Array[UInt64]]) -> Array[UInt64] {
 ///|
 /// The nearest-rank of quantile `p` in `n` sorted samples: the element
 /// at one-based rank `ceil(p * n)`, with `p` clamped to [0, 1].
-fn nearest_rank(p : Double, n : Int) -> Int {
+fn nearest_rank(p : Double, n : Int32) -> Int32 {
   let clamped = if p < 0.0 { 0.0 } else if p > 1.0 { 1.0 } else { p }
   let raw = clamped * n.to_double()
   let mut rank = raw.to_int()
@@ -156,7 +156,7 @@ pub fn Estimator::merge(
 
 ///|
 /// How many samples the window holds right now.
-pub fn Estimator::sample_count(self : Estimator) -> Int {
+pub fn Estimator::sample_count(self : Estimator) -> Int32 {
   self.streams[0].length() + self.streams[1].length()
 }
 

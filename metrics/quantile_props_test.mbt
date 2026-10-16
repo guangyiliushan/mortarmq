@@ -41,7 +41,7 @@ fn est_seed() -> UInt64 {
 
 ///|
 /// The sample count for this run.
-fn est_count() -> UInt {
+fn est_count() -> UInt32 {
   if est_daily() {
     1000U
   } else {
@@ -80,9 +80,9 @@ fn merge_bounded(merged : UInt64, left : UInt64, right : UInt64) -> Bool {
 /// A merge conserves every sample: the folded window holds exactly the
 /// samples both windows held.
 fn merge_conserved(
-  merged_count : Int,
-  left_count : Int,
-  right_count : Int,
+  merged_count : Int32,
+  left_count : Int32,
+  right_count : Int32,
 ) -> Bool {
   merged_count == left_count + right_count
 }
@@ -90,7 +90,11 @@ fn merge_conserved(
 ///|
 /// Build one estimator over a generated sample set, all samples inside
 /// one window so nothing expires mid-check.
-fn est_filled(draw : UInt, n : Int, window_ms : UInt64) -> @metrics.Estimator {
+fn est_filled(
+  draw : UInt32,
+  n : Int32,
+  window_ms : UInt64,
+) -> @metrics.Estimator {
   let est = @metrics.Estimator::new(window_ms, 0UL)
   let step = window_ms / 2UL
   let mut bits = draw
@@ -118,7 +122,7 @@ test "property: the three quantile answers are ordered in any window (pin seed=2
     println("quantile-ordering-daily seed=\{seed} count=\{count}")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let n = (draw % 33U).reinterpret_as_int() + 1
       let est = est_filled(draw, n, 100000UL)
       // The query lands before any phase-0 sample expires (a sample
@@ -143,7 +147,7 @@ test "property: a constant stream converges at every quantile (pin seed=20261036
     println("quantile-convergence-daily seed=\{seed} count=\{count}")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let x = (draw % 1024U).to_uint64()
       let n = (draw % 33U).reinterpret_as_int() + 1
       let est = @metrics.Estimator::new(100000UL, 0UL)
@@ -172,7 +176,7 @@ test "property: a merged window stays between its two streams and keeps every sa
     println("quantile-merge-daily seed=\{seed} count=\{count}")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let n_left = (draw % 17U).reinterpret_as_int() + 1
       let n_right = ((draw >> 5) % 17U).reinterpret_as_int() + 1
       let left = est_filled(draw, n_left, 100000UL)
@@ -257,7 +261,7 @@ test "a merge that drops samples is rejected by the conservation check" {
 /// snapshot and the gate would red.
 test "a failing property shrinks within the pinned budget" {
   let report = @quickcheck.report(
-    (draw : UInt) => draw == 0U,
+    (draw : UInt32) => draw == 0U,
     count=20,
     max_size=20,
     max_shrinks=20,

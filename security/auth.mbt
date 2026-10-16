@@ -45,7 +45,7 @@
 
 ///|
 /// The uniform pause applied to every authentication failure (ms).
-pub const AUTH_FAILURE_DELAY_MS : Int = 100
+pub const AUTH_FAILURE_DELAY_MS : Int32 = 100
 
 ///|
 /// The only authentication failure. It deliberately carries no reason:
@@ -65,7 +65,7 @@ pub extend AuthFail with @moonbitlang/core/debug.Debug::{to_repr}
 /// The one side effect authentication needs: a pause of `ms` milliseconds.
 /// The connection layer binds this to its timer; tests bind a recorder.
 pub(open) trait Delay {
-  async fn sleep_ms(Self, ms : Int) -> Unit
+  async fn sleep_ms(Self, ms : Int32) -> Unit
 }
 
 ///|

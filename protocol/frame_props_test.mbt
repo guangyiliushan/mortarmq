@@ -38,7 +38,7 @@ fn props_decode(
 /// A legal constructor derived from one draw: seven op shapes with
 /// draw-derived field lengths inside protocol bounds.
 fn props_legal_payload(
-  draw : UInt,
+  draw : UInt32,
 ) -> Result[(@protocol.Op, @protocol.WirePayload), @protocol.ErrCode] {
   let d = draw.reinterpret_as_int()
   match draw % 7U {
@@ -137,7 +137,7 @@ fn props_legal_payload(
 /// CF1: a legal frame decodes and re-encodes to the same bytes.
 test "CF1 legal frame round-trips through decode then encode (quickcheck seed=20261010 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (op, payload) = match props_legal_payload(draw) {
         Ok(pair) => pair
         Err(_) => return false
@@ -170,7 +170,7 @@ test "CF1 legal frame round-trips through decode then encode (quickcheck seed=20
 /// CF2: arbitrary bytes never panic; decode only classifies them.
 test "CF2 arbitrary bytes decode without panicking (quickcheck seed=20261011 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let length = (draw % 2048U).reinterpret_as_int()
       let junk = Bytes::makei(length, i => {
         (draw.reinterpret_as_int() + i * 31).to_byte()
@@ -200,7 +200,7 @@ test "CF2 arbitrary bytes decode without panicking (quickcheck seed=20261011 is 
 /// outcomes; the property then drives the raw length with the integer
 /// portfolio so 0 and 0xFFFFFFFF arrive as counterexample candidates.
 test "CF3 length boundaries reject at the exact position (quickcheck seed=20261012 is reproducible)" {
-  let prefix_of = fn(length : UInt) -> Bytes {
+  let prefix_of = fn(length : UInt32) -> Bytes {
     let buf = Buffer()
     buf.write_uint_be(length)
     buf.contents()
@@ -236,7 +236,7 @@ test "CF3 length boundaries reject at the exact position (quickcheck seed=202610
     _ => fail("0xFFFFFFFF length must fail at the length field")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       match @protocol.decode_frame(prefix_of(draw)[:]) {
         @protocol.DecodeError(code) =>
           code == @protocol.BadLength &&
@@ -257,7 +257,7 @@ test "CF3 length boundaries reject at the exact position (quickcheck seed=202610
 /// decodes after any number of hostile inputs.
 test "CF4 hostile frames do not pollute later decodes (quickcheck seed=20261013 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let junk_len = (draw % 512U).reinterpret_as_int() + 1
       for round in 0..<4 {
         let junk = Bytes::makei(junk_len, i => {

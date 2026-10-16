@@ -5,7 +5,7 @@
 ///|
 /// Draw a shuffled arrival order for sequences 1..n (Fisher-Yates from
 /// the draw bits) and the permutation length.
-fn pw_order(draw : UInt) -> (Array[UInt64], Int) {
+fn pw_order(draw : UInt32) -> (Array[UInt64], Int32) {
   let n = (draw % 11U).reinterpret_as_int() + 2
   let order : Array[UInt64] = []
   let mut index = 0
@@ -29,7 +29,7 @@ fn pw_order(draw : UInt) -> (Array[UInt64], Int) {
 ///|
 test "P1 a retried sequence is never accepted twice (quickcheck seed=20261018 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (order, n) = pw_order(draw)
       let registry = @delivery.ProducerRegistry::new()
       // Independent acceptance oracle.
@@ -88,7 +88,7 @@ test "P1 a retried sequence is never accepted twice (quickcheck seed=20261018 is
 ///|
 test "P2 the boundary rules answer their registered codes (quickcheck seed=20261019 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let registry = @delivery.ProducerRegistry::new()
       // Build a frontier of 1024 + k accepted sequences: the +1024 base
       // puts real expired sequences behind the retained window, and k is

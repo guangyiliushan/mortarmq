@@ -20,7 +20,7 @@ pub const LEDGER_FILE_NAME : Bytes = b"delivery.mql"
 
 ///|
 /// Exact encoded size of one ledger event.
-pub const LEDGER_EVENT_BYTES : Int = 52
+pub const LEDGER_EVENT_BYTES : Int32 = 52
 
 ///|
 const LEDGER_FORMAT_VER : Byte = 0x01
@@ -29,12 +29,12 @@ const LEDGER_FORMAT_VER : Byte = 0x01
 const LEDGER_HEADER_VER : Byte = 0x01
 
 ///|
-const LEDGER_CRC_OFFSET : Int = 48
+const LEDGER_CRC_OFFSET : Int32 = 48
 
 ///|
 /// Count of events that triggers a group commit; the 5ms timer half of the
 /// frozen "5ms or 128 events" rule is wired with the executor.
-const GROUP_COMMIT_EVENTS : Int = 128
+const GROUP_COMMIT_EVENTS : Int32 = 128
 
 ///|
 /// Report delivery-ledger failures without leaking an OS error.
@@ -99,7 +99,7 @@ pub(all) struct LedgerEvent {
   delivery_id : UInt64
   owner_conn : UInt64
   attempt : UInt16
-  delay_ms : UInt
+  delay_ms : UInt32
   reason : NackReason
   timestamp : UInt64
 } derive(Eq, Debug)
@@ -118,7 +118,7 @@ pub fn LedgerEvent::new(
   delivery_id~ : UInt64,
   owner_conn~ : UInt64,
   attempt~ : UInt16,
-  delay_ms~ : UInt,
+  delay_ms~ : UInt32,
   reason~ : NackReason,
   timestamp~ : UInt64,
 ) -> LedgerEvent {
@@ -189,7 +189,7 @@ fn reason_kind(code : Byte) -> Result[NackReason, LedgerFault] {
 
 ///|
 // ponytail: bit-by-bit CRC is correct but O(8n); table/native CRC when measured ledger throughput needs it.
-fn crc32c(data : BytesView) -> UInt {
+fn crc32c(data : BytesView) -> UInt32 {
   let mut crc = 0xFFFFFFFFU
   for byte in data {
     crc = crc ^ byte.to_uint()
@@ -208,7 +208,7 @@ fn crc32c(data : BytesView) -> UInt {
 ///|
 fn read_uint16_be(
   data : BytesView,
-  offset : Int,
+  offset : Int32,
 ) -> Result[UInt16, LedgerFault] {
   if offset + 2 > data.length() {
     return Err(Malformed)
@@ -217,7 +217,10 @@ fn read_uint16_be(
 }
 
 ///|
-fn read_uint32_be(data : BytesView, offset : Int) -> Result[UInt, LedgerFault] {
+fn read_uint32_be(
+  data : BytesView,
+  offset : Int32,
+) -> Result[UInt32, LedgerFault] {
   if offset + 4 > data.length() {
     return Err(Malformed)
   }
@@ -232,7 +235,7 @@ fn read_uint32_be(data : BytesView, offset : Int) -> Result[UInt, LedgerFault] {
 ///|
 fn read_uint64_be(
   data : BytesView,
-  offset : Int,
+  offset : Int32,
 ) -> Result[UInt64, LedgerFault] {
   if offset + 8 > data.length() {
     return Err(Malformed)
@@ -370,9 +373,9 @@ fn is_ledger_path(path : Bytes) -> Bool {
 /// the writer damaged so appends refuse until a registered repair lands.
 pub(all) struct LedgerWriter {
   priv path : Bytes
-  priv mut size : Int
-  priv mut unflushed_events : Int
-  priv mut torn_at : Int?
+  priv mut size : Int32
+  priv mut unflushed_events : Int32
+  priv mut torn_at : Int32?
   priv mut damaged : Bool
 }
 
@@ -390,7 +393,7 @@ pub fn LedgerWriter::path(self : LedgerWriter) -> Bytes {
 }
 
 ///|
-pub fn LedgerWriter::unflushed_events(self : LedgerWriter) -> Int {
+pub fn LedgerWriter::unflushed_events(self : LedgerWriter) -> Int32 {
   self.unflushed_events
 }
 
@@ -399,14 +402,14 @@ pub fn LedgerWriter::unflushed_events(self : LedgerWriter) -> Int {
 /// writer ever had to cut one. The tear is a storage fact, not an
 /// executor bug: recovery truncates the tail to the last valid boundary
 /// and writing continues, but the damage stays queryable.
-pub fn LedgerWriter::torn_at(self : LedgerWriter) -> Int? {
+pub fn LedgerWriter::torn_at(self : LedgerWriter) -> Int32? {
   self.torn_at
 }
 
 ///|
 /// The logical valid length of the stream this writer appends to: zero
 /// until recovery adopts the file, then the last valid boundary.
-pub fn LedgerWriter::size(self : LedgerWriter) -> Int {
+pub fn LedgerWriter::size(self : LedgerWriter) -> Int32 {
   self.size
 }
 
@@ -414,7 +417,11 @@ pub fn LedgerWriter::size(self : LedgerWriter) -> Int {
 /// Recovery-time adoption: after `DeliveryMachine::recover` folds the
 /// stream it tells the writer how far the valid content runs and whether
 /// mid-stream damage (which refuses appends) stands between.
-fn LedgerWriter::adopt(self : LedgerWriter, size : Int, damaged : Bool) -> Unit {
+fn LedgerWriter::adopt(
+  self : LedgerWriter,
+  size : Int32,
+  damaged : Bool,
+) -> Unit {
   self.size = size
   self.damaged = damaged
 }
@@ -422,7 +429,11 @@ fn LedgerWriter::adopt(self : LedgerWriter, size : Int, damaged : Bool) -> Unit 
 ///|
 /// Recovery-time healing: the tail was truncated back to the last valid
 /// boundary on disk; the writer records both facts and appends from there.
-fn LedgerWriter::heal(self : LedgerWriter, size : Int, boundary : Int) -> Unit {
+fn LedgerWriter::heal(
+  self : LedgerWriter,
+  size : Int32,
+  boundary : Int32,
+) -> Unit {
   self.size = size
   self.torn_at = Some(boundary)
 }
@@ -496,7 +507,7 @@ pub async fn[D : @harness.Disk] LedgerWriter::sync(
 /// last valid boundary is the registered recovery-time follow-up.
 pub(all) struct LedgerScan {
   events : Array[LedgerEvent]
-  first_invalid : Int?
+  first_invalid : Int32?
 } derive(Debug)
 
 ///|
@@ -514,7 +525,7 @@ pub async fn[D : @harness.Disk] scan_ledger(
     Err(code) => return Err(DiskFault(code))
   }
   let events : Array[LedgerEvent] = []
-  let mut first_invalid : Int? = None
+  let mut first_invalid : Int32? = None
   let mut offset = 0
   while offset + LEDGER_EVENT_BYTES <= data.length() {
     match decode_ledger_event(data[offset:offset + LEDGER_EVENT_BYTES]) {

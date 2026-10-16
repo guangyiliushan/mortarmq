@@ -22,11 +22,11 @@
 ///|
 /// Key size of the SHA-256 compression function, in bytes. HMAC keys
 /// longer than this are hashed first; shorter ones are zero-padded.
-pub const HMAC_BLOCK_BYTES : Int = 64
+pub const HMAC_BLOCK_BYTES : Int32 = 64
 
 ///|
 /// Digest size of HMAC-SHA256, in bytes.
-pub const HMAC_DIGEST_BYTES : Int = 32
+pub const HMAC_DIGEST_BYTES : Int32 = 32
 
 ///|
 /// Compute `HMAC-SHA256(key, message)` over one message.

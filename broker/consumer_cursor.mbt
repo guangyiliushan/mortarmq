@@ -41,7 +41,7 @@ const MMCU_FORMAT_VER : Byte = 0x01
 
 ///|
 /// The MMCU checkpoint size: magic, version, two counters, 1024 window bits.
-const MMCU_BYTES : Int = 149
+const MMCU_BYTES : Int32 = 149
 
 ///|
 /// How a persisted checkpoint compares with the log-derived cursor.
@@ -85,7 +85,7 @@ pub extend CursorCheckpoint with Eq::{not_equal, equal}
 pub extend CursorCheckpoint with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-fn read_uint64_be(data : BytesView, offset : Int) -> UInt64 {
+fn read_uint64_be(data : BytesView, offset : Int32) -> UInt64 {
   let mut value = 0UL
   for i in 0..<8 {
     value = (value << 8) | data[offset + i].to_uint64()

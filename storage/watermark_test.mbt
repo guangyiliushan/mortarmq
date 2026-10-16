@@ -4,7 +4,7 @@
 /// OOM, never a silent drop).
 
 ///|
-async fn wm_disk(used : Int, total : UInt64) -> @harness.FakeDisk {
+async fn wm_disk(used : Int32, total : UInt64) -> @harness.FakeDisk {
   let disk = @harness.FakeDisk::new()
   disk.set_capacity(total)
   if used > 0 {
@@ -17,13 +17,13 @@ async fn wm_disk(used : Int, total : UInt64) -> @harness.FakeDisk {
 }
 
 ///|
-fn wm_value(i : Int) -> Bytes {
+fn wm_value(i : Int32) -> Bytes {
   @utf8.encode(i.to_string())
 }
 
 ///|
 async test "tier boundaries follow the 70/85/95 policy" {
-  let cases : Array[Int] = [699, 700, 849, 850, 949, 950, 1000]
+  let cases : Array[Int32] = [699, 700, 849, 850, 949, 950, 1000]
   for used in cases {
     let disk = wm_disk(used, 1000UL)
     let gate = @storage.Watermark::new(disk)

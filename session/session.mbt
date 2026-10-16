@@ -160,10 +160,10 @@ pub async fn[D : @security.Delay] establish(
 /// most 1 MiB, so one admitted connection cannot park its slot on an
 /// endless PING stream. The wall-clock deadline is the wiring
 /// contract's half (see auth.mbt); this module bounds what it sees.
-const MAX_ESTABLISH_FRAMES : Int = 8
+const MAX_ESTABLISH_FRAMES : Int32 = 8
 
 ///|
-const MAX_ESTABLISH_BYTES : Int = 1048576
+const MAX_ESTABLISH_BYTES : Int32 = 1048576
 
 ///|
 async fn[D : @security.Delay] establish_admitted(

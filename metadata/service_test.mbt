@@ -117,7 +117,7 @@ async test "a degraded service refuses to publish snapshots" {
 }
 
 ///|
-fn svc_flip_byte(data : Bytes, index : Int) -> Bytes {
+fn svc_flip_byte(data : Bytes, index : Int32) -> Bytes {
   let flipped = (data[index].to_uint() ^ 0xFFU).to_byte()
   let out = Buffer()
   out.write_bytes(data[:index])

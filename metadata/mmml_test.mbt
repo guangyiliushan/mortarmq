@@ -37,7 +37,7 @@ fn expect_malformed(data : BytesView) -> Unit raise {
 }
 
 ///|
-fn flip_byte(data : Bytes, index : Int) -> Bytes {
+fn flip_byte(data : Bytes, index : Int32) -> Bytes {
   let flipped = (data[index].to_uint() ^ 0xFFU).to_byte()
   let out = Buffer()
   out.write_bytes(data[:index])

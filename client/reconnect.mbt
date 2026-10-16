@@ -25,10 +25,10 @@
 ///   never mutates a saved subscription.
 
 ///|
-const RECONNECT_BACKOFF_BASE_MS : UInt = 500U
+const RECONNECT_BACKOFF_BASE_MS : UInt32 = 500U
 
 ///|
-const RECONNECT_BACKOFF_CAP_MS : UInt = 30000U
+const RECONNECT_BACKOFF_CAP_MS : UInt32 = 30000U
 
 ///|
 /// The durable intent of one subscription the reconnect must restore.
@@ -42,7 +42,7 @@ pub(all) struct Subscription {
   partition : UInt16
   start_policy : Byte
   credit_count : UInt16
-  credit_bytes : UInt
+  credit_bytes : UInt32
   flags : UInt16
   ack_floor : UInt64
 } derive(Eq, Debug)
@@ -92,7 +92,7 @@ pub extend RenewalStep with @moonbitlang/core/debug.Debug::{to_repr}
 /// // with a zero-valued RNG the schedule is exactly 500, 1000, 2000, ...
 /// let delay = reconnect_delay(0, rng)
 /// ```
-pub fn[R : @harness.Rng] reconnect_delay(attempt : UInt16, rng : R) -> UInt {
+pub fn[R : @harness.Rng] reconnect_delay(attempt : UInt16, rng : R) -> UInt32 {
   let mut base = RECONNECT_BACKOFF_BASE_MS
   for _ in 0..<attempt.to_int() {
     if base >= RECONNECT_BACKOFF_CAP_MS {

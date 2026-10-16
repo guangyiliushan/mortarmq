@@ -183,7 +183,7 @@ fn run_order(
 }
 
 ///|
-fn count_created(outcomes : Array[@metadata.DeclareOutcome]) -> Int {
+fn count_created(outcomes : Array[@metadata.DeclareOutcome]) -> Int32 {
   let mut n = 0
   for outcome in outcomes {
     match outcome {
@@ -195,7 +195,7 @@ fn count_created(outcomes : Array[@metadata.DeclareOutcome]) -> Int {
 }
 
 ///|
-fn count_idempotent(outcomes : Array[@metadata.DeclareOutcome]) -> Int {
+fn count_idempotent(outcomes : Array[@metadata.DeclareOutcome]) -> Int32 {
   let mut n = 0
   for outcome in outcomes {
     match outcome {

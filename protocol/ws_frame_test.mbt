@@ -7,7 +7,7 @@
 
 ///|
 /// Build a payload of distinct bytes at the requested length.
-fn test_payload(length : Int) -> Bytes {
+fn test_payload(length : Int32) -> Bytes {
   Bytes::makei(length, i => (i % 251).to_byte())
 }
 
@@ -391,7 +391,7 @@ test "truncated frames request the exact number of missing bytes" {
 ///|
 test "encode then decode returns the payload (quickcheck seed=20261006 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let length = (draw % 700U).reinterpret_as_int()
       let payload = Bytes::makei(length, i => {
         (draw.reinterpret_as_int() + i).to_byte()
@@ -412,7 +412,7 @@ test "encode then decode returns the payload (quickcheck seed=20261006 is reprod
 ///|
 test "every close code encodes and surfaces unchanged (quickcheck seed=20261007 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let code = match draw % 3U {
         0U => @protocol.NormalClose
         1U => @protocol.ProtocolError

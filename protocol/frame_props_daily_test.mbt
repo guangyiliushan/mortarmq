@@ -28,7 +28,7 @@ fn daily_seed() -> UInt64 {
 }
 
 ///|
-fn daily_count() -> UInt {
+fn daily_count() -> UInt32 {
   if daily_mode() {
     1000U
   } else {
@@ -37,7 +37,7 @@ fn daily_count() -> UInt {
 }
 
 ///|
-fn daily_max_size() -> UInt {
+fn daily_max_size() -> UInt32 {
   if daily_mode() {
     256U
   } else {
@@ -65,7 +65,7 @@ test "daily sweep: hostile frames do not pollute later decodes (pin seed=2026101
     println("daily-sweep seed=\{seed} count=\{count} max_size=\{max_size}")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let junk_len = (draw % 512U).reinterpret_as_int() + 1
       for round in 0..<8 {
         let junk = Bytes::makei(junk_len, i => {

@@ -177,7 +177,7 @@ async test "ownership change fences in-flight deliveries and remembers the id" {
 /// durable events. The client retried each op after a kill; when the ACK
 /// retry answered `UnknownDelivery` (the ACK never became durable and the
 /// restart policy made the entry redeliverable) the client redelivered.
-async fn run_l4_case(kill_at : Int) -> Array[@delivery.LedgerEvent] {
+async fn run_l4_case(kill_at : Int32) -> Array[@delivery.LedgerEvent] {
   let disk = @harness.FakeDisk::new()
   let path = b"data/partitions/0001/0000/delivery.mql"
   if kill_at > 0 {

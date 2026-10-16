@@ -68,7 +68,7 @@ fn epoch_sink_for(recovered : UInt64) -> @cluster.LeaderEpoch {
 
 ///|
 /// Decode one recorded byte string back through the metadata codec.
-fn recorded(log : RecordingLog, index : Int) -> @metadata.MmmlRecord raise {
+fn recorded(log : RecordingLog, index : Int32) -> @metadata.MmmlRecord raise {
   match @metadata.decode_mmml_record(log.records.val[index][:]) {
     Err(_) => fail("a record this module wrote must decode")
     Ok(record) => record

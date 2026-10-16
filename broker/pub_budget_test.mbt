@@ -5,7 +5,7 @@
 /// prove the budget never lets the outstanding volume leave its cap.
 
 ///|
-fn small_budget(max_count : Int, max_bytes : Int) -> @broker.PubBudget {
+fn small_budget(max_count : Int32, max_bytes : Int32) -> @broker.PubBudget {
   @broker.PubBudget::new(max_count.to_uint16(), max_bytes.reinterpret_as_uint())
 }
 
@@ -13,8 +13,8 @@ fn small_budget(max_count : Int, max_bytes : Int) -> @broker.PubBudget {
 /// Whether both gauges of one budget stay inside their caps.
 fn budget_bounded(
   report : @broker.PubReport,
-  max_count : Int,
-  max_bytes : Int,
+  max_count : Int32,
+  max_bytes : Int32,
 ) -> Bool {
   report.outstanding_count <= max_count.to_uint16() &&
   report.outstanding_bytes <= max_bytes.reinterpret_as_uint()

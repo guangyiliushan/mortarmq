@@ -1,7 +1,7 @@
 /// Pin the frozen 32-byte sparse index entry layout and its trust boundary.
 
 ///|
-const EXPECTED_ENTRY_BYTES : Int = 32
+const EXPECTED_ENTRY_BYTES : Int32 = 32
 
 ///|
 fn sample_entry() -> @storage.IndexEntry {

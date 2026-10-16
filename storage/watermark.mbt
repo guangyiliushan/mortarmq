@@ -57,9 +57,9 @@ pub(all) struct Watermark {
 /// 70/85/95.
 pub fn Watermark::new(
   usage : &@harness.DiskUsage,
-  warn_percent? : UInt64 = 70UL,
-  high_percent? : UInt64 = 85UL,
-  full_percent? : UInt64 = 95UL,
+  warn_percent~ : UInt64 = 70UL,
+  high_percent~ : UInt64 = 85UL,
+  full_percent~ : UInt64 = 95UL,
 ) -> Watermark {
   { usage, warn_percent, high_percent, full_percent, }
 }
@@ -102,7 +102,7 @@ pub fn Watermark::tier(self : Watermark) -> WatermarkTier {
 /// silent drop and never unbounded buffering.
 pub fn Watermark::check_append(
   self : Watermark,
-  append_bytes : Int,
+  append_bytes : Int32,
 ) -> Result[Unit, AppendFault] {
   let total = self.usage.total_bytes()
   if total == 0UL {

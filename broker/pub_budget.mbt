@@ -88,7 +88,7 @@ pub fn PubError::to_err_code(self : PubError) -> @protocol.ErrCode {
 /// yet complete, and how many bytes they occupy.
 pub(all) struct PubReport {
   outstanding_count : UInt16
-  outstanding_bytes : UInt
+  outstanding_bytes : UInt32
 } derive(Eq, Debug)
 
 ///|
@@ -101,7 +101,7 @@ pub extend PubReport with @moonbitlang/core/debug.Debug::{to_repr}
 /// The mutable occupancy of one budget.
 priv struct PubCore {
   mut outstanding_count : UInt16
-  mut outstanding_bytes : UInt
+  mut outstanding_bytes : UInt32
 }
 
 ///|
@@ -111,7 +111,7 @@ priv struct PubCore {
 /// `PubBudget::with_defaults` for the default parameter set.
 pub struct PubBudget {
   priv max_count : UInt16
-  priv max_bytes : UInt
+  priv max_bytes : UInt32
   priv core : Ref[PubCore]
 }
 
@@ -119,7 +119,7 @@ pub struct PubBudget {
 /// Open a budget with explicit caps.
 ///
 /// `max_count` is the most PUBs that may be outstanding at once (default 256) and `max_bytes` the most bytes they may occupy (default 8 MiB).
-pub fn PubBudget::new(max_count : UInt16, max_bytes : UInt) -> PubBudget {
+pub fn PubBudget::new(max_count : UInt16, max_bytes : UInt32) -> PubBudget {
   {
     max_count,
     max_bytes,
@@ -143,7 +143,7 @@ pub fn PubBudget::with_defaults() -> PubBudget {
 /// producer keeps the record (nothing is appended, nothing is dropped).
 pub fn PubBudget::admit(
   self : PubBudget,
-  pub_bytes : UInt,
+  pub_bytes : UInt32,
 ) -> Result[Unit, PubError] {
   if self.core.val.outstanding_count.to_uint() >= self.max_count.to_uint() {
     return Err(OverBudgetCount)
@@ -166,7 +166,7 @@ pub fn PubBudget::admit(
 /// The subtraction saturates on both gauges: a completion that reports
 /// more than the budget holds is a caller bug and the gauges floor
 /// instead of wrapping.
-pub fn PubBudget::complete(self : PubBudget, pub_bytes : UInt) -> Unit {
+pub fn PubBudget::complete(self : PubBudget, pub_bytes : UInt32) -> Unit {
   self.core.val.outstanding_count = if self.core.val.outstanding_count.to_uint() ==
     0U {
     0U.to_uint16()

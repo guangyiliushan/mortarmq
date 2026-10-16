@@ -81,7 +81,7 @@ fn snapshot_record(
 }
 
 ///|
-fn encode_topic_entry(name : String, partition_count : UInt) -> Bytes {
+fn encode_topic_entry(name : String, partition_count : UInt32) -> Bytes {
   let name_bytes = @utf8.encode(name)
   let buf = Buffer()
   buf.write_byte(1)

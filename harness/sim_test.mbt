@@ -5,8 +5,8 @@
 ///|
 /// Hold one kill-restart outcome so a whole cycle can be compared.
 struct KillRestartOutcome {
-  planned : Int
-  armed : Int
+  planned : Int32
+  armed : Int32
   recovered : Array[Bytes]
   files : Array[(Bytes, Bytes)]
 } derive(Eq)

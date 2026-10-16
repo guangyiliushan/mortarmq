@@ -88,9 +88,9 @@ async fn remove_if_present(
 pub async fn delete_before(
   disk : &@harness.Disk,
   base_path : Bytes,
-  segment_count : Int,
+  segment_count : Int32,
   before_sequence : UInt64,
-) -> Result[Int, StorageFault] {
+) -> Result[Int32, StorageFault] {
   let active_index = segment_count - 1
   let mut removed = 0
   let mut index = 0

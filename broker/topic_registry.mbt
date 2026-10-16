@@ -82,7 +82,7 @@ priv struct TopicEntry {
 /// the naming rules promise -- before the reserved-suffix and prefix
 /// checks run. The internally generated `.dlq` twin is exempt: it is
 /// system-produced, not user naming.
-const MAX_TOPIC_NAME_BYTES : Int = 255
+const MAX_TOPIC_NAME_BYTES : Int32 = 255
 
 ///|
 const DLQ_SUFFIX : Bytes = b".dlq"

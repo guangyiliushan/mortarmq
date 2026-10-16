@@ -15,7 +15,7 @@ struct ScriptedConn {
 }
 
 ///|
-impl @net.Conn for ScriptedConn with fn read_exact(self, len : Int) -> Result[
+impl @net.Conn for ScriptedConn with fn read_exact(self, len : Int32) -> Result[
   Bytes,
   @protocol.ErrCode,
 ] {
@@ -50,7 +50,7 @@ impl @net.Conn for ScriptedConn with fn close(self) -> Unit {
 async fn[T : @net.Conn] exchange(
   conn : T,
   request : Bytes,
-  reply_len : Int,
+  reply_len : Int32,
 ) -> Result[Bytes, @protocol.ErrCode] {
   match @net.Conn::write_all(conn, request) {
     Err(code) => return Err(code)

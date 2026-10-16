@@ -37,7 +37,7 @@ pub const MAX_PULL_WAIT_MS : UInt64 = 5000UL
 /// The cap bounds server-side queue memory and matches the registered
 /// `MaxWaitingPulls` refusal: a seventeenth waiter is rejected rather than
 /// queued deeper.
-pub const MAX_WAITING_PULLS : Int = 16
+pub const MAX_WAITING_PULLS : Int32 = 16
 
 ///|
 /// Identify one enqueued long-poll waiter.
@@ -53,7 +53,7 @@ pub(all) struct PullTicket {
   subscription_id : UInt16
   wait_id : UInt64
   max_msgs : UInt16
-  max_bytes : UInt
+  max_bytes : UInt32
 } derive(Eq, Debug)
 
 ///|
@@ -186,7 +186,7 @@ pub fn PullQueue::enqueue(
   subscription_id : UInt16,
   wait_ms : UInt16,
   max_msgs : UInt16,
-  max_bytes : UInt,
+  max_bytes : UInt32,
   now_ms : UInt64,
 ) -> Result[PullTicket, @protocol.ErrCode] {
   let mut held = 0
@@ -311,7 +311,7 @@ pub fn PullQueue::wake_next(
   self : PullQueue,
   subscription_id : UInt16,
 ) -> PullTicket? {
-  let mut found : Int? = None
+  let mut found : Int32? = None
   for index in 0..<self.state.val.waiting.length() {
     let entry = self.state.val.waiting[index]
     if entry.ticket.subscription_id == subscription_id {
@@ -420,6 +420,6 @@ pub fn PullQueue::cancel(
 ///   assert_eq(@broker.PullQueue::pending_count(queue), 1)
 /// }
 /// ```
-pub fn PullQueue::pending_count(self : PullQueue) -> Int {
+pub fn PullQueue::pending_count(self : PullQueue) -> Int32 {
   self.state.val.waiting.length()
 }

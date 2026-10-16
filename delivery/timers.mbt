@@ -48,12 +48,12 @@ pub fn RetryTimers::new() -> RetryTimers {
 }
 
 ///|
-pub fn RetryTimers::pending_count(self : RetryTimers) -> Int {
+pub fn RetryTimers::pending_count(self : RetryTimers) -> Int32 {
   self.heap.length()
 }
 
 ///|
-fn sift_up(heap : Array[TimerEntry], index : Int) -> Unit {
+fn sift_up(heap : Array[TimerEntry], index : Int32) -> Unit {
   let mut current = index
   while current > 0 {
     let parent = (current - 1) / 2
@@ -69,7 +69,7 @@ fn sift_up(heap : Array[TimerEntry], index : Int) -> Unit {
 }
 
 ///|
-fn sift_down(heap : Array[TimerEntry], index : Int) -> Unit {
+fn sift_down(heap : Array[TimerEntry], index : Int32) -> Unit {
   let mut current = index
   let mut settled = false
   while !settled {

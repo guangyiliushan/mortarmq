@@ -23,7 +23,7 @@
 
 ///|
 /// Build a PUB frame whose total wire size is exactly `total` bytes.
-fn bench_pub_frame(total : Int) -> Bytes raise {
+fn bench_pub_frame(total : Int32) -> Bytes raise {
   if total < 33 {
     fail("bench frame smaller than the PUB fixed fields")
   }
@@ -90,8 +90,8 @@ fn bench_decode_frame_and_payload(
 ///|
 /// The constructor an encoder would be handed for each matrix frame.
 fn bench_pub_constructor(
-  key_len : Int,
-  value_len : Int,
+  key_len : Int32,
+  value_len : Int32,
 ) -> @protocol.WirePayload {
   let key = Bytes::makei(key_len, i => (i % 251).to_byte())
   let value = Bytes::makei(value_len, i => ((i * 7 + 1) % 251).to_byte())

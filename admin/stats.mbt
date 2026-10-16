@@ -38,7 +38,7 @@ pub(all) struct StatsRow {
 ///|
 /// One `/stats` response: the HTTP status code and the JSON body.
 pub(all) struct StatsResponse {
-  status_code : UInt
+  status_code : UInt32
   body : String
 } derive(Eq, Debug)
 
@@ -92,15 +92,15 @@ pub fn stats_response(
     }
     if topic_ok && group_ok {
       items.push({
-        "topic": row.topic.to_json(),
-        "group": row.group.to_json(),
+        "topic": Json(row.topic),
+        "group": Json(row.group),
         "depth": Json::number(row.depth.to_double()),
         "in_flight": Json::number(row.in_flight.to_double()),
         "deferred": Json::number(row.deferred.to_double()),
       })
     }
   }
-  let body : Json = { "stats": items.to_json() }
+  let body : Json = { "stats": Json(items) }
   { status_code: 200U, body: body.stringify(), }
 }
 

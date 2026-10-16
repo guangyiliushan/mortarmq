@@ -16,7 +16,7 @@ const SEGMENT_MAGIC : Bytes = b"MMQS"
 
 ///|
 /// Exact encoded size of a v0 record header.
-pub const RECORD_HEADER_BYTES : Int = 56
+pub const RECORD_HEADER_BYTES : Int32 = 56
 
 ///|
 /// Report storage failures without leaking an OS error.
@@ -46,12 +46,12 @@ pub extend StorageFault with @moonbitlang/core/debug.Debug::{to_repr}
 pub(all) struct RecordHeader {
   flags : UInt16
   key_length : UInt16
-  value_length : UInt
+  value_length : UInt32
   sequence : UInt64
   producer_id : UInt64
   producer_seq : UInt64
   timestamp_unix_ms : UInt64
-  leader_epoch : UInt
+  leader_epoch : UInt32
   replication_flags : Byte
 } derive(Eq, Debug)
 
@@ -64,7 +64,7 @@ pub extend RecordHeader with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 fn read_uint16_be(
   data : BytesView,
-  offset : Int,
+  offset : Int32,
 ) -> Result[UInt16, StorageFault] {
   if offset + 2 > data.length() {
     return Err(Malformed)
@@ -73,7 +73,10 @@ fn read_uint16_be(
 }
 
 ///|
-fn read_uint_be(data : BytesView, offset : Int) -> Result[UInt, StorageFault] {
+fn read_uint_be(
+  data : BytesView,
+  offset : Int32,
+) -> Result[UInt32, StorageFault] {
   if offset + 4 > data.length() {
     return Err(Malformed)
   }
@@ -88,7 +91,7 @@ fn read_uint_be(data : BytesView, offset : Int) -> Result[UInt, StorageFault] {
 ///|
 fn read_uint64_be(
   data : BytesView,
-  offset : Int,
+  offset : Int32,
 ) -> Result[UInt64, StorageFault] {
   if offset + 8 > data.length() {
     return Err(Malformed)
@@ -102,7 +105,7 @@ fn read_uint64_be(
 
 ///|
 // ponytail: bit-by-bit CRC is correct but O(8n); table/native CRC when measured segment throughput needs it.
-fn crc32c(data : BytesView) -> UInt {
+fn crc32c(data : BytesView) -> UInt32 {
   let mut crc = 0xFFFFFFFFU
   for byte in data {
     crc = crc ^ byte.to_uint()
@@ -306,12 +309,12 @@ pub fn encode_record_header(
 pub fn RecordHeader::new(
   flags~ : UInt16,
   key_length~ : UInt16,
-  value_length~ : UInt,
+  value_length~ : UInt32,
   sequence~ : UInt64,
   producer_id~ : UInt64,
   producer_seq~ : UInt64,
   timestamp_unix_ms~ : UInt64,
-  leader_epoch~ : UInt,
+  leader_epoch~ : UInt32,
   replication_flags~ : Byte,
 ) -> RecordHeader {
   {

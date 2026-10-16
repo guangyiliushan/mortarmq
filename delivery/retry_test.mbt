@@ -47,7 +47,7 @@ async test "retry backoff is 1s/2s/4s/8s with the frozen jitter bound" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = retry_machine(path)
   let rng = @harness.SplitMix64::new(42UL)
-  let base : Array[UInt] = [1000, 2000, 4000, 8000]
+  let base : Array[UInt32] = [1000, 2000, 4000, 8000]
   for round in 0..<4 {
     let bundle = match
       machine.begin_delivery(disk, retry_key(1), 7, 1000, None) {
@@ -78,7 +78,7 @@ async test "retry backoff is 1s/2s/4s/8s with the frozen jitter bound" {
 
 ///|
 async test "the same seed reproduces the same backoff draw" {
-  let outcomes : Array[UInt] = []
+  let outcomes : Array[UInt32] = []
   for _run in 0..<2 {
     let disk = @harness.FakeDisk::new()
     let path = b"data/partitions/0001/0000/delivery.mql"
@@ -180,7 +180,7 @@ async test "timeout reschedules with the same backoff and cap" {
   let path = b"data/partitions/0001/0000/delivery.mql"
   let machine = retry_machine(path)
   let rng = @harness.SplitMix64::new(3UL)
-  let base : Array[UInt] = [1000, 2000, 4000, 8000]
+  let base : Array[UInt32] = [1000, 2000, 4000, 8000]
   let mut round = 0
   while round < 5 {
     let bundle = match

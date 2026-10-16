@@ -17,7 +17,7 @@
 /// A longer frame is rejected and the connection is closed. Neither side may
 /// raise this on its own — the bound is agreed by the protocol, so changing it
 /// is a protocol change rather than a configuration change.
-pub const MAX_FRAME_LEN : UInt = 0x01000000U
+pub const MAX_FRAME_LEN : UInt32 = 0x01000000U
 
 ///|
 /// Maximum `PUB`/`MSG` value length: 16 MiB - 1 KiB.
@@ -35,28 +35,28 @@ pub const MAX_FRAME_LEN : UInt = 0x01000000U
 ///   assert_eq(@protocol.MAX_FRAME_LEN - @protocol.MAX_VALUE_LEN, 1024U)
 /// }
 /// ```
-pub const MAX_VALUE_LEN : UInt = 0x00FFFC00U
+pub const MAX_VALUE_LEN : UInt32 = 0x00FFFC00U
 
 ///|
 /// Maximum key length in bytes: 255.
 ///
 /// A key is compared as bytes. UTF-8 is not required, so a caller that stores
 /// text chooses its own encoding and must not assume the broker validates it.
-pub const MAX_KEY_LEN : UInt = 255U
+pub const MAX_KEY_LEN : UInt32 = 255U
 
 ///|
 /// Maximum topic name length in bytes: 255.
 ///
 /// Topic names are UTF-8 and are matched exactly. The bound is what keeps a
 /// routing entry small enough to index without a second level of indirection.
-pub const MAX_TOPIC_LEN : UInt = 255U
+pub const MAX_TOPIC_LEN : UInt32 = 255U
 
 ///|
 /// Maximum length of an `ERR` diagnostic message in bytes: 512.
 ///
 /// Longer diagnostics are rejected by the sender. The text is advisory:
 /// clients branch on the numeric code and never on the message.
-pub const MAX_ERR_MESSAGE : UInt = 512U
+pub const MAX_ERR_MESSAGE : UInt32 = 512U
 
 ///|
 /// Maximum `OK` result length in bytes: 16 MiB - 6.
@@ -74,7 +74,7 @@ pub const MAX_ERR_MESSAGE : UInt = 512U
 ///   assert_eq(@protocol.MAX_FRAME_LEN - @protocol.MAX_OK_RESULT_LEN, 6U)
 /// }
 /// ```
-pub const MAX_OK_RESULT_LEN : UInt = 0x00FFFFFAU
+pub const MAX_OK_RESULT_LEN : UInt32 = 0x00FFFFFAU
 
 ///|
 /// Protocol version carried in the first `CONNECT` field: 1.
@@ -91,7 +91,7 @@ pub const MAX_OK_RESULT_LEN : UInt = 0x00FFFFFAU
 ///   inspect(@protocol.WIRE_VERSION, content="1")
 /// }
 /// ```
-pub const WIRE_VERSION : UInt = 1U
+pub const WIRE_VERSION : UInt32 = 1U
 
 ///|
 /// Keepalive interval in seconds: 30.
@@ -100,7 +100,7 @@ pub const WIRE_VERSION : UInt = 1U
 /// closes the connection, and a partially received frame does not count as
 /// liveness. The 1.5x multiplier follows MQTT section 3.1.2.10, so a client
 /// written against that keepalive works here without tuning.
-pub const KEEPALIVE_SECONDS : UInt = 30U
+pub const KEEPALIVE_SECONDS : UInt32 = 30U
 
 ///|
 /// How long a half-received frame may go without progress, in seconds: 10.
@@ -109,4 +109,4 @@ pub const KEEPALIVE_SECONDS : UInt = 30U
 /// re-synchronised. Scanning forward for the next length prefix could not
 /// distinguish a real frame from payload bytes, so recovery would corrupt
 /// whatever follows instead of repairing it.
-pub const HALF_FRAME_TIMEOUT_SECONDS : UInt = 10U
+pub const HALF_FRAME_TIMEOUT_SECONDS : UInt32 = 10U

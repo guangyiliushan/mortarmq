@@ -38,7 +38,7 @@
 /// Cap one reassembled message: the v0 frame ceiling plus the 4-byte length
 /// prefix of the largest legal v0 wire frame, so every legal v0 frame fits
 /// inside one websocket message.
-const MAX_WS_MESSAGE_LEN : UInt = MAX_FRAME_LEN + 4U
+const MAX_WS_MESSAGE_LEN : UInt32 = MAX_FRAME_LEN + 4U
 
 ///|
 /// Name the endpoint that produced the frames under decode.
@@ -119,9 +119,9 @@ pub extend WsCloseCode with @moonbitlang/core/debug.Debug::{to_repr}
 /// }
 /// ```
 pub enum WsDecodeResult {
-  Need(Int)
-  Message(BytesView, Int)
-  PeerClose(UInt16, Int)
+  Need(Int32)
+  Message(BytesView, Int32)
+  PeerClose(UInt16, Int32)
   WsError(WsCloseCode)
 }
 
@@ -372,21 +372,21 @@ pub fn encode_ws_close_frame(code : WsCloseCode) -> Bytes {
 ///|
 /// Record one complete frame's placement inside the read buffer.
 priv struct WsFragment {
-  start : Int
-  length : Int
+  start : Int32
+  length : Int32
   masked : Bool
-  key : UInt
+  key : UInt32
 }
 
 ///|
 /// Read a 2-byte big-endian unsigned value.
-fn read_uint16_be(data : BytesView, offset : Int) -> UInt {
+fn read_uint16_be(data : BytesView, offset : Int32) -> UInt32 {
   (data[offset].to_uint() << 8) | data[offset + 1].to_uint()
 }
 
 ///|
 /// Read an 8-byte big-endian unsigned length.
-fn read_uint64_be(data : BytesView, offset : Int) -> UInt64 {
+fn read_uint64_be(data : BytesView, offset : Int32) -> UInt64 {
   let mut value = 0UL
   for k in 0..<8 {
     value = (value << 8) | data[offset + k].to_uint().to_uint64()
@@ -396,7 +396,7 @@ fn read_uint64_be(data : BytesView, offset : Int) -> UInt64 {
 
 ///|
 /// Unmask one payload byte at `index` inside its fragment's payload.
-fn unmask_byte(value : Byte, key : UInt, index : Int) -> Byte {
+fn unmask_byte(value : Byte, key : UInt32, index : Int32) -> Byte {
   let shift = (3 - (index & 3)) * 8
   ((value.to_uint() ^ (key >> shift)) & 0xFFU).reinterpret_as_int().to_byte()
 }

@@ -51,7 +51,7 @@
 ///   assert_eq(@broker.fnv1a32(b"foobar"), 0xBF9CF968U)
 /// }
 /// ```
-pub fn fnv1a32(bytes : Bytes) -> UInt {
+pub fn fnv1a32(bytes : Bytes) -> UInt32 {
   let mut hash = 0x811C9DC5U
   for byte in bytes {
     hash = (hash ^ byte.to_uint()) * 0x01000193U

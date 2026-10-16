@@ -65,8 +65,8 @@ fn frame_bytes(op : Byte, body : Bytes) -> Bytes {
 }
 
 ///|
-fn to_byte_array(bytes : Bytes) -> Array[Int] {
-  let out : Array[Int] = Array(capacity=bytes.length())
+fn to_byte_array(bytes : Bytes) -> Array[Int32] {
+  let out : Array[Int32] = Array(capacity=bytes.length())
   for index in 0..<bytes.length() {
     out.push(bytes[index].to_int())
   }
@@ -74,7 +74,7 @@ fn to_byte_array(bytes : Bytes) -> Array[Int] {
 }
 
 ///|
-fn from_byte_array(values : Array[Int]) -> Bytes {
+fn from_byte_array(values : Array[Int32]) -> Bytes {
   let buf = Buffer()
   for index in 0..<values.length() {
     buf.write_byte((values[index] & 0xFF).to_byte())
@@ -173,7 +173,7 @@ pub fn state_after(state : String, event : String) -> String {
 /// ```mbt nocheck
 /// let frame = encode_declare("orders", 3)
 /// ```
-pub fn encode_declare(topic : String, partition_count : Int) -> Array[Int] {
+pub fn encode_declare(topic : String, partition_count : Int32) -> Array[Int32] {
   let body = match
     @protocol.encode_wire_payload(
       @protocol.WirePayload::Declare({
@@ -209,7 +209,11 @@ pub fn encode_declare(topic : String, partition_count : Int) -> Array[Int] {
 /// ```mbt nocheck
 /// let frame = encode_pub(1, "user-42", "hello")
 /// ```
-pub fn encode_pub(topic_id : Int, key : String, value : String) -> Array[Int] {
+pub fn encode_pub(
+  topic_id : Int32,
+  key : String,
+  value : String,
+) -> Array[Int32] {
   let body = match
     @protocol.encode_wire_payload(
       @protocol.WirePayload::Pub({
@@ -247,7 +251,7 @@ pub fn encode_pub(topic_id : Int, key : String, value : String) -> Array[Int] {
 /// ```mbt nocheck
 /// let line = decode_incoming(frame)
 /// ```
-pub fn decode_incoming(bytes : Array[Int]) -> String {
+pub fn decode_incoming(bytes : Array[Int32]) -> String {
   let frame = from_byte_array(bytes)
   match @protocol.decode_frame(frame[:]) {
     @protocol.Frame(op, body) =>

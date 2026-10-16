@@ -8,7 +8,7 @@
 const RT_BASE : Bytes = b"rt-part.segment"
 
 ///|
-fn rt_value(i : Int) -> Bytes {
+fn rt_value(i : Int32) -> Bytes {
   @utf8.encode(i.to_string())
 }
 

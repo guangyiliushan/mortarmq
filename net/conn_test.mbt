@@ -17,9 +17,9 @@ struct CollectWriter {
 impl @io.Writer for CollectWriter with fn write_once(
   self,
   buf : Bytes,
-  offset~ : Int,
-  len~ : Int,
-) -> Int {
+  offset~ : Int32,
+  len~ : Int32,
+) -> Int32 {
   let accepted = if len < 3 { len } else { 3 }
   self.buf.write_bytes(buf[offset:offset + accepted].to_owned())
   accepted
@@ -41,7 +41,7 @@ fn pipe_conn(feed : async (&@io.Writer) -> Unit) -> PipeConn {
 }
 
 ///|
-impl @net.Conn for PipeConn with fn read_exact(self, len : Int) -> Result[
+impl @net.Conn for PipeConn with fn read_exact(self, len : Int32) -> Result[
   Bytes,
   @protocol.ErrCode,
 ] {

@@ -98,7 +98,7 @@ pub(open) trait ReplicaLog {
   /// does not hold: a caller catching a follower up asks from a position
   /// the follower reported rather than from a guess, and what comes back
   /// is exactly what this replica has to offer.
-  async fn read(Self, from_seq : UInt64, limit : Int) -> Result[
+  async fn read(Self, from_seq : UInt64, limit : Int32) -> Result[
     Array[Bytes],
     @protocol.ErrCode,
   ]

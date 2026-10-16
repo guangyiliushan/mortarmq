@@ -28,7 +28,7 @@ pub const HEALTHZ_CONTENT_TYPE : String = "application/json; charset=utf-8"
 ///|
 /// One `/healthz` response: the HTTP status code and the JSON body.
 pub(all) struct HealthzResponse {
-  status_code : UInt
+  status_code : UInt32
   body : String
 } derive(Eq, Debug)
 

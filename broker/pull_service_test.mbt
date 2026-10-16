@@ -10,7 +10,7 @@ fn pull_request(
   member_id : UInt64,
   wait_ms : UInt16,
   max_msgs : UInt16,
-  max_bytes : UInt,
+  max_bytes : UInt32,
 ) -> @protocol.PullPayload {
   {
     subscription_id,

@@ -120,7 +120,7 @@ async test "the fence is durable before the window releases and the waiters wake
   @broker.CreditRegistry::on_ownership_changed(registry, 1, 1, 0, 1, 7, 8, 5, 6)
   assert_eq(outstanding(registry), 0U.to_uint16())
   // Stage 3: the waiter wake (S7 sink) runs last.
-  let woken : Array[Int] = []
+  let woken : Array[Int32] = []
   let wake = fn() { woken.push(1) }
   wake()
   assert_eq(woken.length(), 1)

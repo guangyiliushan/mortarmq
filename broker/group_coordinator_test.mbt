@@ -26,7 +26,7 @@ fn expect_left(
 ///|
 fn notice_at(
   notices : Array[@protocol.NoticePayload],
-  index : Int,
+  index : Int32,
 ) -> @protocol.NoticePayload {
   notices[index]
 }
@@ -159,7 +159,7 @@ test "a second member splits the topic and only the excess moves" {
 
 ///|
 test "the same join and leave sequence replays the same assignment" {
-  let scenario = fn() -> Array[Int] {
+  let scenario = fn() -> Array[Int32] {
     let coordinator = @broker.GroupCoordinator::new(1)
     let a = expect_joined(
       @broker.GroupCoordinator::join(coordinator, 100UL, 1, 12),
@@ -171,7 +171,7 @@ test "the same join and leave sequence replays the same assignment" {
       @broker.GroupCoordinator::join(coordinator, 102UL, 1, 12),
     )
     let left = expect_left(@broker.GroupCoordinator::leave(coordinator, 1UL))
-    let seen : Array[Int] = []
+    let seen : Array[Int32] = []
     for notice in a.notices {
       seen.push(notice.notice_id.to_int())
       seen.push(notice.partition.to_int())

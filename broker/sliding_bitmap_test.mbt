@@ -43,7 +43,7 @@ test "out of order acks derive the same floor as in order ones" {
     ignore(@broker.SlidingBitmap::mark(in_order, seq.to_uint64()))
   }
   let shuffled = @broker.SlidingBitmap::new(0UL)
-  let arrival : Array[Int] = [
+  let arrival : Array[Int32] = [
     7, 0, 19, 3, 1, 12, 2, 8, 4, 5, 9, 6, 15, 10, 11, 13, 14, 18, 16, 17,
   ]
   for seq in arrival {

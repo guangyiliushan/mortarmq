@@ -138,7 +138,7 @@ fn cs1_escapes(state : @client.ClientState) -> Bool {
 ///|
 test "no sink state: any state and any arrival keep an out-edge (quickcheck seed=20261021 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let states = cs1_states()
       let events = cs1_events()
       let index = (draw % 70U).reinterpret_as_int()
@@ -160,7 +160,7 @@ test "no sink state: any state and any arrival keep an out-edge (quickcheck seed
 ///|
 test "error arrivals never strand the machine (quickcheck seed=20261022 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let states = cs1_states()
       let errors : Array[@client.ClientEvent] = [
         @client.TransportLost,

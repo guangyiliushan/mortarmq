@@ -17,7 +17,7 @@
 /// One row of the matrix as a test would read it: what the cluster
 /// observed, and what every surface must then say.
 struct MatrixRow {
-  in_sync_count : Int
+  in_sync_count : Int32
   trailing : Bool
   ack_timeout : Bool
   expected : @cluster.QuorumState
@@ -472,10 +472,10 @@ async test "a round to a peer that has gone leaves the tier, not the health it s
 /// separately so a test can run every node it names.
 fn three_node_config(
   node_id : UInt16,
-  own_port : Int,
-  first_port : Int,
-  second_port : Int,
-  third_port : Int,
+  own_port : Int32,
+  first_port : Int32,
+  second_port : Int32,
+  third_port : Int32,
   secret : @cluster.PeerSecret,
 ) -> @cluster.ClusterConfig raise {
   let peers : Array[@cluster.PeerEntry] = [

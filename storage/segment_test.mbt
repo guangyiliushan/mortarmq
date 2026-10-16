@@ -14,9 +14,9 @@ fn writer_header(
   sequence : UInt64,
   key : Bytes,
   value : Bytes,
-  producer_id? : UInt64 = 0UL,
-  producer_seq? : UInt64 = 0UL,
-  timestamp_unix_ms? : UInt64 = 0UL,
+  producer_id~ : UInt64 = 0UL,
+  producer_seq~ : UInt64 = 0UL,
+  timestamp_unix_ms~ : UInt64 = 0UL,
 ) -> @storage.RecordHeader {
   let flags : UInt16 = if key.length() > 0 { 1 } else { 0 }
   @storage.RecordHeader::new(
@@ -37,9 +37,9 @@ fn writer_record(
   sequence : UInt64,
   key : Bytes,
   value : Bytes,
-  producer_id? : UInt64 = 0UL,
-  producer_seq? : UInt64 = 0UL,
-  timestamp_unix_ms? : UInt64 = 0UL,
+  producer_id~ : UInt64 = 0UL,
+  producer_seq~ : UInt64 = 0UL,
+  timestamp_unix_ms~ : UInt64 = 0UL,
 ) -> @storage.RecoveredRecord {
   {
     header: writer_header(
@@ -56,14 +56,14 @@ fn writer_record(
 }
 
 ///|
-fn record_len(key : Bytes, value : Bytes) -> Int {
+fn record_len(key : Bytes, value : Bytes) -> Int32 {
   @storage.RECORD_HEADER_BYTES + key.length() + value.length()
 }
 
 ///|
 fn writer_recovery(
   next_sequence : UInt64,
-  durable_offset : UInt,
+  durable_offset : UInt32,
   records : Array[@storage.RecoveredRecord],
 ) -> @storage.SegmentRecovery {
   { checkpoint: { next_sequence, durable_offset, }, records, }

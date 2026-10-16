@@ -38,8 +38,8 @@ pub extend MetadataMode with @moonbitlang/core/debug.Debug::{to_repr}
 /// One refused region of the metadata log: the byte offset of the
 /// damaged record and the extent that recovery would not cross.
 pub(all) struct QuarantineEntry {
-  offset : UInt
-  length : UInt
+  offset : UInt32
+  length : UInt32
 } derive(Eq, Debug)
 
 ///|
@@ -65,8 +65,8 @@ pub fn MetadataGuard::new() -> MetadataGuard {
 /// record is quarantined here; it is never skipped or repaired in place.
 pub fn MetadataGuard::note_log_corruption(
   self : MetadataGuard,
-  offset : UInt,
-  length : UInt,
+  offset : UInt32,
+  length : UInt32,
 ) -> Unit {
   self.entries.push({ offset, length, })
   self.mode = ReadOnly

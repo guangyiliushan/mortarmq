@@ -10,11 +10,11 @@
 ///|
 /// A Delay that records requested pauses instead of waiting.
 priv struct RecordDelay {
-  calls : Ref[Array[Int]]
+  calls : Ref[Array[Int32]]
 }
 
 ///|
-impl Delay for RecordDelay with fn sleep_ms(self, ms : Int) -> Unit {
+impl Delay for RecordDelay with fn sleep_ms(self, ms : Int32) -> Unit {
   self.calls.val.push(ms)
 }
 

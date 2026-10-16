@@ -75,7 +75,7 @@ pub extend TcpConn with @net.Conn::{read_exact, write_all, close}
 ///   local socket setup fails; the OS detail is dropped.
 pub async fn TcpConn::connect(
   host : String,
-  port : Int,
+  port : Int32,
 ) -> Result[TcpConn, @protocol.ErrCode] {
   let tcp = @socket.Tcp::connect_to_host(host, port~) catch {
     _ => return Err(@protocol.Internal)
@@ -104,7 +104,7 @@ pub async fn TcpConn::connect(
 /// // coverage lives in net/conn_test.mbt and client/conn_downstream_test.mbt.
 /// let frame = @net.Conn::read_exact(conn, 4)?
 /// ```
-pub impl @net.Conn for TcpConn with fn read_exact(self, len : Int) -> Result[
+pub impl @net.Conn for TcpConn with fn read_exact(self, len : Int32) -> Result[
   Bytes,
   @protocol.ErrCode,
 ] {

@@ -46,11 +46,11 @@
 
 ///|
 /// Cap the live members of one group at 10 (v0 hard limit).
-pub const MAX_GROUP_MEMBERS : Int = 10
+pub const MAX_GROUP_MEMBERS : Int32 = 10
 
 ///|
 /// Cap the assigned partitions of one group at 4096.
-pub const MAX_GROUP_ASSIGNMENTS : Int = 4096
+pub const MAX_GROUP_ASSIGNMENTS : Int32 = 4096
 
 ///|
 /// NOTICE kind: the member is assigned the partition.
@@ -66,8 +66,8 @@ pub const NOTICE_KIND_REVOKE : Byte = 0x01
 pub(all) struct JoinResult {
   member_id : UInt64
   subscription_id : UInt16
-  membership_epoch : UInt
-  assignment_epoch : UInt
+  membership_epoch : UInt32
+  assignment_epoch : UInt32
   notices : Array[@protocol.NoticePayload]
 } derive(Eq, Debug)
 
@@ -81,8 +81,8 @@ pub extend JoinResult with @moonbitlang/core/debug.Debug::{to_repr}
 /// The result of releasing one member: the current epoch versions and the
 /// NOTICE payloads to send in order.
 pub(all) struct LeaveResult {
-  membership_epoch : UInt
-  assignment_epoch : UInt
+  membership_epoch : UInt32
+  assignment_epoch : UInt32
   notices : Array[@protocol.NoticePayload]
 } derive(Eq, Debug)
 
@@ -102,7 +102,7 @@ priv struct GroupMember {
   member_id : UInt64
   connection_id : UInt64
   topics : Array[UInt16]
-  installed_assignment_epoch : UInt
+  installed_assignment_epoch : UInt32
 }
 
 ///|
@@ -122,8 +122,8 @@ priv struct NoticeRecord {
   target_member : UInt64
   kind : Byte
   group_id : UInt16
-  membership_epoch : UInt
-  assignment_epoch : UInt
+  membership_epoch : UInt32
+  assignment_epoch : UInt32
   ownership_epoch : UInt64
   acked : Bool
 }
@@ -140,10 +140,10 @@ pub struct GroupCoordinator {
   priv members : Array[GroupMember]
   priv mut ownership : Array[OwnedPartition]
   priv topic_partitions : Map[UInt16, UInt16]
-  priv subscription_ids : Map[Int, UInt16]
-  priv wholesale_epochs : Map[Int, UInt64]
-  priv mut membership_epoch : UInt
-  priv mut assignment_epoch : UInt
+  priv subscription_ids : Map[Int32, UInt16]
+  priv wholesale_epochs : Map[Int32, UInt64]
+  priv mut membership_epoch : UInt32
+  priv mut assignment_epoch : UInt32
   priv mut next_member_id : UInt64
   priv mut next_notice_id : UInt64
   priv notices : Map[UInt64, NoticeRecord]
@@ -191,13 +191,13 @@ pub fn GroupCoordinator::new(group_id : UInt16) -> GroupCoordinator {
 
 ///|
 /// Identify one partition ownership record.
-fn owner_key(topic_id : UInt16, partition : Int) -> Int {
+fn owner_key(topic_id : UInt16, partition : Int32) -> Int32 {
   topic_id.to_int() * 65536 + partition
 }
 
 ///|
 /// Identify one member topic subscription binding.
-fn binding_key(member_id : UInt64, topic_id : UInt16) -> Int {
+fn binding_key(member_id : UInt64, topic_id : UInt16) -> Int32 {
   member_id.to_int() * 65536 + topic_id.to_int()
 }
 
@@ -206,7 +206,7 @@ fn binding_key(member_id : UInt64, topic_id : UInt16) -> Int {
 fn find_owned(
   records : Array[OwnedPartition],
   topic_id : UInt16,
-  partition : Int,
+  partition : Int32,
 ) -> OwnedPartition? {
   for rec in records {
     if rec.topic_id == topic_id && rec.partition.to_int() == partition {
@@ -249,7 +249,10 @@ fn sort_topics_asc(topics : Array[UInt16]) -> Unit {
 ///|
 /// Order member slots by per-topic count desc then slot asc (selection sort,
 /// strict compare keeps join order on ties).
-fn order_slots_by_count_desc(count : Array[Int], order : Array[Int]) -> Unit {
+fn order_slots_by_count_desc(
+  count : Array[Int32],
+  order : Array[Int32],
+) -> Unit {
   for i in 0..<order.length() {
     let mut most = i
     let start = i + 1
@@ -311,15 +314,15 @@ fn GroupCoordinator::subscribed_topics(
 /// and leave history.
 fn GroupCoordinator::compute_target(
   self : GroupCoordinator,
-) -> Map[Int, UInt64] {
-  let target : Map[Int, UInt64] = Map([])
-  let total : Array[Int] = Array::make(self.members.length(), 0)
+) -> Map[Int32, UInt64] {
+  let target : Map[Int32, UInt64] = Map([])
+  let total : Array[Int32] = Array::make(self.members.length(), 0)
   for t in self.subscribed_topics() {
     let partition_count = match self.topic_partitions.get(t) {
       Some(count) => count.to_int()
       None => 0
     }
-    let subs : Array[Int] = []
+    let subs : Array[Int32] = []
     for i in 0..<self.members.length() {
       if contains_topic(self.members[i].topics, t) {
         subs.push(i)
@@ -328,7 +331,7 @@ fn GroupCoordinator::compute_target(
     if subs.length() == 0 {
       continue
     }
-    let held : Array[Array[Int]] = []
+    let held : Array[Array[Int32]] = []
     for _ in subs {
       held.push([])
     }
@@ -351,14 +354,14 @@ fn GroupCoordinator::compute_target(
         None => ()
       }
     }
-    let count : Array[Int] = []
+    let count : Array[Int32] = []
     for j in 0..<subs.length() {
       count.push(held[j].length())
     }
     let base = partition_count / subs.length()
     let rem = partition_count % subs.length()
-    let quota : Array[Int] = Array::make(subs.length(), base)
-    let order : Array[Int] = []
+    let quota : Array[Int32] = Array::make(subs.length(), base)
+    let order : Array[Int32] = []
     for j in 0..<subs.length() {
       order.push(j)
     }
@@ -416,8 +419,8 @@ fn GroupCoordinator::push_notice(
   self : GroupCoordinator,
   notices : Array[@protocol.NoticePayload],
   kind : Byte,
-  membership_epoch : UInt,
-  assignment_epoch : UInt,
+  membership_epoch : UInt32,
+  assignment_epoch : UInt32,
   ownership_epoch : UInt64,
   topic_id : UInt16,
   partition : UInt16,
@@ -464,7 +467,7 @@ fn GroupCoordinator::push_notice(
 fn GroupCoordinator::emit_ownership_changed(
   self : GroupCoordinator,
   topic_id : UInt16,
-  partition : Int,
+  partition : Int32,
   subscription_id : UInt16,
   old_owner : UInt64,
   new_owner : UInt64,
@@ -501,9 +504,9 @@ fn GroupCoordinator::emit_ownership_changed(
 /// (persist-then-increment).
 fn GroupCoordinator::apply_target(
   self : GroupCoordinator,
-  target : Map[Int, UInt64],
-  membership_epoch : UInt,
-  assignment_epoch : UInt,
+  target : Map[Int32, UInt64],
+  membership_epoch : UInt32,
+  assignment_epoch : UInt32,
 ) -> Array[@protocol.NoticePayload] {
   let notices : Array[@protocol.NoticePayload] = []
   let next : Array[OwnedPartition] = []
@@ -635,7 +638,7 @@ pub fn GroupCoordinator::owner_of(
 
 ///|
 /// Read the current assignment epoch (the target-assignment version).
-pub fn GroupCoordinator::assignment_epoch(self : GroupCoordinator) -> UInt {
+pub fn GroupCoordinator::assignment_epoch(self : GroupCoordinator) -> UInt32 {
   self.assignment_epoch
 }
 
@@ -681,7 +684,7 @@ pub fn GroupCoordinator::wholesale_epoch_of(
 pub fn GroupCoordinator::installed_assignment_epoch_of(
   self : GroupCoordinator,
   member_id : UInt64,
-) -> UInt? {
+) -> UInt32? {
   for m in self.members {
     if m.member_id == member_id {
       return Some(m.installed_assignment_epoch)
@@ -887,7 +890,7 @@ pub fn GroupCoordinator::leave(
 pub fn GroupCoordinator::mark_installed(
   self : GroupCoordinator,
   member_id : UInt64,
-  assignment_epoch : UInt,
+  assignment_epoch : UInt32,
 ) -> Result[Unit, @protocol.ErrCode] {
   for i in 0..<self.members.length() {
     if self.members[i].member_id == member_id {

@@ -39,7 +39,7 @@ pub extend AdminBindError with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 /// Parse `host` as a strict dotted quad (four decimal octets); the first
 /// octet when it parses, `None` otherwise.
-fn parse_v4_first(host : BytesView) -> Int? {
+fn parse_v4_first(host : BytesView) -> Int32? {
   let length = host.length()
   if length < 7 || length > 15 {
     return None

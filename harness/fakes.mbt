@@ -47,7 +47,7 @@ pub fn FakeClock::advance_to(self : FakeClock, target_ms : UInt64) -> Unit {
     self.state.val.now_ms = target_ms
   }
   for ;; {
-    let mut best_index : Int? = None
+    let mut best_index : Int32? = None
     for index in 0..<self.state.val.timers.length() {
       let timer = self.state.val.timers[index]
       if timer.deadline_ms > self.state.val.now_ms {
@@ -90,7 +90,7 @@ pub fn FakeClock::fired_deadlines(self : FakeClock) -> Array[UInt64] {
 
 ///|
 /// Count registered timers that have not yet matured.
-pub fn FakeClock::pending_count(self : FakeClock) -> Int {
+pub fn FakeClock::pending_count(self : FakeClock) -> Int32 {
   self.state.val.timers.length()
 }
 
@@ -186,8 +186,8 @@ priv struct DiskState {
   files : Map[Bytes, Bytes]
   mut capacity_bytes : UInt64
   mut disk_full : Bool
-  mut kill_at_op : Int
-  mut op_count : Int
+  mut kill_at_op : Int32
+  mut op_count : Int32
 } derive(Debug)
 
 ///|
@@ -251,7 +251,7 @@ pub fn FakeDisk::new() -> FakeDisk {
 ///   assert_eq(@harness.Disk::read(disk, b"a"), Err(@harness.PathMissing))
 /// }
 /// ```
-pub fn FakeDisk::set_kill_at(self : FakeDisk, op_number : Int) -> Unit {
+pub fn FakeDisk::set_kill_at(self : FakeDisk, op_number : Int32) -> Unit {
   self.state.val.kill_at_op = op_number
 }
 

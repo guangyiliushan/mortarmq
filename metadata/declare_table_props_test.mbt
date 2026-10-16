@@ -34,7 +34,7 @@ fn dt_topics(machine : @metadata.DeclareMachine) -> Array[String] {
 /// 0 replay, 1 fresh, 2 race-loser same config, 3 race-loser different
 /// config, 4 re-declare same config, 5 re-declare different config,
 /// 6 tombstone re-create.
-fn dt_expect(row : Int) -> @metadata.DeclareOutcome {
+fn dt_expect(row : Int32) -> @metadata.DeclareOutcome {
   match row {
     0 => @metadata.DeclareOutcome::IdempotentOk
     1 => @metadata.DeclareOutcome::Created
@@ -50,7 +50,7 @@ fn dt_expect(row : Int) -> @metadata.DeclareOutcome {
 ///|
 /// Whether the row's decision changes state (CREATED does, the
 /// idempotent and mismatch answers do not).
-fn dt_state_change(row : Int) -> Bool {
+fn dt_state_change(row : Int32) -> Bool {
   match row {
     1 | 6 => true
     0 | 2 | 3 | 4 | 5 => false
@@ -62,8 +62,8 @@ fn dt_state_change(row : Int) -> Bool {
 /// Build the machine, the tested mutation and its id for one row, with
 /// draw-derived names and counts so the property explores the space.
 fn dt_scenario(
-  row : Int,
-  draw : UInt,
+  row : Int32,
+  draw : UInt32,
 ) -> (@metadata.DeclareMachine, UInt64, @metadata.DeclareBody) {
   let name = "dt" + draw.reinterpret_as_int().to_string()
   let count = draw % 4U + 1U
@@ -95,7 +95,7 @@ fn dt_scenario(
 ///|
 /// Run one row and return the observed outcome; the table property and
 /// the anti-hollow check both consume this.
-fn dt_run(row : Int, draw : UInt) -> @metadata.DeclareOutcome {
+fn dt_run(row : Int32, draw : UInt32) -> @metadata.DeclareOutcome {
   let (machine, mutation_id, body) = dt_scenario(row, draw)
   machine.submit(mutation_id, 7UL, body)
 }
@@ -114,7 +114,7 @@ test "the decision table covers every row" {
 ///|
 test "the quickcheck property matches every decision row (quickcheck seed=20261024 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let row = (draw % 7U).reinterpret_as_int()
       let (machine, mutation_id, body) = dt_scenario(row, draw)
       let before = dt_topics(machine)

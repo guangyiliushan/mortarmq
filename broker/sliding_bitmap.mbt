@@ -23,11 +23,11 @@
 
 ///|
 /// The window width in bits: 128 bytes of backing words.
-pub const BITMAP_WINDOW_BITS : Int = 1024
+pub const BITMAP_WINDOW_BITS : Int32 = 1024
 
 ///|
 /// The number of 64-bit words backing the window.
-pub const BITMAP_WORDS : Int = 16
+pub const BITMAP_WORDS : Int32 = 16
 
 ///|
 /// Hold one sliding window of marked sequences.

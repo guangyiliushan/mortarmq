@@ -84,11 +84,11 @@ pub(all) struct Config {
   data_dir : String
   segment_max_bytes : UInt64
   partition_default_count : UInt16
-  delivery_max_attempts : UInt
-  delivery_lease_ms : UInt
-  poll_max_wait_ms : UInt
-  credit_initial_count : UInt
-  metadata_snapshot_records : UInt
+  delivery_max_attempts : UInt32
+  delivery_lease_ms : UInt32
+  poll_max_wait_ms : UInt32
+  credit_initial_count : UInt32
+  metadata_snapshot_records : UInt32
   metrics_enabled : Bool
   log_level : LogLevel
   listen_ws : String?
@@ -253,7 +253,7 @@ fn expect_u16(
 fn expect_u32(
   map : Map[String, Json],
   key : String,
-) -> Result[UInt?, ConfigFault] {
+) -> Result[UInt32?, ConfigFault] {
   match map.get(key) {
     None => Ok(None)
     Some(json) =>

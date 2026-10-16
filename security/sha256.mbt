@@ -14,14 +14,14 @@
 
 ///|
 /// Initial hash value H(0) (FIPS 180-4 section 5.3.3).
-let iv : Array[UInt] = [
+let iv : Array[UInt32] = [
   0x6a09e667U, 0xbb67ae85U, 0x3c6ef372U, 0xa54ff53aU, 0x510e527fU, 0x9b05688cU, 0x1f83d9abU,
   0x5be0cd19U,
 ]
 
 ///|
 /// Round constants K(0..63) (FIPS 180-4 section 4.2.2).
-let k_round : Array[UInt] = [
+let k_round : Array[UInt32] = [
   0x428a2f98U, 0x71374491U, 0xb5c0fbcfU, 0xe9b5dba5U, 0x3956c25bU, 0x59f111f1U, 0x923f82a4U,
   0xab1c5ed5U, 0xd807aa98U, 0x12835b01U, 0x243185beU, 0x550c7dc3U, 0x72be5d74U, 0x80deb1feU,
   0x9bdc06a7U, 0xc19bf174U, 0xe49b69c1U, 0xefbe4786U, 0x0fc19dc6U, 0x240ca1ccU, 0x2de92c6fU,
@@ -42,9 +42,9 @@ let k_round : Array[UInt] = [
 /// `update` calls continue the same message schedule. That makes double
 /// finalization and update-after-digest well-defined instead of trap-prone.
 priv struct Sha256 {
-  h : FixedArray[UInt]
+  h : FixedArray[UInt32]
   block : FixedArray[Byte]
-  mut block_len : Int
+  mut block_len : Int32
   mut total_len : UInt64
 }
 
@@ -60,7 +60,7 @@ fn Sha256::new() -> Sha256 {
 
 ///|
 /// Rotate `x` right by `n` bits (n in 1..31).
-fn rotr(x : UInt, n : Int) -> UInt {
+fn rotr(x : UInt32, n : Int32) -> UInt32 {
   (x >> n) | (x << (32 - n))
 }
 
@@ -217,7 +217,7 @@ pub fn digest_hex(digest : Bytes) -> Bytes {
 
 ///|
 /// One hex nibble as its lowercase ASCII byte.
-fn hex_digit(nibble : UInt) -> Byte {
+fn hex_digit(nibble : UInt32) -> Byte {
   if nibble < 10U {
     (nibble + 0x30U).reinterpret_as_int().to_byte()
   } else {

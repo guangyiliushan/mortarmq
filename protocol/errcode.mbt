@@ -95,7 +95,7 @@ pub extend ErrCode with @moonbitlang/core/debug.Debug::{to_repr}
 ///   assert_eq(@protocol.BadLength.to_uint16(), 0x0001U)
 /// }
 /// ```
-pub fn ErrCode::to_uint16(self : ErrCode) -> UInt {
+pub fn ErrCode::to_uint16(self : ErrCode) -> UInt32 {
   match self {
     BadLength => 0x0001U
     UnknownOp => 0x0002U
@@ -167,7 +167,7 @@ pub fn ErrCode::to_uint16(self : ErrCode) -> UInt {
 ///   assert_eq(@protocol.ErrCode::from_uint16(0x000CU), None)
 /// }
 /// ```
-pub fn ErrCode::from_uint16(code : UInt) -> ErrCode? {
+pub fn ErrCode::from_uint16(code : UInt32) -> ErrCode? {
   match code {
     0x0001U => Some(BadLength)
     0x0002U => Some(UnknownOp)

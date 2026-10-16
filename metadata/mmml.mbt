@@ -23,16 +23,16 @@
 
 ///|
 /// Exact encoded size of a v0 MMML record header.
-pub const MMML_HEADER_BYTES : Int = 34
+pub const MMML_HEADER_BYTES : Int32 = 34
 
 ///|
 /// Current frozen MMML format and header layout versions.
-pub const MMML_FORMAT_VERSION : Int = 1
+pub const MMML_FORMAT_VERSION : Int32 = 1
 
 ///|
 
 ///|
-pub const MMML_HEADER_VERSION : Int = 1
+pub const MMML_HEADER_VERSION : Int32 = 1
 
 ///|
 const MMML_MAGIC : Bytes = b"MMML"
@@ -48,7 +48,7 @@ pub(all) suberror MetadataFault {
   Malformed
   /// A record at the given byte offset of the metadata log failed header or
   /// CRC validation; the offset is the record's first byte.
-  Corruption(UInt)
+  Corruption(UInt32)
   /// Wrap a disk fault raised while reading or publishing metadata state;
   /// recovery fails closed instead of guessing over durable state it cannot
   /// read.
@@ -214,7 +214,7 @@ pub extend MmmlRecord with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 // ponytail: bit-by-bit CRC is correct but O(8n); table/native CRC when measured metadata throughput needs it.
-fn crc32c(data : BytesView) -> UInt {
+fn crc32c(data : BytesView) -> UInt32 {
   let mut crc = 0xFFFFFFFFU
   for byte in data {
     crc = crc ^ byte.to_uint()
@@ -233,7 +233,7 @@ fn crc32c(data : BytesView) -> UInt {
 ///|
 fn read_uint16_be(
   data : BytesView,
-  offset : Int,
+  offset : Int32,
 ) -> Result[UInt16, MetadataFault] {
   if offset + 2 > data.length() {
     return Err(Malformed)
@@ -242,7 +242,10 @@ fn read_uint16_be(
 }
 
 ///|
-fn read_uint_be(data : BytesView, offset : Int) -> Result[UInt, MetadataFault] {
+fn read_uint_be(
+  data : BytesView,
+  offset : Int32,
+) -> Result[UInt32, MetadataFault] {
   if offset + 4 > data.length() {
     return Err(Malformed)
   }
@@ -257,7 +260,7 @@ fn read_uint_be(data : BytesView, offset : Int) -> Result[UInt, MetadataFault] {
 ///|
 fn read_uint64_be(
   data : BytesView,
-  offset : Int,
+  offset : Int32,
 ) -> Result[UInt64, MetadataFault] {
   if offset + 8 > data.length() {
     return Err(Malformed)

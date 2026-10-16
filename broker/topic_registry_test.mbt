@@ -3,7 +3,7 @@
 /// the maximum, and the refusal paths that create nothing.
 
 ///|
-fn indexed_topic(index : Int) -> Bytes {
+fn indexed_topic(index : Int32) -> Bytes {
   let buf = Buffer()
   // the code is a name carrier, not a meaning: shift codes past the
   // reserved dollar-prefix window so the fixture passes the namespace gate
@@ -14,8 +14,8 @@ fn indexed_topic(index : Int) -> Bytes {
 
 ///|
 fn expected(
-  topic_id : Int,
-  partition_count : Int,
+  topic_id : Int32,
+  partition_count : Int32,
   created : Bool,
 ) -> @broker.DeclareOutcome {
   {

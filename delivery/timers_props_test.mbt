@@ -8,7 +8,7 @@
 /// Draw a schedule of 2..8 timers with ticks from the low bits and
 /// distinct sequence keys, returning the independent ledger as two
 /// parallel arrays (tick, then sequence).
-fn cl_schedule(draw : UInt) -> (Array[UInt64], Array[UInt64]) {
+fn cl_schedule(draw : UInt32) -> (Array[UInt64], Array[UInt64]) {
   let ticks : Array[UInt64] = []
   let sequences : Array[UInt64] = []
   let n = (draw % 7U).reinterpret_as_int() + 2
@@ -107,7 +107,7 @@ fn cl_same(a : Array[UInt64], b : Array[UInt64]) -> Bool {
 ///|
 test "CL1 a timer never fires before its deadline (quickcheck seed=20261014 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (ticks, sequences) = cl_schedule(draw)
       let timers = cl_fill(ticks, sequences)
       let now = (draw % 96U).to_uint64()
@@ -136,7 +136,7 @@ test "CL1 a timer never fires before its deadline (quickcheck seed=20261014 is r
 ///|
 test "CL2 a timer fires once its deadline passes (quickcheck seed=20261015 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (ticks, sequences) = cl_schedule(draw)
       let timers = cl_fill(ticks, sequences)
       let now = (draw % 96U).to_uint64()
@@ -156,7 +156,7 @@ test "CL2 a timer fires once its deadline passes (quickcheck seed=20261015 is re
 ///|
 test "CL3 a rolled-back query tick changes neither what fires nor its order (quickcheck seed=20261016 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (ticks, sequences) = cl_schedule(draw)
       let timers = cl_fill(ticks, sequences)
       let high = 64UL
@@ -184,7 +184,7 @@ test "CL3 a rolled-back query tick changes neither what fires nor its order (qui
 ///|
 /// Draw a schedule plus a cancel mask: bit per entry selects the keys the
 /// property cancels before querying.
-fn cl4_schedule(draw : UInt) -> (Array[UInt64], Array[UInt64], Array[Bool]) {
+fn cl4_schedule(draw : UInt32) -> (Array[UInt64], Array[UInt64], Array[Bool]) {
   let ticks : Array[UInt64] = []
   let sequences : Array[UInt64] = []
   let cancelled : Array[Bool] = []
@@ -205,7 +205,7 @@ fn cl4_schedule(draw : UInt) -> (Array[UInt64], Array[UInt64], Array[Bool]) {
 ///|
 test "CL4 a cancelled timer never fires (quickcheck seed=20261017 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (ticks, sequences, cancelled) = cl4_schedule(draw)
       let timers = cl_fill(ticks, sequences)
       let mut index = 0

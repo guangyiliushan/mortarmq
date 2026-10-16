@@ -29,9 +29,9 @@ let connect_frame : Bytes = b"\x00\x00\x00\x0d\x01\x01\x00\x00\x00\x03a\x62\x63\
 /// Report one step of the reference read loop under the half-frame policy.
 priv enum LoopStep {
   /// The partial frame is inside its budget; keep waiting for more bytes.
-  Waiting(Int)
+  Waiting(Int32)
   /// The partial frame exhausted its budget; stop reading and close.
-  Expired(Int)
+  Expired(Int32)
   /// A complete frame is buffered and ready to hand downstream.
   Ready
   /// The decoder rejected the stream; close without consulting the clock.

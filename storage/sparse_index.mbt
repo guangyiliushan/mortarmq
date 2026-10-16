@@ -25,7 +25,7 @@
 
 ///|
 /// Exact encoded size of one v0 sparse index entry.
-pub const INDEX_ENTRY_BYTES : Int = 32
+pub const INDEX_ENTRY_BYTES : Int32 = 32
 
 ///|
 /// Fixed fields of one sparse index entry.
@@ -37,8 +37,8 @@ pub const INDEX_ENTRY_BYTES : Int = 32
 pub(all) struct IndexEntry {
   sequence : UInt64
   timestamp_unix_ms : UInt64
-  file_offset : UInt
-  record_len : UInt
+  file_offset : UInt32
+  record_len : UInt32
 } derive(Eq, Debug)
 
 ///|
@@ -70,8 +70,8 @@ pub extend IndexEntry with @moonbitlang/core/debug.Debug::{to_repr}
 pub fn IndexEntry::new(
   sequence~ : UInt64,
   timestamp_unix_ms~ : UInt64,
-  file_offset~ : UInt,
-  record_len~ : UInt,
+  file_offset~ : UInt32,
+  record_len~ : UInt32,
 ) -> IndexEntry {
   { sequence, timestamp_unix_ms, file_offset, record_len, }
 }

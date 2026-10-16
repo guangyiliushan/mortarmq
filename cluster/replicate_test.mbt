@@ -128,7 +128,7 @@ fn TracedLog::held(self : TracedLog) -> Array[UInt64] {
 impl @cluster.ReplicaLog for TracedLog with fn read(
   self,
   from_seq : UInt64,
-  limit : Int,
+  limit : Int32,
 ) -> Result[Array[Bytes], @protocol.ErrCode] {
   if limit <= 0 {
     return Ok([])

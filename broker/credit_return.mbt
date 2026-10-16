@@ -28,7 +28,7 @@
 /// The accumulated return one `CREDIT` frame should carry.
 pub(all) struct ReturnedCredit {
   count : UInt16
-  bytes : UInt
+  bytes : UInt32
 } derive(Eq, Debug)
 
 ///|
@@ -41,7 +41,7 @@ pub extend ReturnedCredit with @moonbitlang/core/debug.Debug::{to_repr}
 /// The mutable accumulators of one tracker.
 priv struct ReturnCore {
   mut pending_count : UInt16
-  mut pending_bytes : UInt
+  mut pending_bytes : UInt32
   mut first_pending_ms : UInt64
   mut has_pending : Bool
 }
@@ -54,9 +54,9 @@ priv struct ReturnCore {
 /// table.
 pub struct CreditReturnTracker {
   priv flush_count : UInt16
-  priv flush_bytes : UInt
+  priv flush_bytes : UInt32
   priv low_count : UInt16
-  priv low_bytes : UInt
+  priv low_bytes : UInt32
   priv max_delay_ms : UInt64
   priv core : Ref[ReturnCore]
 }
@@ -71,9 +71,9 @@ pub struct CreditReturnTracker {
 /// return (default 20 ms).
 pub fn CreditReturnTracker::new(
   flush_count : UInt16,
-  flush_bytes : UInt,
+  flush_bytes : UInt32,
   low_count : UInt16,
-  low_bytes : UInt,
+  low_bytes : UInt32,
   max_delay_ms : UInt64,
 ) -> CreditReturnTracker {
   {
@@ -128,7 +128,7 @@ pub fn CreditReturnTracker::new(
 /// ```
 pub fn CreditReturnTracker::with_window_defaults(
   initial_count : UInt16,
-  initial_bytes : UInt,
+  initial_bytes : UInt32,
 ) -> CreditReturnTracker {
   CreditReturnTracker::new(
     32U.to_uint16(),
@@ -147,7 +147,7 @@ pub fn CreditReturnTracker::with_window_defaults(
 pub fn CreditReturnTracker::record_ack(
   self : CreditReturnTracker,
   now_ms : UInt64,
-  msg_bytes : UInt,
+  msg_bytes : UInt32,
 ) -> Unit {
   if !self.core.val.has_pending {
     self.core.val.has_pending = true
@@ -170,7 +170,7 @@ pub fn CreditReturnTracker::should_flush(
   self : CreditReturnTracker,
   now_ms : UInt64,
   available_count : UInt16,
-  available_bytes : UInt,
+  available_bytes : UInt32,
 ) -> Bool {
   if !self.core.val.has_pending {
     return false

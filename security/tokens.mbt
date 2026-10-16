@@ -68,7 +68,7 @@ fn role_ok(role : BytesView) -> Bool {
 
 ///|
 /// Decode one lowercase hex nibble; -1 when the byte is not `[0-9a-f]`.
-fn hex_value(byte : Byte) -> Int {
+fn hex_value(byte : Byte) -> Int32 {
   let value = byte.to_uint()
   if value >= 0x30U && value <= 0x39U {
     (value - 0x30U).reinterpret_as_int()

@@ -29,7 +29,7 @@
 /// parked entry reaches its dead-letter record or the quarantine and
 /// nothing else -- because the cumulative-total properties are about
 /// the states a real ledger can actually reach.
-fn prop_history(draw : UInt) -> Array[@delivery.LedgerEvent] {
+fn prop_history(draw : UInt32) -> Array[@delivery.LedgerEvent] {
   let events : Array[@delivery.LedgerEvent] = []
   let n_seqs = (draw % 4U).reinterpret_as_int() + 2
   let mut bits = draw >> 3
@@ -182,7 +182,7 @@ fn prop_seed() -> UInt64 {
 
 ///|
 /// The sample count for this run.
-fn prop_count() -> UInt {
+fn prop_count() -> UInt32 {
   if prop_daily() {
     1000U
   } else {
@@ -198,7 +198,7 @@ test "property: the quiet-window identity holds over any history (pin seed=20261
     println("conservation-identity-daily seed=\{seed} count=\{count}")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let events = prop_history(draw)
       let counts = @delivery.counts_of_events(events, 1, events.length())
       // produced = delivered + dropped + dlq + depth, the registry's
@@ -231,7 +231,7 @@ test "property: cumulative totals never regress across recovery prefixes (pin se
     println("conservation-monotone-daily seed=\{seed} count=\{count}")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let events = prop_history(draw)
       let half = events.length() / 2
       let earlier = @delivery.counts_of_events(events, 1, half)
@@ -265,7 +265,7 @@ test "property: the floor and lag stay consistent over any history (pin seed=202
     println("conservation-floor-lag-daily seed=\{seed} count=\{count}")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let events = prop_history(draw)
       let counts = @delivery.counts_of_events(events, 1, events.length())
       counts.floor_lag_consistent()
@@ -296,7 +296,7 @@ test "property: the quorum faces stay aligned over any classification (pin seed=
     println("quorum-alignment-daily seed=\{seed} count=\{count}")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let bits = draw
       let in_sync = (bits % 4U).reinterpret_as_int()
       let quorum = ((bits >> 3) % 3U).reinterpret_as_int() + 2

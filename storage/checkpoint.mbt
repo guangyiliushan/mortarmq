@@ -21,7 +21,7 @@
 
 ///|
 /// Exact encoded size of a version-1 segment checkpoint.
-pub const CHECKPOINT_BYTES : Int = 21
+pub const CHECKPOINT_BYTES : Int32 = 21
 
 ///|
 const CHECKPOINT_MAGIC : Bytes = b"MMQC"
@@ -36,7 +36,7 @@ const CHECKPOINT_FORMAT_VERSION : Byte = b'\x01'
 /// `durable_offset` is the byte length of the segment's durable prefix.
 pub(all) struct SegmentCheckpoint {
   next_sequence : UInt64
-  durable_offset : UInt
+  durable_offset : UInt32
 } derive(Eq, Debug)
 
 ///|

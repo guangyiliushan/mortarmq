@@ -41,7 +41,7 @@ fn quorum_seed() -> UInt64 {
 
 ///|
 /// The sample count for this run.
-fn quorum_count() -> UInt {
+fn quorum_count() -> UInt32 {
   if quorum_daily() {
     1000U
   } else {
@@ -57,7 +57,7 @@ fn quorum_count() -> UInt {
 /// Reading them from a single number made them equal, and a ceiling
 /// that always equals the value it was seeded with is never asked to
 /// choose between them -- which is the whole rule.
-fn quorum_slice(draw : UInt, divisor : UInt) -> UInt64 {
+fn quorum_slice(draw : UInt32, divisor : UInt32) -> UInt64 {
   (draw / divisor % 64U).to_uint64() + 1UL
 }
 
@@ -98,7 +98,7 @@ fn quorum_ceiling(
   own : UInt64,
   first : UInt64,
   second : UInt64,
-  quorum : Int,
+  quorum : Int32,
 ) -> UInt64 {
   let positions : Array[UInt64] = [own, first, second]
   let mut answer = own
@@ -142,9 +142,9 @@ test "the committed ceiling never moves backwards and is the number the rule say
   // Four slices, none of them the slice the leader's own position
   // comes from, so the three positions a sample compares are three
   // different numbers.
-  let divisors : Array[UInt] = [64U, 4096U, 262144U, 16777216U]
+  let divisors : Array[UInt32] = [64U, 4096U, 262144U, 16777216U]
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let node = @cluster.ClusterNode::new(config)
       let own = quorum_slice(draw, 1U)
       let mut ceiling = node.commit_horizon(own)
@@ -396,7 +396,7 @@ test "a promise quorum and a commit quorum cannot be disjoint (pin seed=20261014
     Ok(config) => config
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       // Every member of the quorums below comes out of the code's own
       // bookkeeping, read inside the sample: which members there are,
       // what majority they commit at and who proposed the term are the

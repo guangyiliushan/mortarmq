@@ -34,7 +34,7 @@ fn fail_durable(payload : Bytes) -> Bytes {
 ///|
 fn fail_owner(
   coordinator : @broker.GroupCoordinator,
-  partition : Int,
+  partition : Int32,
 ) -> UInt64? {
   @broker.GroupCoordinator::owner_of(coordinator, 1, partition.to_uint16())
 }
@@ -176,8 +176,8 @@ test "a kill between state records recovers the last durable one" {
 /// leaving live members.
 fn fail_run(
   coordinator : @broker.GroupCoordinator,
-  draw : UInt,
-  partitions : Int,
+  draw : UInt32,
+  partitions : Int32,
 ) -> Bool {
   let steps = ((draw >> 4) % 5U).reinterpret_as_int() + 2
   let members : Array[UInt64] = []
@@ -210,7 +210,7 @@ fn fail_run(
 ///|
 test "reload after a kill restores exactly (quickcheck seed=20261024 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let coordinator = @broker.GroupCoordinator::new(1)
       let partitions = (draw % 8U).reinterpret_as_int() + 1
       if !fail_run(coordinator, draw, partitions) {

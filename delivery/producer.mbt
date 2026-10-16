@@ -159,19 +159,19 @@ fn producer_key(
 }
 
 ///|
-fn bitmap_test(accepted : Array[Byte], bit : Int) -> Bool {
+fn bitmap_test(accepted : Array[Byte], bit : Int32) -> Bool {
   let byte = accepted[bit / 8].to_uint()
   ((byte >> (bit % 8)) & 1U) != 0U
 }
 
 ///|
-fn bitmap_set(accepted : Array[Byte], bit : Int) -> Unit {
+fn bitmap_set(accepted : Array[Byte], bit : Int32) -> Unit {
   let byte = accepted[bit / 8].to_uint()
   accepted[bit / 8] = ((byte | (1U << (bit % 8))) & 0xFFU).to_byte()
 }
 
 ///|
-fn bitmap_clear(accepted : Array[Byte], bit : Int) -> Unit {
+fn bitmap_clear(accepted : Array[Byte], bit : Int32) -> Unit {
   let byte = accepted[bit / 8].to_uint()
   accepted[bit / 8] = (byte & (0xFFU ^ (1U << (bit % 8))) & 0xFFU).to_byte()
 }

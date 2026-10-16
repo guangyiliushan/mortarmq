@@ -10,7 +10,7 @@
 
 ///|
 /// The three static rows, addressed at the ports the OS assigned.
-fn cluster_table(ports : Array[Int]) -> Array[@cluster.PeerEntry] {
+fn cluster_table(ports : Array[Int32]) -> Array[@cluster.PeerEntry] {
   [
     { node_id: 1U.to_uint16(), host: "127.0.0.1", port: ports[0], },
     { node_id: 2U.to_uint16(), host: "127.0.0.1", port: ports[1], },
@@ -22,8 +22,8 @@ fn cluster_table(ports : Array[Int]) -> Array[@cluster.PeerEntry] {
 /// Build one node over the three real ports, listening on its own.
 fn cluster_node(
   node_id : UInt16,
-  listen_port : Int,
-  ports : Array[Int],
+  listen_port : Int32,
+  ports : Array[Int32],
   secret : @cluster.PeerSecret,
 ) -> @cluster.ClusterNode raise {
   let peers = cluster_table(ports)
@@ -48,7 +48,7 @@ fn cluster_node(
 async fn accept_and_serve(
   server : @socket.TcpServer,
   node : @cluster.ClusterNode,
-  count : Int,
+  count : Int32,
   refused : Ref[Array[@protocol.ErrCode]],
 ) -> Unit {
   for _ in 0..<count {
@@ -75,7 +75,7 @@ async fn accept_and_serve(
 async fn dial_and_link(
   node : @cluster.ClusterNode,
   expected_id : UInt16,
-  port : Int,
+  port : Int32,
   refused : Ref[Array[@protocol.ErrCode]],
 ) -> Unit {
   let expected = match node.config().peer_entry(expected_id) {

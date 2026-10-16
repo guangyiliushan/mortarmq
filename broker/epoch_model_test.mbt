@@ -157,8 +157,8 @@ test "wholesale generations move only on the wholesale path" {
 ///|
 test "live moves fan out to the three ports in fence release waiter order" {
   let coordinator = @broker.GroupCoordinator::new(1)
-  let order : Array[Int] = []
-  let seen_subscription : Array[Int] = []
+  let order : Array[Int32] = []
+  let seen_subscription : Array[Int32] = []
   let seen_new_epoch : Array[UInt64] = []
   @broker.GroupCoordinator::on_fence_port(coordinator, fn(
     group,

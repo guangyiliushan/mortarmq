@@ -9,7 +9,7 @@
 /// walks one of eight legal paths from first delivery to its terminal or
 /// waiting state, and returns the per-sequence buckets (1 delivered, 2
 /// dead-lettered, 3 dropped, 0 retained) for the floor truth check.
-fn cm_history(draw : UInt) -> (Array[@delivery.LedgerEvent], Array[UInt64]) {
+fn cm_history(draw : UInt32) -> (Array[@delivery.LedgerEvent], Array[UInt64]) {
   let events : Array[@delivery.LedgerEvent] = []
   let buckets : Array[UInt64] = []
   let n = (draw % 4U).reinterpret_as_int() + 2
@@ -95,7 +95,7 @@ fn cm_event(
 ///|
 test "CM1 quiet-window conservation: published = delivered + retained + dlq (quickcheck seed=20261011 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (events, buckets) = cm_history(draw)
       let mut ok = true
       let mut n = 0
@@ -130,7 +130,7 @@ test "CM1 quiet-window conservation: published = delivered + retained + dlq (qui
 ///|
 test "CM2 the cumulative totals never regress (quickcheck seed=20261012 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (events, _buckets) = cm_history(draw)
       let mut ok = true
       let mut previous = @delivery.DeliveryCounts::zero()
@@ -154,7 +154,7 @@ test "CM2 the cumulative totals never regress (quickcheck seed=20261012 is repro
 ///|
 test "CM3 the floor and lag match an independent buckets oracle (quickcheck seed=20261013 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let (events, buckets) = cm_history(draw)
       let mut ok = true
       let mut n = 0

@@ -16,7 +16,7 @@ fn probe_digest(fill : Byte) -> Bytes {
 
 ///|
 /// `original` with byte `index` replaced by `value`.
-fn with_byte(original : Bytes, index : Int, value : Byte) -> Bytes {
+fn with_byte(original : Bytes, index : Int32, value : Byte) -> Bytes {
   original[0:index].to_owned() +
   Bytes::make(1, value) +
   original[index + 1:].to_owned()

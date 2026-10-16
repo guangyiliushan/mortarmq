@@ -29,7 +29,7 @@ fn daily_seed() -> UInt64 {
 }
 
 ///|
-fn daily_count() -> UInt {
+fn daily_count() -> UInt32 {
   if daily_mode() {
     1000U
   } else {
@@ -38,7 +38,7 @@ fn daily_count() -> UInt {
 }
 
 ///|
-fn daily_max_size() -> UInt {
+fn daily_max_size() -> UInt32 {
   if daily_mode() {
     256U
   } else {
@@ -47,12 +47,12 @@ fn daily_max_size() -> UInt {
 }
 
 ///|
-fn daily_partitions(draw : UInt) -> Int {
+fn daily_partitions(draw : UInt32) -> Int32 {
   (draw % 8U).reinterpret_as_int() + 1
 }
 
 ///|
-fn daily_steps(draw : UInt) -> Int {
+fn daily_steps(draw : UInt32) -> Int32 {
   ((draw >> 4) % 5U).reinterpret_as_int() + 2
 }
 
@@ -65,7 +65,7 @@ test "CB2 finite member events reach a quiescent assignment (quickcheck daily ti
     println("CB2-daily seed=\{seed} count=\{count} max_size=\{max_size}")
   }
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let coordinator = @broker.GroupCoordinator::new(1)
       let partitions = daily_partitions(draw)
       let steps = daily_steps(draw)

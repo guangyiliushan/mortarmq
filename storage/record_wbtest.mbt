@@ -93,7 +93,7 @@ test "decoder rejects CRC-valid key-presence mismatches" {
 /// (0xE3069283) is the auxiliary anchor for the same convention.
 
 ///|
-fn kat_le4(value : UInt) -> Bytes {
+fn kat_le4(value : UInt32) -> Bytes {
   let buf = Buffer()
   buf.write_uint_le(value)
   buf.contents()

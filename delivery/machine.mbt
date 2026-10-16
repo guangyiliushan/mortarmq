@@ -156,7 +156,7 @@ pub extend DeliveryOutcome with @moonbitlang/core/debug.Debug::{to_repr}
 /// carries the final attempt and schedules nothing (the completion step
 /// writes the DLQ record on this path).
 pub(all) enum RetryPlan {
-  Scheduled(UInt16, UInt)
+  Scheduled(UInt16, UInt32)
   DeadLettered(UInt16)
 } derive(Eq, Debug)
 
@@ -172,11 +172,11 @@ pub const MAX_ATTEMPTS : UInt16 = 5
 
 ///|
 /// The frozen backoff base: delay_n = min(30s, 1s * 2^(n-1)).
-pub const RETRY_BACKOFF_BASE_MS : UInt = 1000
+pub const RETRY_BACKOFF_BASE_MS : UInt32 = 1000
 
 ///|
 /// The frozen backoff ceiling, guarding retry storms.
-pub const MAX_BACKOFF_MS : UInt = 30000
+pub const MAX_BACKOFF_MS : UInt32 = 30000
 
 ///|
 /// Report delivery-machine failures. `UnknownDelivery` and `StaleOwner` map
@@ -234,7 +234,7 @@ pub(all) struct DeliveryMachine {
   /// window. Recovery rebuilds the bound from the folded entries, so the
   /// answers below the bound survive a restart unchanged.
   priv acked_watermarks : Map[UInt16, UInt64]
-  priv mut first_invalid : Int?
+  priv mut first_invalid : Int32?
 }
 
 ///|
@@ -274,7 +274,7 @@ pub fn DeliveryMachine::acked_watermark(
 /// damage is never silently rebuilt over: the offset stays queryable so
 /// the caller can quarantine or await the registered tail-truncation
 /// repair.
-pub fn DeliveryMachine::log_first_invalid(self : DeliveryMachine) -> Int? {
+pub fn DeliveryMachine::log_first_invalid(self : DeliveryMachine) -> Int32? {
   self.first_invalid
 }
 
@@ -604,7 +604,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
 /// The frozen backoff: delay_n = min(30s, 1s * 2^(n-1)), then jitter drawn
 /// from 0..=delay_n/4 (design "Backoff"; monotonic scheduling is the
 /// executor's timer).
-fn[R : @harness.Rng] backoff_delay(attempt : UInt16, rng : R) -> UInt {
+fn[R : @harness.Rng] backoff_delay(attempt : UInt16, rng : R) -> UInt32 {
   let mut delay_n = RETRY_BACKOFF_BASE_MS
   let steps = attempt.to_int() - 1
   for _ in 0..<steps {

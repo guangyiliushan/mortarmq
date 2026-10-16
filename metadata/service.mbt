@@ -236,7 +236,7 @@ pub async fn MetadataService::recover(
 pub fn MetadataService::partition_count(
   self : MetadataService,
   name : String,
-) -> UInt? {
+) -> UInt32? {
   self.machine.partition_count(name)
 }
 

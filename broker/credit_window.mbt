@@ -84,9 +84,9 @@ pub extend CreditError with @moonbitlang/core/debug.Debug::{to_repr}
 /// from drifting.
 pub(all) struct CreditReport {
   granted_count : UInt16
-  granted_bytes : UInt
+  granted_bytes : UInt32
   outstanding_count : UInt16
-  outstanding_bytes : UInt
+  outstanding_bytes : UInt32
   credit_epoch : UInt64
 } derive(Eq, Debug)
 
@@ -102,7 +102,7 @@ pub extend CreditReport with @moonbitlang/core/debug.Debug::{to_repr}
 /// can release exactly that tranche once.
 priv struct PartitionInFlight {
   msg_count : UInt16
-  msg_bytes : UInt
+  msg_bytes : UInt32
   owner_epoch : UInt64
 }
 
@@ -112,9 +112,9 @@ priv struct PartitionInFlight {
 /// way `FakeClock` shares its state in the harness.
 priv struct WindowCore {
   mut credit_count : UInt16
-  mut credit_bytes : UInt
+  mut credit_bytes : UInt32
   mut outstanding_count : UInt16
-  mut outstanding_bytes : UInt
+  mut outstanding_bytes : UInt32
   mut credit_epoch : UInt64
   in_flight : Map[UInt16, PartitionInFlight]
 }
@@ -127,10 +127,10 @@ priv struct WindowCore {
 /// starts from a clamped initial grant with zero outstanding and epoch 0.
 pub struct CreditWindow {
   priv subscription_id : UInt16
-  priv membership_epoch : UInt
+  priv membership_epoch : UInt32
   priv ownership_generation : UInt64
   priv max_count : UInt16
-  priv max_bytes : UInt
+  priv max_bytes : UInt32
   priv in_flight_cap : UInt16
   priv core : Ref[WindowCore]
 }
@@ -172,12 +172,12 @@ pub struct CreditWindow {
 /// ```
 pub fn CreditWindow::new(
   subscription_id : UInt16,
-  membership_epoch : UInt,
+  membership_epoch : UInt32,
   ownership_generation : UInt64,
   initial_count : UInt16,
-  initial_bytes : UInt,
+  initial_bytes : UInt32,
   max_count : UInt16,
-  max_bytes : UInt,
+  max_bytes : UInt32,
   in_flight_cap : UInt16,
 ) -> CreditWindow {
   let count = if initial_count > max_count { max_count } else { initial_count }
@@ -249,7 +249,7 @@ pub fn CreditWindow::admit(
   partition : UInt16,
   owner_epoch : UInt64,
   ownership_generation : UInt64,
-  msg_bytes : UInt,
+  msg_bytes : UInt32,
 ) -> Result[Unit, CreditError] {
   if ownership_generation != self.ownership_generation {
     return Err(StaleGeneration)
@@ -318,8 +318,8 @@ pub fn CreditWindow::apply(
   self : CreditWindow,
   mode : CreditMode,
   count : UInt16,
-  bytes : UInt,
-  membership_epoch : UInt,
+  bytes : UInt32,
+  membership_epoch : UInt32,
   ownership_generation : UInt64,
 ) -> Result[CreditReport, CreditError] {
   if membership_epoch != self.membership_epoch ||
@@ -500,7 +500,7 @@ pub fn CreditRegistry::admit(
   partition : UInt16,
   owner_epoch : UInt64,
   ownership_generation : UInt64,
-  msg_bytes : UInt,
+  msg_bytes : UInt32,
 ) -> Result[Unit, CreditError] {
   match self.windows.get(subscription_id) {
     None => Err(UnknownSubscription)
@@ -522,8 +522,8 @@ pub fn CreditRegistry::apply(
   subscription_id : UInt16,
   mode : CreditMode,
   count : UInt16,
-  bytes : UInt,
-  membership_epoch : UInt,
+  bytes : UInt32,
+  membership_epoch : UInt32,
   ownership_generation : UInt64,
 ) -> Result[CreditReport, CreditError] {
   match self.windows.get(subscription_id) {

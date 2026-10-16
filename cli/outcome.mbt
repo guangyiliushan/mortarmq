@@ -9,7 +9,7 @@
 ///|
 /// The complete result of one CLI invocation.
 pub(all) struct CliOutcome {
-  exit_code : Int
+  exit_code : Int32
   stdout : String
   stderr : String
 } derive(Eq, Debug)

@@ -12,7 +12,7 @@
 /// Bounded so a protocol that stops sending fails the assertion instead
 /// of hanging the whole suite. Five seconds is far above anything a
 /// loopback round trip needs and far below a CI timeout.
-fn handshake_budget_ms() -> Int {
+fn handshake_budget_ms() -> Int32 {
   5000
 }
 
@@ -31,7 +31,7 @@ struct LoopConn {
 }
 
 ///|
-impl @net.Conn for LoopConn with fn read_exact(self, len : Int) -> Result[
+impl @net.Conn for LoopConn with fn read_exact(self, len : Int32) -> Result[
   Bytes,
   @protocol.ErrCode,
 ] {
@@ -63,7 +63,7 @@ impl @net.Conn for LoopConn with fn close(self) -> Unit {
 ///|
 /// Open a loopback connection to `port`, mapping a refused connect onto
 /// the registry's transport code exactly as `net/tcp` does.
-async fn dial_loopback(port : Int) -> Result[&@net.Conn, @protocol.ErrCode] {
+async fn dial_loopback(port : Int32) -> Result[&@net.Conn, @protocol.ErrCode] {
   let tcp = @socket.Tcp::connect_to_host("127.0.0.1", port~) catch {
     _ => return Err(@protocol.Internal)
   }
@@ -84,7 +84,7 @@ async fn dial_loopback(port : Int) -> Result[&@net.Conn, @protocol.ErrCode] {
 /// parameter so a fixture can model a node whose id is missing from the
 /// other side's table.
 fn handshake_peers(
-  responder_port : Int,
+  responder_port : Int32,
   second_id : UInt16,
 ) -> Array[@cluster.PeerEntry] {
   [
@@ -102,7 +102,7 @@ fn handshake_peers(
 /// `BadLeaderPriority` rule it is not testing.
 fn handshake_config(
   node_id : UInt16,
-  responder_port : Int,
+  responder_port : Int32,
   second_id : UInt16,
   secret : @cluster.PeerSecret,
 ) -> @cluster.ClusterConfig raise {
@@ -403,11 +403,11 @@ async test "a listener answering as a different node than its table row refuses 
 /// A Delay that records pauses instead of waiting, so the client-side
 /// half of the separation check costs no wall clock.
 priv struct NoPause {
-  calls : Ref[Array[Int]]
+  calls : Ref[Array[Int32]]
 }
 
 ///|
-impl @security.Delay for NoPause with fn sleep_ms(self, ms : Int) -> Unit {
+impl @security.Delay for NoPause with fn sleep_ms(self, ms : Int32) -> Unit {
   self.calls.val.push(ms)
 }
 

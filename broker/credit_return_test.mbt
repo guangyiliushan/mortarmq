@@ -16,7 +16,7 @@ fn above_low_water_count() -> UInt16 {
 }
 
 ///|
-fn above_low_water_bytes() -> UInt {
+fn above_low_water_bytes() -> UInt32 {
   2097152U
 }
 

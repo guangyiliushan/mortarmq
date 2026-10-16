@@ -167,7 +167,7 @@ pub fn DeliveryMachine::counts(
 pub fn counts_of_events(
   events : Array[LedgerEvent],
   group_id : UInt16,
-  first_n : Int,
+  first_n : Int32,
 ) -> DeliveryCounts {
   // Per sequence: (bucket, dlq_seen) with bucket 0 retained, 1 delivered,
   // 2 dead-lettered, 3 dropped.

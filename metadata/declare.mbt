@@ -21,7 +21,7 @@
 
 ///|
 pub(all) enum DeclareBody {
-  Create(String, UInt)
+  Create(String, UInt32)
   Delete(String)
 } derive(Eq, Debug)
 
@@ -65,7 +65,7 @@ pub extend DeclareOutcome with @moonbitlang/core/debug.Debug::{to_repr}
 /// wider, or different body-set is `MutationFenced` under every key it
 /// touches, and a single-op mutation is the one-element set.
 pub(all) struct DeclareMachine {
-  topics : Map[String, UInt]
+  topics : Map[String, UInt32]
   accepted : Map[String, Map[UInt64, Array[DeclareBody]]]
   mut max_epoch : UInt64
 }
@@ -246,7 +246,7 @@ fn DeclareMachine::decide_set(
 ///|
 fn uniform_outcomes(
   outcome : DeclareOutcome,
-  count : Int,
+  count : Int32,
 ) -> Array[DeclareOutcome] {
   let out : Array[DeclareOutcome] = []
   for _ in 0..<count {
@@ -259,7 +259,7 @@ fn uniform_outcomes(
 pub fn DeclareMachine::partition_count(
   self : DeclareMachine,
   name : String,
-) -> UInt? {
+) -> UInt32? {
   self.topics.get(name)
 }
 
@@ -349,8 +349,8 @@ pub fn encode_declare_bodies(bodies : Array[DeclareBody]) -> Bytes {
 fn decode_body_at(
   record_type : MmmlRecordType,
   payload : BytesView,
-  start : Int,
-) -> (DeclareBody, Int)? {
+  start : Int32,
+) -> (DeclareBody, Int32)? {
   let is_create = match record_type {
     TopicCreate => true
     TopicDelete => false

@@ -14,23 +14,23 @@
 ///
 /// Pinned together with the column orders: any change to a column order
 /// bumps this number in the same commit that updates the golden baselines.
-pub const API_VERSION : Int = 1
+pub const API_VERSION : Int32 = 1
 
 ///|
 /// The command succeeded.
-pub const EXIT_OK : Int = 0
+pub const EXIT_OK : Int32 = 0
 
 ///|
 /// The invocation is wrong: unknown command, bad arguments.
-pub const EXIT_USAGE : Int = 2
+pub const EXIT_USAGE : Int32 = 2
 
 ///|
 /// The broker or admin endpoint could not be reached.
-pub const EXIT_UNREACHABLE : Int = 3
+pub const EXIT_UNREACHABLE : Int32 = 3
 
 ///|
 /// The server refused the request; the error text says why.
-pub const EXIT_REFUSED : Int = 4
+pub const EXIT_REFUSED : Int32 = 4
 
 ///|
 /// What `topics create` reports about the topic.
@@ -156,7 +156,7 @@ fn tsv_line(fields : Array[String]) -> String {
 ///|
 /// The exit code a create outcome maps to: created and the idempotent
 /// replay both succeed, an attribute mismatch is a refused request.
-pub fn topic_create_exit_code(result : TopicCreateResult) -> Int {
+pub fn topic_create_exit_code(result : TopicCreateResult) -> Int32 {
   match result {
     Created => EXIT_OK
     Existed => EXIT_OK
@@ -167,7 +167,7 @@ pub fn topic_create_exit_code(result : TopicCreateResult) -> Int {
 ///|
 /// The exit code a delete outcome maps to: a recorded tombstone succeeds,
 /// a missing topic is the server-side refusal.
-pub fn topic_delete_exit_code(result : TopicDeleteResult) -> Int {
+pub fn topic_delete_exit_code(result : TopicDeleteResult) -> Int32 {
   match result {
     Deleted => EXIT_OK
     NotFound => EXIT_REFUSED

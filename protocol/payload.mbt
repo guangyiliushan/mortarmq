@@ -53,7 +53,7 @@ pub(all) struct SubPayload {
   partition : UInt16
   start_policy : Byte
   credit_count : UInt16
-  credit_bytes : UInt
+  credit_bytes : UInt32
   flags : UInt16
 } derive(Eq, Debug)
 
@@ -132,13 +132,13 @@ pub(all) struct MsgPayload {
 pub(all) struct PullPayload {
   subscription_id : UInt16
   member_id : UInt64
-  membership_epoch : UInt
-  assignment_epoch : UInt
+  membership_epoch : UInt32
+  assignment_epoch : UInt32
   ownership_epochs : Array[UInt64]
   max_msgs : UInt16
-  max_bytes : UInt
+  max_bytes : UInt32
   wait_ms : UInt16
-  min_bytes : UInt
+  min_bytes : UInt32
 } derive(Eq, Debug)
 
 ///|
@@ -146,8 +146,8 @@ pub(all) struct PullPayload {
 pub(all) struct HeartbeatPayload {
   subscription_id : UInt16
   member_id : UInt64
-  membership_epoch : UInt
-  assignment_epoch : UInt
+  membership_epoch : UInt32
+  assignment_epoch : UInt32
   state : Byte
 } derive(Eq, Debug)
 
@@ -157,8 +157,8 @@ pub(all) struct NoticePayload {
   notice_id : UInt64
   kind : Byte
   group_id : UInt16
-  membership_epoch : UInt
-  assignment_epoch : UInt
+  membership_epoch : UInt32
+  assignment_epoch : UInt32
   ownership_epoch : UInt64
   topic_id : UInt16
   partition : UInt16
@@ -171,8 +171,8 @@ pub(all) struct ControlAckPayload {
   notice_id : UInt64
   notice_kind : Byte
   group_id : UInt16
-  membership_epoch : UInt
-  assignment_epoch : UInt
+  membership_epoch : UInt32
+  assignment_epoch : UInt32
   ownership_epoch : UInt64
   result : Byte
 } derive(Eq, Debug)
@@ -181,11 +181,11 @@ pub(all) struct ControlAckPayload {
 /// Add or replace a consumer credit window.
 pub(all) struct CreditPayload {
   subscription_id : UInt16
-  membership_epoch : UInt
+  membership_epoch : UInt32
   ownership_epoch : UInt64
   mode : Byte
   credit_count : UInt16
-  credit_bytes : UInt
+  credit_bytes : UInt32
 } derive(Eq, Debug)
 
 ///|
@@ -315,11 +315,11 @@ pub extend CreditPayload with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 priv struct Cursor {
   data : BytesView
-  mut offset : Int
+  mut offset : Int32
 }
 
 ///|
-fn Cursor::take(self : Cursor, length : Int) -> Result[BytesView, ErrCode] {
+fn Cursor::take(self : Cursor, length : Int32) -> Result[BytesView, ErrCode] {
   let remaining = self.data.length() - self.offset
   if length < 0 || length > remaining {
     return Err(MalformedPayload)
@@ -346,7 +346,7 @@ fn Cursor::read_uint16_be(self : Cursor) -> Result[UInt16, ErrCode] {
 }
 
 ///|
-fn Cursor::read_uint_be(self : Cursor) -> Result[UInt, ErrCode] {
+fn Cursor::read_uint_be(self : Cursor) -> Result[UInt32, ErrCode] {
   match self.take(4) {
     Ok(data) =>
       Ok(
@@ -383,7 +383,7 @@ fn Cursor::finished(self : Cursor) -> Result[Unit, ErrCode] {
 }
 
 ///|
-fn checked_len(value : BytesView, maximum : Int) -> Result[Int, ErrCode] {
+fn checked_len(value : BytesView, maximum : Int32) -> Result[Int32, ErrCode] {
   if value.length() > maximum {
     return Err(MalformedPayload)
   }
@@ -1141,7 +1141,7 @@ pub fn decode_wire_payload(
 fn write_field(
   buf : Buffer,
   value : BytesView,
-  maximum : Int,
+  maximum : Int32,
 ) -> Result[Unit, ErrCode] {
   match checked_len(value, maximum) {
     Ok(length) => {

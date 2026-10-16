@@ -10,7 +10,7 @@
 ///|
 test "property: any shuffled concurrent identical declare set is exactly-once (quickcheck seed=20261021 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let n = (draw % 4U).reinterpret_as_int() + 2
       let ids : Array[UInt64] = []
       for i in 0..<n {
@@ -49,7 +49,7 @@ test "property: any shuffled concurrent identical declare set is exactly-once (q
 ///|
 test "property: replaying any accepted mutation is zero-side-effect (quickcheck seed=20261022 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let machine = @metadata.DeclareMachine::new()
       let ops : Array[@metadata.DeclareBody] = [
         @metadata.DeclareBody::Create("dp2", 3),
@@ -80,7 +80,7 @@ test "property: replaying any accepted mutation is zero-side-effect (quickcheck 
 ///|
 test "property: any altered body-set of an accepted mutation is fenced (quickcheck seed=20261023 is reproducible)" {
   @quickcheck.check(
-    (draw : UInt) => {
+    (draw : UInt32) => {
       let machine = @metadata.DeclareMachine::new()
       let ops : Array[@metadata.DeclareBody] = [
         @metadata.DeclareBody::Create("dp3", 3),

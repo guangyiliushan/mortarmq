@@ -39,7 +39,7 @@
 /// fsync before the cluster declares itself read-only; a producer is
 /// never left waiting indefinitely for an answer already known to be
 /// no.
-pub const QUORUM_ACK_TIMEOUT_MS : Int = 50
+pub const QUORUM_ACK_TIMEOUT_MS : Int32 = 50
 
 ///|
 /// Why the cluster is read-only -- the row of the frozen matrix, kept
@@ -260,8 +260,8 @@ pub fn QuorumState::warning(self : QuorumState) -> @protocol.ErrCode? {
 /// }
 /// ```
 pub fn classify_quorum(
-  in_sync_count : Int,
-  quorum : Int,
+  in_sync_count : Int32,
+  quorum : Int32,
   trailing : Bool,
   ack_timeout : Bool,
 ) -> QuorumState {

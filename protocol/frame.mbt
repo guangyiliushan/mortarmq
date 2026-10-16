@@ -29,7 +29,7 @@
 /// }
 /// ```
 pub enum DecodeResult {
-  Need(Int)
+  Need(Int32)
   Frame(Op, BytesView)
   DecodeError(ErrCode)
 }
@@ -40,7 +40,7 @@ pub enum DecodeResult {
 /// `UInt` keeps the full 32-bit input representable before the protocol bound
 /// is checked; converting to `Int` only after that check stays within the
 /// 16 MiB frame budget.
-fn read_uint_be(data : BytesView, offset : Int) -> UInt {
+fn read_uint_be(data : BytesView, offset : Int32) -> UInt32 {
   (data[offset].to_uint() << 24) +
   (data[offset + 1].to_uint() << 16) +
   (data[offset + 2].to_uint() << 8) +

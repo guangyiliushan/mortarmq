@@ -52,7 +52,7 @@ fn expected_record(
 ///|
 fn recovery_of(
   next_sequence : UInt64,
-  durable_offset : UInt,
+  durable_offset : UInt32,
   records : Array[@storage.RecoveredRecord],
 ) -> @storage.SegmentRecovery {
   { checkpoint: { next_sequence, durable_offset, }, records, }
@@ -710,7 +710,7 @@ async test "seeded kill points recover one state across independent replays" {
 }
 
 ///|
-fn random_payload(rng : &@harness.Rng, max_length : Int) -> Bytes {
+fn random_payload(rng : &@harness.Rng, max_length : Int32) -> Bytes {
   let length = (@harness.Rng::next_uint64(rng) % (max_length + 1).to_uint64()).to_int()
   ALPHABET[:length].to_owned()
 }

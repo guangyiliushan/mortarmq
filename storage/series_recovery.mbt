@@ -33,7 +33,7 @@ pub(all) struct IntactScan {
   /// Every complete valid record, in file order.
   records : Array[RecoveredRecord]
   /// Byte offset past the last complete record.
-  end_offset : Int
+  end_offset : Int32
   /// True when the walk stopped at an incomplete trailing record. A
   /// normal crash tail on the active segment; damage on a sealed one.
   truncated : Bool
@@ -51,7 +51,7 @@ pub(all) struct DamagedScan {
   /// Complete valid records before the damage.
   records : Array[RecoveredRecord]
   /// Byte offset of the first untrusted record.
-  first_bad_offset : Int
+  first_bad_offset : Int32
   reason : QuarantineReason
 } derive(Eq, Debug)
 
@@ -65,8 +65,8 @@ pub extend DamagedScan with @moonbitlang/core/debug.Debug::{to_repr}
 /// One visible hole in the recovered series: a sequence gap is corruption
 /// and is never skipped silently.
 pub(all) struct GapDetected {
-  segment_index : Int
-  file_offset : Int
+  segment_index : Int32
+  file_offset : Int32
   /// Sequence the replay expected at this position; the series' first
   /// record establishes the base with its own sequence.
   expected_sequence : UInt64
@@ -93,7 +93,7 @@ pub(all) struct SeriesRecovery {
   /// Holes the replay surfaced, in order; empty means an unbroken series.
   gaps : Array[GapDetected]
   /// `Some(offset)` when the active tail was dropped at a corrupt record.
-  active_truncated_at : Int?
+  active_truncated_at : Int32?
   /// Sequence the next append assigns after this recovery.
   next_sequence : UInt64
 } derive(Eq, Debug)
@@ -206,12 +206,12 @@ pub async fn scan_segment(
 pub async fn recover_series(
   disk : &@harness.Disk,
   base_path : Bytes,
-  segment_count : Int,
+  segment_count : Int32,
 ) -> Result[SeriesRecovery, StorageFault] {
   let records : Array[RecoveredRecord] = []
   let quarantined : Array[QuarantineRecord] = []
   let gaps : Array[GapDetected] = []
-  let mut active_truncated_at : Int? = None
+  let mut active_truncated_at : Int32? = None
   let mut running_next = 0UL
   let mut running_set = false
   if segment_count <= 0 {

@@ -88,15 +88,15 @@ pub fn pull_refused() -> @protocol.WirePayload {
 pub fn clamp_batch(
   batch : Array[@protocol.MsgPayload],
   max_msgs : UInt16,
-  max_bytes : UInt,
+  max_bytes : UInt32,
 ) -> Array[@protocol.MsgPayload] {
   let served : Array[@protocol.MsgPayload] = []
-  let mut used : UInt = 0U
+  let mut used : UInt32 = 0U
   for msg in batch {
     if served.length() >= max_msgs.to_int() {
       break
     }
-    let size : UInt = msg.key.length().reinterpret_as_uint() +
+    let size : UInt32 = msg.key.length().reinterpret_as_uint() +
       msg.value.length().reinterpret_as_uint()
     if used + size > max_bytes {
       break
@@ -237,6 +237,6 @@ pub fn PullService::cancel(
 ///
 /// Returns the depth an operator sees as long-poll pressure: zero means no
 /// request is waiting on data or deadline.
-pub fn PullService::pending_count(self : PullService) -> Int {
+pub fn PullService::pending_count(self : PullService) -> Int32 {
   PullQueue::pending_count(self.queue)
 }

@@ -16,8 +16,8 @@
 async fn crafted_read(
   outbound : Bytes,
   pre_auth : Bool,
-  deadline_ms : Int,
-  hold_open_ms? : Int = 0,
+  deadline_ms : Int32,
+  hold_open_ms~ : Int32 = 0,
 ) -> Result[@cluster.PeerMsg, @protocol.ErrCode] {
   let server = bind_loopback()
   let port = server.addr.port()

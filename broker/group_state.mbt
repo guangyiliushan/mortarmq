@@ -103,8 +103,8 @@ pub fn GroupCoordinator::encode_state(self : GroupCoordinator) -> Bytes {
 
 ///|
 /// The map keys in ascending order, so one state encodes one way.
-fn[V] sorted_keys(map : Map[Int, V]) -> Array[Int] {
-  let keys : Array[Int] = []
+fn[V] sorted_keys(map : Map[Int32, V]) -> Array[Int32] {
+  let keys : Array[Int32] = []
   for key, _value in map {
     keys.push(key)
   }
@@ -126,7 +126,7 @@ fn[V] sorted_keys(map : Map[Int, V]) -> Array[Int] {
 }
 
 ///|
-fn state_read_uint16(data : BytesView, offset : Int) -> UInt16? {
+fn state_read_uint16(data : BytesView, offset : Int32) -> UInt16? {
   if offset + 2 > data.length() {
     return None
   }
@@ -134,7 +134,7 @@ fn state_read_uint16(data : BytesView, offset : Int) -> UInt16? {
 }
 
 ///|
-fn state_read_uint32(data : BytesView, offset : Int) -> UInt? {
+fn state_read_uint32(data : BytesView, offset : Int32) -> UInt32? {
   if offset + 4 > data.length() {
     return None
   }
@@ -146,7 +146,7 @@ fn state_read_uint32(data : BytesView, offset : Int) -> UInt? {
 }
 
 ///|
-fn state_read_uint64(data : BytesView, offset : Int) -> UInt64? {
+fn state_read_uint64(data : BytesView, offset : Int32) -> UInt64? {
   if offset + 8 > data.length() {
     return None
   }
@@ -320,7 +320,7 @@ pub fn GroupCoordinator::restore(payload : BytesView) -> GroupCoordinator? {
     None => return None
   }
   offset = offset + 2
-  let subscription_ids : Map[Int, UInt16] = Map([])
+  let subscription_ids : Map[Int32, UInt16] = Map([])
   for _ in 0..<binding_count {
     let member_id = match state_read_uint64(payload, offset) {
       Some(value) => value
@@ -344,7 +344,7 @@ pub fn GroupCoordinator::restore(payload : BytesView) -> GroupCoordinator? {
     None => return None
   }
   offset = offset + 2
-  let wholesale_epochs : Map[Int, UInt64] = Map([])
+  let wholesale_epochs : Map[Int32, UInt64] = Map([])
   for _ in 0..<wholesale_count {
     let member_id = match state_read_uint64(payload, offset) {
       Some(value) => value

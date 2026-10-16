@@ -29,7 +29,7 @@
 /// Not a tuning knob: the quorum below is derived from it, and a
 /// cluster of a different size would need its own ruling rather than a
 /// different number typed in here.
-pub const STATIC_PEER_COUNT : Int = 3
+pub const STATIC_PEER_COUNT : Int32 = 3
 
 ///|
 /// Smallest accepted peer secret, in bytes.
@@ -38,7 +38,7 @@ pub const STATIC_PEER_COUNT : Int = 3
 /// 128-bit floor the threat model sets for client tokens: a shorter
 /// secret can be guessed offline from one captured handshake, and there
 /// is no rate limit between an attacker and a byte comparison.
-pub const PEER_SECRET_MIN_BYTES : Int = 16
+pub const PEER_SECRET_MIN_BYTES : Int32 = 16
 
 ///|
 /// A cluster configuration problem found before any socket is opened.
@@ -79,7 +79,7 @@ pub extend ClusterFault with @moonbitlang/core/debug.Debug::{to_repr}
 pub(all) struct PeerEntry {
   node_id : UInt16
   host : String
-  port : Int
+  port : Int32
 } derive(Eq, Debug)
 
 ///|
@@ -145,7 +145,7 @@ pub struct ClusterConfig {
   priv peers : Array[PeerEntry]
   priv leader_priority : Array[UInt16]
   priv listen_host : String
-  priv listen_port : Int
+  priv listen_port : Int32
   priv secret : PeerSecret
 }
 
@@ -198,7 +198,7 @@ pub fn ClusterConfig::new(
   peers : Array[PeerEntry],
   leader_priority : Array[UInt16],
   listen_host : String,
-  listen_port : Int,
+  listen_port : Int32,
   secret : PeerSecret,
 ) -> Result[ClusterConfig, ClusterFault] {
   if peers.length() != STATIC_PEER_COUNT {
@@ -265,7 +265,7 @@ pub fn ClusterConfig::peers(self : ClusterConfig) -> Array[PeerEntry] {
 ///|
 /// Number of configured members; always `STATIC_PEER_COUNT` once `new`
 /// has accepted the configuration.
-pub fn ClusterConfig::peer_count(self : ClusterConfig) -> Int {
+pub fn ClusterConfig::peer_count(self : ClusterConfig) -> Int32 {
   self.peers.length()
 }
 
@@ -284,7 +284,7 @@ pub fn ClusterConfig::listen_host(self : ClusterConfig) -> String {
 
 ///|
 /// This node's `listen_peer` port.
-pub fn ClusterConfig::listen_port(self : ClusterConfig) -> Int {
+pub fn ClusterConfig::listen_port(self : ClusterConfig) -> Int32 {
   self.listen_port
 }
 
@@ -309,7 +309,7 @@ pub fn ClusterConfig::secret(self : ClusterConfig) -> PeerSecret {
 ///   assert_eq(@cluster.STATIC_PEER_COUNT, 3)
 /// }
 /// ```
-pub fn ClusterConfig::quorum(self : ClusterConfig) -> Int {
+pub fn ClusterConfig::quorum(self : ClusterConfig) -> Int32 {
   self.peers.length() / 2 + 1
 }
 

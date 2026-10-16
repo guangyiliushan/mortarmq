@@ -126,14 +126,14 @@ fn query_value(query : String, key : String) -> String? {
 
 ///|
 priv struct HttpResponse {
-  status_code : UInt
+  status_code : UInt32
   reason : String
   content_type : String
   body : String
 }
 
 ///|
-fn reason_phrase(status_code : UInt) -> String {
+fn reason_phrase(status_code : UInt32) -> String {
   match status_code {
     200U => "OK"
     400U => "Bad Request"
@@ -146,7 +146,7 @@ fn reason_phrase(status_code : UInt) -> String {
 
 ///|
 fn json_error(
-  status_code : UInt,
+  status_code : UInt32,
   reason : String,
   message : String,
 ) -> HttpResponse {

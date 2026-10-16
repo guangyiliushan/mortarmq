@@ -11,7 +11,7 @@ fn sub_one() -> UInt16 {
 }
 
 ///|
-fn mem_epoch() -> UInt {
+fn mem_epoch() -> UInt32 {
   7U
 }
 
@@ -24,8 +24,8 @@ fn gen_three() -> UInt64 {
 /// A small window: 10 messages / 1000 bytes granted, clamped at 20
 /// messages / 2000 bytes, in-flight cap 20.
 fn small_window(
-  initial_count : Int,
-  initial_bytes : Int,
+  initial_count : Int32,
+  initial_bytes : Int32,
 ) -> @broker.CreditWindow {
   @broker.CreditWindow::new(
     sub_one(),
@@ -57,7 +57,7 @@ fn default_window() -> @broker.CreditWindow {
 ///|
 fn admit_one(
   window : @broker.CreditWindow,
-  msg_bytes : Int,
+  msg_bytes : Int32,
 ) -> Result[Unit, @broker.CreditError] {
   @broker.CreditWindow::admit(
     window,
@@ -72,8 +72,8 @@ fn admit_one(
 fn apply(
   window : @broker.CreditWindow,
   mode : @broker.CreditMode,
-  count : Int,
-  bytes : Int,
+  count : Int32,
+  bytes : Int32,
 ) -> Result[@broker.CreditReport, @broker.CreditError] {
   @broker.CreditWindow::apply(
     window,
@@ -91,8 +91,8 @@ fn apply(
 /// granted-plus-outstanding total inside it too.
 fn bounded(
   report : @broker.CreditReport,
-  cap_count : Int,
-  cap_bytes : Int,
+  cap_count : Int32,
+  cap_bytes : Int32,
 ) -> Bool {
   report.outstanding_count <= cap_count.to_uint16() &&
   report.outstanding_bytes <= cap_bytes.reinterpret_as_uint() &&
@@ -503,7 +503,7 @@ test "slow consumer injection keeps the buffered total inside the window" {
 fn admit_at(
   window : @broker.CreditWindow,
   partition : UInt16,
-  msg_bytes : Int,
+  msg_bytes : Int32,
 ) -> Result[Unit, @broker.CreditError] {
   @broker.CreditWindow::admit(
     window,

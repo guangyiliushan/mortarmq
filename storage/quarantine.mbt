@@ -39,7 +39,7 @@ pub(all) struct QuarantineRecord {
   segment_path : Bytes
   quarantined_path : Bytes
   sidecar_path : Bytes
-  first_bad_offset : Int
+  first_bad_offset : Int32
   reason : QuarantineReason
 } derive(Eq, Debug)
 
@@ -59,7 +59,7 @@ pub fn quarantine_paths(segment_path : Bytes) -> (Bytes, Bytes) {
 /// Encode the sidecar note: the first bad offset and the reason, as text so
 /// an operator can read the damage without tools.
 pub fn encode_quarantine_note(
-  first_bad_offset : Int,
+  first_bad_offset : Int32,
   reason : QuarantineReason,
 ) -> Bytes {
   let reason_text = match reason {
@@ -83,7 +83,7 @@ pub fn encode_quarantine_note(
 pub async fn complete_quarantine(
   disk : &@harness.Disk,
   segment_path : Bytes,
-  first_bad_offset : Int,
+  first_bad_offset : Int32,
   reason : QuarantineReason,
 ) -> Result[QuarantineRecord, StorageFault] {
   let (quarantined_path, sidecar_path) = quarantine_paths(segment_path)
@@ -117,7 +117,7 @@ pub async fn complete_quarantine(
 pub async fn quarantine_segment(
   disk : &@harness.Disk,
   segment_path : Bytes,
-  first_bad_offset : Int,
+  first_bad_offset : Int32,
   reason : QuarantineReason,
 ) -> Result[QuarantineRecord, StorageFault] {
   let (quarantined_path, _sidecar_path) = quarantine_paths(segment_path)
