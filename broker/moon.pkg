@@ -9,9 +9,7 @@ import {
 
 import {
   "guangyiliushan/mortarmq/harness",
-  "guangyiliushan/mortarmq/metadata",
   "moonbitlang/async",
   "moonbitlang/core/quickcheck",
   "moonbitlang/core/env",
-  "guangyiliushan/mortarmq/metadata",
 } for "test"
