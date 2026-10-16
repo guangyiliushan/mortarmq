@@ -150,12 +150,7 @@ async fn[D : @harness.Disk] journal_declare(
     Ok(bytes) => bytes
     Err(_) => return Err(@protocol.Internal)
   }
-  let existing = match disk.read(log) {
-    Ok(data) => data
-    Err(@harness.PathMissing) => b""
-    Err(_) => return Err(@protocol.Internal)
-  }
-  match disk.write(log, existing + record) {
+  match disk.append(log, record) {
     Ok(_) => ()
     Err(_) => return Err(@protocol.Internal)
   }
@@ -166,7 +161,7 @@ async fn[D : @harness.Disk] journal_declare(
 }
 
 ///|
-/// The gateed snapshot publication: a degraded system never publishes
+/// The gated snapshot publication: a degraded system never publishes
 /// a new cache generation from state it cannot trust.
 ///
 /// # Errors

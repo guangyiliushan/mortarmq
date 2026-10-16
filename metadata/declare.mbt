@@ -193,10 +193,11 @@ pub fn DeclareMachine::submit_set(
 ///|
 /// The read-only refusal check one mutation set faces: `Some(outcomes)`
 /// when the set is refused as-is (fenced or mismatched; the outcomes
-/// repeat uniformly per op and no state advances), `None` when the set
-/// would apply. The journal-then-apply write path runs this before it
-/// journals, so a mutation the machine would refuse never lands on the
-/// log for the replay to trip over.
+/// repeat uniformly per op and no state advances) or already applied
+/// (uniform `IdempotentOk`), `None` when the set would apply fresh. The
+/// journal-then-apply write path runs this before it journals, so a
+/// refusal never lands on the log for the replay to trip over -- and an
+/// idempotent replay answers without journaling a duplicate record.
 fn DeclareMachine::decide_set(
   self : DeclareMachine,
   mutation_id : UInt64,
