@@ -1,0 +1,26 @@
+// The composition root: the one place that names a socket, binds the
+// admin face, and turns the frozen configuration into a live surface.
+// v0 serves the admin HTTP face -- /healthz, /metrics and /stats -- on
+// the configured `listen_admin` address, which makes the config
+// whitelist load-bearing for the first time: the server refuses an
+// invalid configuration and binds exactly what it names. The client
+// protocol face lands with its own transport wiring.
+//
+// Targets: the async event loop and the socket package define this
+// surface for native; the face is a broker process concern, so the
+// package is bounded to native like net/tcp.
+supported_targets = "+native"
+
+pkgtype(kind: "executable")
+
+import {
+  "guangyiliushan/mortarmq/admin",
+  "guangyiliushan/mortarmq/cluster",
+  "guangyiliushan/mortarmq/config",
+  "guangyiliushan/mortarmq/metrics",
+  "moonbitlang/async",
+  "moonbitlang/async/io",
+  "moonbitlang/async/socket",
+  "moonbitlang/core/env",
+  "moonbitlang/core/encoding/utf8",
+}
