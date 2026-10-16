@@ -43,13 +43,13 @@ async test "injected damage degrades the service and refuses later writes" {
   }
   assert_eq(service.read_face(), @metadata.MetadataMode::ReadOnly)
   assert_eq(
-    service.submit_mutation(3UL, 1UL, [
+    service.submit_mutation(disk, b"meta/mmml.log", 3UL, 1UL, [
       @metadata.DeclareBody::Create("audit", 2),
     ]),
     Err(@protocol.MetadataReadOnly),
   )
   assert_eq(
-    service.submit_mutation(1UL, 1UL, [
+    service.submit_mutation(disk, b"meta/mmml.log", 1UL, 1UL, [
       @metadata.DeclareBody::Create("orders", 3),
     ]),
     Err(@protocol.MetadataReadOnly),
@@ -88,7 +88,7 @@ async test "a trustworthy rebuild reopens the write path" {
   assert_eq(service.recover(disk, b"meta", m1 + m2) is Ok(_), true)
   assert_eq(service.read_face(), @metadata.MetadataMode::Healthy)
   assert_eq(
-    service.submit_mutation(3UL, 1UL, [
+    service.submit_mutation(disk, b"meta/mmml.log", 3UL, 1UL, [
       @metadata.DeclareBody::Create("audit", 2),
     ]),
     Ok([@metadata.DeclareOutcome::Created]),

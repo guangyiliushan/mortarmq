@@ -53,13 +53,16 @@ pub fn DeclareOutcome::to_protocol(
 /// every op outcome to the protocol face, in op order. A refusal of
 /// the mutation (guard write-refusal or a whole-set fence) surfaces
 /// as its registered code and no acks at all.
-pub fn MetadataService::mediate_mutation(
+pub async fn[D : @harness.Disk] MetadataService::mediate_mutation(
   self : MetadataService,
+  disk : D,
+  log : Bytes,
   mutation_id : UInt64,
   leader_epoch : UInt64,
   ops : Array[DeclareBody],
 ) -> Result[Array[DeclareAck], @protocol.ErrCode] {
-  let outcomes = match self.submit_mutation(mutation_id, leader_epoch, ops) {
+  let outcomes = match
+    self.submit_mutation(disk, log, mutation_id, leader_epoch, ops) {
     Ok(values) => values
     Err(code) => return Err(code)
   }

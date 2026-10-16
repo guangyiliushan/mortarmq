@@ -37,10 +37,13 @@ test "refusals surface only as registered codes through the seam" {
 }
 
 ///|
-test "a mediated packed pair acks per op with the source first" {
+async test "a mediated packed pair acks per op with the source first" {
+  let fake = @harness.FakeDisk::new()
+  let disk : &@harness.Disk = fake
+  let log = b"meta/mmml.log"
   let service = @metadata.MetadataService::new()
   match
-    service.mediate_mutation(1UL, 7UL, [
+    service.mediate_mutation(disk, log, 1UL, 7UL, [
       @metadata.DeclareBody::Create("orders", 3),
       @metadata.DeclareBody::Create("orders.dlq", 3),
     ]) {
@@ -52,7 +55,7 @@ test "a mediated packed pair acks per op with the source first" {
     Err(_) => fail("a fresh pair must mediate to acks")
   }
   match
-    service.mediate_mutation(1UL, 7UL, [
+    service.mediate_mutation(disk, log, 1UL, 7UL, [
       @metadata.DeclareBody::Create("orders", 3),
       @metadata.DeclareBody::Create("orders.dlq", 3),
     ]) {
@@ -65,15 +68,18 @@ test "a mediated packed pair acks per op with the source first" {
 }
 
 ///|
-test "a mediated refusal carries the registered code and zero acks" {
+async test "a mediated refusal carries the registered code and zero acks" {
+  let fake = @harness.FakeDisk::new()
+  let disk : &@harness.Disk = fake
+  let log = b"meta/mmml.log"
   let service = @metadata.MetadataService::new()
   ignore(
-    service.mediate_mutation(1UL, 7UL, [
+    service.mediate_mutation(disk, log, 1UL, 7UL, [
       @metadata.DeclareBody::Create("orders", 3),
     ]),
   )
   match
-    service.mediate_mutation(1UL, 9UL, [
+    service.mediate_mutation(disk, log, 1UL, 9UL, [
       @metadata.DeclareBody::Create("orders", 3),
       @metadata.DeclareBody::Create("orders.dlq", 3),
     ]) {
@@ -81,7 +87,7 @@ test "a mediated refusal carries the registered code and zero acks" {
     Ok(_) => fail("an op-set fence must surface as 0x2006 with no acks")
   }
   match
-    service.mediate_mutation(2UL, 7UL, [
+    service.mediate_mutation(disk, log, 2UL, 7UL, [
       @metadata.DeclareBody::Create("orders", 9),
     ]) {
     Err(code) => assert_eq(code, @protocol.TopicExistsMismatch)

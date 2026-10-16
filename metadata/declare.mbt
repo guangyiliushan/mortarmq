@@ -157,41 +157,9 @@ pub fn DeclareMachine::submit_set(
   leader_epoch : UInt64,
   ops : Array[DeclareBody],
 ) -> Array[DeclareOutcome] {
-  let mut any_present = false
-  let mut all_present = true
-  for op in ops {
-    let table = self.accepted.get_or_init(op.key(), () => Map([]))
-    match table.get(mutation_id) {
-      Some(recorded) => {
-        any_present = true
-        if !body_sets_equal(recorded, ops) {
-          return uniform_outcomes(MutationFenced, ops.length())
-        }
-      }
-      None => all_present = false
-    }
-  }
-  if any_present {
-    if all_present {
-      return uniform_outcomes(IdempotentOk, ops.length())
-    }
-    return uniform_outcomes(MutationFenced, ops.length())
-  }
-  if leader_epoch < self.max_epoch {
-    return uniform_outcomes(MutationFenced, ops.length())
-  }
-  for op in ops {
-    match op {
-      Create(name, partition_count) =>
-        match self.topics.get(name) {
-          Some(committed) =>
-            if committed != partition_count {
-              return uniform_outcomes(NameCountMismatch, ops.length())
-            }
-          None => ()
-        }
-      Delete(_) => ()
-    }
+  match self.decide_set(mutation_id, leader_epoch, ops) {
+    Some(refused) => return refused
+    None => ()
   }
   let outcomes : Array[DeclareOutcome] = []
   for op in ops {
@@ -220,6 +188,58 @@ pub fn DeclareMachine::submit_set(
     self.max_epoch = leader_epoch
   }
   outcomes
+}
+
+///|
+/// The read-only refusal check one mutation set faces: `Some(outcomes)`
+/// when the set is refused as-is (fenced or mismatched; the outcomes
+/// repeat uniformly per op and no state advances), `None` when the set
+/// would apply. The journal-then-apply write path runs this before it
+/// journals, so a mutation the machine would refuse never lands on the
+/// log for the replay to trip over.
+fn DeclareMachine::decide_set(
+  self : DeclareMachine,
+  mutation_id : UInt64,
+  leader_epoch : UInt64,
+  ops : Array[DeclareBody],
+) -> Array[DeclareOutcome]? {
+  let mut any_present = false
+  let mut all_present = true
+  for op in ops {
+    let table = self.accepted.get_or_init(op.key(), () => Map([]))
+    match table.get(mutation_id) {
+      Some(recorded) => {
+        any_present = true
+        if !body_sets_equal(recorded, ops) {
+          return Some(uniform_outcomes(MutationFenced, ops.length()))
+        }
+      }
+      None => all_present = false
+    }
+  }
+  if any_present {
+    if all_present {
+      return Some(uniform_outcomes(IdempotentOk, ops.length()))
+    }
+    return Some(uniform_outcomes(MutationFenced, ops.length()))
+  }
+  if leader_epoch < self.max_epoch {
+    return Some(uniform_outcomes(MutationFenced, ops.length()))
+  }
+  for op in ops {
+    match op {
+      Create(name, partition_count) =>
+        match self.topics.get(name) {
+          Some(committed) =>
+            if committed != partition_count {
+              return Some(uniform_outcomes(NameCountMismatch, ops.length()))
+            }
+          None => ()
+        }
+      Delete(_) => ()
+    }
+  }
+  None
 }
 
 ///|
