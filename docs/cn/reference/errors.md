@@ -48,6 +48,7 @@
 | 0x2004 | METADATA_QUARANTINED | Manual handling (RB-2) |
 | 0x2005 | UNKNOWN_GROUP | SUB first to create the group |
 | 0x2006 | MUTATION_FENCED | mutation_id/epoch expired; reissue the mutation |
+| 0x2007 | MUTATION_NOT_PACKABLE | 变更集超出单条打包日志记录；拆分为多次变更提交 |
 
 ## `0x4xxx` —— 背压 / 配额
 

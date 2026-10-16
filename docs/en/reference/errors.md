@@ -48,6 +48,7 @@ Segments follow a fixed four-way split: `0x0xxx` protocol/session, `0x2xxx` meta
 | 0x2004 | METADATA_QUARANTINED | Manual handling (RB-2) |
 | 0x2005 | UNKNOWN_GROUP | SUB first to create the group |
 | 0x2006 | MUTATION_FENCED | mutation_id/epoch expired; reissue the mutation |
+| 0x2007 | MUTATION_NOT_PACKABLE | the op set exceeds one packed journal record; submit separate mutations |
 
 ## `0x4xxx` — backpressure / quota
 

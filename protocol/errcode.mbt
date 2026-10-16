@@ -46,6 +46,7 @@ pub(all) enum ErrCode {
   MetadataQuarantined // 0x2004 manual handling required
   UnknownGroup // 0x2005 SUB first to create the group
   MutationFenced // 0x2006 mutation_id / epoch expired; start the mutation over
+  MutationNotPackable // 0x2007 the op set exceeds one packed journal record; submit separate mutations
   // ?�?� 0x4xxx backpressure and quota domain ?�?�
   Backpressure // 0x4001 back off and retry
   QuotaExceeded // 0x4002 slow down
@@ -127,6 +128,7 @@ pub fn ErrCode::to_uint16(self : ErrCode) -> UInt {
     MetadataQuarantined => 0x2004U
     UnknownGroup => 0x2005U
     MutationFenced => 0x2006U
+    MutationNotPackable => 0x2007U
     Backpressure => 0x4001U
     QuotaExceeded => 0x4002U
     RateLimited => 0x4003U
@@ -198,6 +200,7 @@ pub fn ErrCode::from_uint16(code : UInt) -> ErrCode? {
     0x2004U => Some(MetadataQuarantined)
     0x2005U => Some(UnknownGroup)
     0x2006U => Some(MutationFenced)
+    0x2007U => Some(MutationNotPackable)
     0x4001U => Some(Backpressure)
     0x4002U => Some(QuotaExceeded)
     0x4003U => Some(RateLimited)

@@ -20,7 +20,7 @@ test "wire limits match their documented values" {
 }
 
 ///|
-test "error code table registration lock: 50 codes map one-to-one" {
+test "error code table registration lock: 51 codes map one-to-one" {
   let registry : Array[(UInt, @protocol.ErrCode)] = [
     (0x0001U, @protocol.BadLength),
     (0x0002U, @protocol.UnknownOp),
@@ -53,6 +53,7 @@ test "error code table registration lock: 50 codes map one-to-one" {
     (0x2004U, @protocol.MetadataQuarantined),
     (0x2005U, @protocol.UnknownGroup),
     (0x2006U, @protocol.MutationFenced),
+    (0x2007U, @protocol.MutationNotPackable),
     (0x4001U, @protocol.Backpressure),
     (0x4002U, @protocol.QuotaExceeded),
     (0x4003U, @protocol.RateLimited),
@@ -73,7 +74,7 @@ test "error code table registration lock: 50 codes map one-to-one" {
     (0x600BU, @protocol.UncleanElectionRejected),
     (0x600CU, @protocol.ElectionTimeout),
   ]
-  assert_eq(registry.length(), 50)
+  assert_eq(registry.length(), 51)
   for pair in registry {
     let (code, err) = pair
     assert_eq(err.to_uint16(), code)
@@ -84,7 +85,7 @@ test "error code table registration lock: 50 codes map one-to-one" {
 ///|
 test "unregistered segments are rejected (reserved-segment semantics)" {
   let holes : Array[UInt] = [
-    0x0000U, 0x000CU, 0x000DU, 0x0014U, 0x0028U, 0x0032U, 0x00FFU, 0x2007U, 0x2008U,
+    0x0000U, 0x000CU, 0x000DU, 0x0014U, 0x0028U, 0x0032U, 0x00FFU, 0x2008U, 0x2009U,
     0x4008U, 0x4009U, 0x600DU, 0x600EU,
   ]
   for hole in holes {
