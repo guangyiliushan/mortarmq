@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 22 * * *'   # nightly drift check; all jobs run, warnings surface once a day instead of on every push
 
 # Least privilege at the top. Every job here needs read access only; the
 # release workflow raises its own where publishing demands it.
@@ -203,7 +205,10 @@ jobs:
   nightly:
     name: nightly drift warning / ${{ matrix.os }}
     # Toolchain drift early warning: a separate job allowed to fail so it never
-    # blocks a PR (mirrors moonbitlang/async nightly-build).
+    # blocks a PR (mirrors moonbitlang/async nightly-build). It only runs on
+    # the daily schedule (or a manual dispatch), never on push or PR, so its
+    # by-design red stays out of every commit's check list.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -276,13 +281,9 @@ jobs:
       - name: moon test (wasm-gc)
         run: moon test --target wasm-gc
 
-      - name: upload wasm artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: wasm-gc-build
-          path: target/wasm-gc/release/build/**/*.wasm
-          if-no-files-found: warn
-          retention-days: 7   # throwaway smoke artifact; do not store it for 90 days
+      # The old artifact upload went away: moon build emits .core modules
+      # under _build/, never .wasm under target/, so the step warned on every
+      # run. The check and test steps above already prove the build.
 
   coverage:
     name: coverage / ${{ matrix.os }}

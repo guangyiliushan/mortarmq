@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Pre-push gate: run the cheap CI gates locally so toolchain drift, format
+# drift, and commit-message violations are caught before they land on main.
+# Install once per clone:
+#   git config core.hooksPath .githooks
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+moon fmt
+if ! git diff --exit-code; then
+  echo 'pre-push: moon fmt would change files; review, then amend before pushing' >&2
+  exit 1
+fi
+
+moon check --deny-warn --target native
+
+if git rev-parse --verify --quiet '@{u}' >/dev/null && [ -n "$(git rev-list '@{u}..HEAD')" ]; then
+  bash .github/scripts/check-commit-messages.sh '@{u}' HEAD
+fi
