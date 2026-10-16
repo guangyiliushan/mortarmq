@@ -13,6 +13,12 @@ fn expect_golden_payload(
         Ok(decoded_payload) => assert_eq(decoded_payload, expected)
         Err(code) => fail("golden payload failed with \{code.to_uint16()})")
       }
+      // The encode direction is pinned to the same literal: the payload
+      // encoder reproduces the frame's op-payload slice byte for byte.
+      match @protocol.encode_wire_payload(expected) {
+        Ok(bytes) => assert_eq(data[5:].to_owned(), bytes)
+        Err(code) => fail("golden encode failed with \{code.to_uint16()})")
+      }
     }
     _ => fail("expected a complete golden frame")
   }
@@ -54,7 +60,13 @@ test "golden PING frame is the minimum legal frame" {
       assert_eq(op, @protocol.Op::Ping)
       assert_eq(payload.length(), 0)
       match @protocol.decode_wire_payload(op, payload) {
-        Ok(@protocol.WirePayload::Ping) => assert_eq(true, true)
+        Ok(@protocol.WirePayload::Ping) => {
+          assert_eq(true, true)
+          assert_eq(
+            @protocol.encode_wire_payload(@protocol.WirePayload::Ping),
+            Ok(b""),
+          )
+        }
         _ => fail("expected golden PING payload")
       }
     }
