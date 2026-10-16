@@ -156,12 +156,29 @@ pub async fn[D : @security.Delay] establish(
 }
 
 ///|
+/// A bounded establishment: at most 8 pre-CONNECT frames totalling at
+/// most 1 MiB, so one admitted connection cannot park its slot on an
+/// endless PING stream. The wall-clock deadline is the wiring
+/// contract's half (see auth.mbt); this module bounds what it sees.
+const MAX_ESTABLISH_FRAMES : Int = 8
+
+///|
+const MAX_ESTABLISH_BYTES : Int = 1048576
+
+///|
 async fn[D : @security.Delay] establish_admitted(
   messages : Iter[BytesView],
   store : @security.TokenStore,
   delay : D,
 ) -> Result[Session, SessionFail] {
+  let mut seen_frames = 0
+  let mut seen_bytes = 0
   for message in messages {
+    seen_frames = seen_frames + 1
+    seen_bytes = seen_bytes + message.length()
+    if seen_frames > MAX_ESTABLISH_FRAMES || seen_bytes > MAX_ESTABLISH_BYTES {
+      return Err(WsRefused(@protocol.ProtocolError))
+    }
     let body = match
       @protocol.decode_ws_message(message, @protocol.WsPeer::Client) {
       Message(body, _) => body

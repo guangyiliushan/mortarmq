@@ -22,10 +22,13 @@ fn record_delay() -> RecordDelay {
 ///|
 /// The token "abc" hashes to the first line, the empty token to the
 /// second -- the same store the authentication tests pin.
-fn test_store() -> @security.TokenStore {
+fn test_store() -> @security.TokenStore raise {
   let line1 = b"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\tadmin"
   let line2 = b"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\tclient"
-  @security.parse_tokens((line1 + b"\n" + line2 + b"\n")[:])
+  match @security.parse_tokens((line1 + b"\n" + line2 + b"\n")[:]) {
+    Some(store) => store
+    None => fail("the fixture store must parse")
+  }
 }
 
 ///|
@@ -278,5 +281,27 @@ async test "garbage frame bytes keep the frame layer's registered code" {
       @session.DecodeRefused(@protocol.BadLength),
     ),
     @protocol.BadLength,
+  )
+}
+
+///|
+async test "a pre-CONNECT frame flood past the cap refuses the establishment" {
+  let delay = record_delay()
+  let admission = @session.ConnAdmission::new(1U.to_uint16())
+  let pings = [
+    empty_body_message((0x07).to_byte())[:],
+    empty_body_message((0x07).to_byte())[:],
+    empty_body_message((0x07).to_byte())[:],
+    empty_body_message((0x07).to_byte())[:],
+    empty_body_message((0x07).to_byte())[:],
+    empty_body_message((0x07).to_byte())[:],
+    empty_body_message((0x07).to_byte())[:],
+    empty_body_message((0x07).to_byte())[:],
+    empty_body_message((0x07).to_byte())[:],
+  ]
+  let outcome = @session.establish(pings.iter(), test_store(), delay, admission)
+  assert_eq(
+    outcome,
+    Err(@session.SessionFail::WsRefused(@protocol.ProtocolError)),
   )
 }
