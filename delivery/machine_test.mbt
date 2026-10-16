@@ -389,3 +389,113 @@ async test "the delivery bundle is returned only after the durable write" {
     Err(_) => fail("ledger scan failed")
   }
 }
+
+///|
+/// Drive one delivery to the final attempt, fence it through an
+/// ownership change, and answer the fenced owner's late ACK and NACK:
+/// both must name StaleOwner (0x0022) -- the parked entry remembers the
+/// fenced delivery id, which is what routes the old owner to re-SUB
+/// instead of into the dead-letter refusal.
+async test "a fenced final attempt answers late ack and nack with StaleOwner" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = open_machine(path)
+  let rng = @harness.SplitMix64::new(4UL)
+  let mut round = 0
+  let mut last_id = 0UL
+  while round < 5 {
+    let bundle = match machine.begin_delivery(disk, key(1), 7, 1000, None) {
+      Ok(bundle) => bundle
+      Err(_) => fail("begin_delivery failed")
+    }
+    last_id = bundle.delivery_id
+    if round < 4 {
+      match
+        machine.nack(
+          disk,
+          rng,
+          key(1),
+          bundle.delivery_id,
+          @delivery.DeliveryOutcome::Retry,
+          1000,
+          None,
+        ) {
+        Ok(_) => ()
+        Err(_) => fail("nack failed")
+      }
+    }
+    round = round + 1
+  }
+  match
+    machine.on_ownership_changed(disk, 1, 1, 0, 55, 7, 9, 3, 4, 2000, None) {
+    Ok(_) => ()
+    Err(_) => fail("on_ownership_changed failed")
+  }
+  match machine.ack(disk, key(1), last_id, 3000, None) {
+    Err(@delivery.StaleOwner) => assert_eq(true, true)
+    _ => fail("expected StaleOwner for the late ack")
+  }
+  match
+    machine.nack(
+      disk,
+      rng,
+      key(1),
+      last_id,
+      @delivery.DeliveryOutcome::Retry,
+      3000,
+      None,
+    ) {
+    Err(@delivery.StaleOwner) => assert_eq(true, true)
+    _ => fail("expected StaleOwner for the late nack")
+  }
+}
+
+///|
+/// The fenced terminal journaling fails mid-flow (kill injection on the
+/// NACK_TERMINAL write): the FENCED event is durable, so the in-memory
+/// entry already carries the fence and the old owner's late ACK answers
+/// StaleOwner instead of landing as Applied behind the fence.
+async test "a late ack during the fenced terminal journaling answers StaleOwner" {
+  let disk = @harness.FakeDisk::new()
+  let path = b"data/partitions/0001/0000/delivery.mql"
+  let machine = open_machine(path)
+  let rng = @harness.SplitMix64::new(4UL)
+  let mut round = 0
+  let mut last_id = 0UL
+  while round < 5 {
+    let bundle = match machine.begin_delivery(disk, key(1), 7, 1000, None) {
+      Ok(bundle) => bundle
+      Err(_) => fail("begin_delivery failed")
+    }
+    last_id = bundle.delivery_id
+    if round < 4 {
+      match
+        machine.nack(
+          disk,
+          rng,
+          key(1),
+          bundle.delivery_id,
+          @delivery.DeliveryOutcome::Retry,
+          1000,
+          None,
+        ) {
+        Ok(_) => ()
+        Err(_) => fail("nack failed")
+      }
+    }
+    round = round + 1
+  }
+  // Nine journal writes so far; the FENCED write is op 10 and the
+  // NACK_TERMINAL write is op 11, so the kill lands exactly between
+  // them.
+  disk.set_kill_at(11)
+  match
+    machine.on_ownership_changed(disk, 1, 1, 0, 55, 7, 9, 3, 4, 2000, None) {
+    Err(@delivery.DiskFault(_)) => assert_eq(true, true)
+    _ => fail("expected the injected terminal-write failure")
+  }
+  match machine.ack(disk, key(1), last_id, 3000, None) {
+    Err(@delivery.StaleOwner) => assert_eq(true, true)
+    _ => fail("expected StaleOwner in the fenced mid-window")
+  }
+}

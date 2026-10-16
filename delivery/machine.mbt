@@ -483,6 +483,11 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
           Ok(_) => ()
           Err(code) => return Err(ledger_to_delivery_error(code))
         }
+        // Remember the fence in memory before any further journaling: a
+        // late ACK arriving while the terminal step is still journaling
+        // must answer StaleOwner, not Applied, and a crash in between
+        // folds from the FENCED event alone.
+        group.entries[sequence] = { ..entry, fenced_delivery_id: delivery_id, }
         if attempt >= MAX_ATTEMPTS {
           // The fenced delivery was the final attempt: there is no
           // redelivery left and the DLQ flow is the only exit.
@@ -499,6 +504,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
               owner_conn,
               attempt,
               NackReason::Retry,
+              delivery_id,
               now_unix_ms,
               watermark,
             ) {
@@ -599,6 +605,7 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
             } else {
               NackReason::Poison
             },
+            entry.fenced_delivery_id,
             now_unix_ms,
             watermark,
           )
@@ -727,6 +734,7 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
       owner_conn,
       attempt,
       NackReason::Retry,
+      entry_fence(self.group_state(key.group_id), key.sequence),
       now_unix_ms,
       watermark,
     )
@@ -764,7 +772,10 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
 /// Journal the terminal failure (`NACK_TERMINAL`) and park the entry in
 /// `DeadLetterQueued` awaiting its DLQ record. The caller completes the flow
 /// with `complete_dead_letter`; a crash between the two steps recovers as a
-/// pending dead-letter and the completion is re-run.
+/// pending dead-letter and the completion is re-run. `fenced_delivery_id`
+/// is the fence the parked entry remembers: the just-journaled FENCED id
+/// on the ownership path, the entry's existing fence on the nack and
+/// failure paths.
 async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
   self : DeliveryMachine,
   disk : D,
@@ -773,6 +784,7 @@ async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
   owner_conn : UInt64,
   attempt : UInt16,
   reason : NackReason,
+  fenced_delivery_id : UInt64,
   now_unix_ms : UInt64,
   watermark : @storage.Watermark?,
 ) -> Result[RetryPlan, DeliveryError] {
@@ -794,7 +806,7 @@ async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
   let group = self.group_state(key.group_id)
   group.entries[key.sequence] = {
     state: DeadLetterQueued(attempt),
-    fenced_delivery_id: entry_fence(group, key.sequence),
+    fenced_delivery_id,
     dlq_sequence: 0UL,
     retry_due_wall: 0UL,
     terminated: false,
