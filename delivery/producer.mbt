@@ -265,12 +265,6 @@ pub fn ProducerRegistry::admit(
   let high = state.high_watermark
   let outcome = if producer_seq == high + 1UL {
     bitmap_set(state.accepted, (producer_seq & 1023UL).to_int())
-    if producer_seq > PRODUCER_WINDOW {
-      bitmap_clear(
-        state.accepted,
-        ((producer_seq - PRODUCER_WINDOW) & 1023UL).to_int(),
-      )
-    }
     state.high_watermark = producer_seq
     // Flush the contiguous queued sequences behind the new frontier.
     let mut progressed = true

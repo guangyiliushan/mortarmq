@@ -90,11 +90,13 @@ test "P2 the boundary rules answer their registered codes (quickcheck seed=20261
   @quickcheck.check(
     (draw : UInt) => {
       let registry = @delivery.ProducerRegistry::new()
-      // Build a frontier of k accepted sequences.
+      // Build a frontier of 1024 + k accepted sequences: the +1024 base
+      // puts real expired sequences behind the retained window, and k is
+      // the exact boundary offset the expired probe names.
       let k = (draw % 64U).to_uint64() + 1UL
       let mut seq = 1UL
       let mut ok = true
-      while seq <= k {
+      while seq <= 1024UL + k {
         match registry.admit(1, 0, 7, seq, 1UL, 0UL) {
           Ok(@delivery.Accepted) => ()
           _ => ok = false
@@ -103,17 +105,15 @@ test "P2 the boundary rules answer their registered codes (quickcheck seed=20261
       }
       // Past the window is a gap; behind the retained window is expired;
       // inside it, the accepted bit answers duplicate.
-      match registry.admit(1, 0, 7, k + 1025UL, 1UL, 0UL) {
+      match registry.admit(1, 0, 7, 1024UL + k + 1025UL, 1UL, 0UL) {
         Err(@delivery.ProducerError::SeqGap) => ()
         _ => ok = false
       }
-      if k > 1024UL {
-        match registry.admit(1, 0, 7, k - 1024UL, 1UL, 0UL) {
-          Err(@delivery.ProducerError::SeqExpired) => ()
-          _ => ok = false
-        }
-      }
       match registry.admit(1, 0, 7, k, 1UL, 0UL) {
+        Err(@delivery.ProducerError::SeqExpired) => ()
+        _ => ok = false
+      }
+      match registry.admit(1, 0, 7, 1024UL + k, 1UL, 0UL) {
         Ok(@delivery.Duplicate) => ()
         _ => ok = false
       }
