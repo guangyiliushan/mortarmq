@@ -8,7 +8,10 @@
 /// part of the v0 on-disk contract and never change in place.
 
 ///|
-/// Segment magic for v0 record segment files; checkpoints use their own magic.
+/// Candidate segment identity bytes for a future file-level header.
+/// v0 segment files are bare record concatenations and carry no magic
+/// (the upgrade matrix F2/F3 rows report blocked on exactly this gap),
+/// so the constant and its checker serve the contract tests only.
 const SEGMENT_MAGIC : Bytes = b"MMQS"
 
 ///|
