@@ -90,4 +90,5 @@ Segments follow a fixed four-way split; **unregistered segments are all reserved
 | 2026-09-30 | Added `MAX_VALUE_LEN = 16 MiB − 1 KiB`, resolving the frame/value cap clash |
 | 2026-09-30 | Full error-code registry adopted; BACKPRESSURE/QUOTA moved to 0x4xxx; 0x600b added; AUTH_FAILED naming unified |
 | 2026-10-11 | 0x600c ELECTION_TIMEOUT added to the replication segment |
+| 2026-10-16 | Paired topic_id allocation (source odd / twin even, 32767 pairs); registry at 51 codes: 0x2007 MUTATION_NOT_PACKABLE |
 | 2026-09-30 | ACK flags=PROGRESS; NOTICE `notice_id`; SUB no implicit DECLARE + `credit_bytes`; SLOW=3 reserved |

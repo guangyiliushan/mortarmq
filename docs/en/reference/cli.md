@@ -2,7 +2,7 @@
 
 How operators and scripts drive the `mortarmq` CLI — the 7 commands, stable TSV column order, exit codes, and `--api-version`.
 
-> **Source of truth:** the output contract is frozen in code -- the `cli/` package renders every row, pins `API_VERSION = 1`, and golden-locks the column orders. The dispatcher binary has not shipped, so no command runs yet; this table stays its acceptance bar.
+> **Source of truth:** the output contract is frozen in code -- the `cli/` package renders every row, pins `API_VERSION = 1`, and golden-locks the column orders. The dispatcher binary has not shipped (`mortarmq serve` provides the admin face; the CLI dispatcher follows); this table stays its acceptance bar.
 
 ## Read the exit code, not the text
 

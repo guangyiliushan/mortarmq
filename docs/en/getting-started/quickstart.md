@@ -38,7 +38,9 @@ If `moon test` fails here, stop — everything downstream depends on this suite 
 ## Step 2: Start a 3-node broker (contract)
 
 ```bash
-# not runnable yet -- the broker package has no main.
+mortarmq serve '{"node_id": 1, "peers": [[1, "127.0.0.1:7188"]], "listen_admin": "127.0.0.1:7189"}'
+# The admin face listens on 127.0.0.1:7189: GET /healthz, /metrics, /stats?topic=..&group=..
+# The client protocol face (7188) comes up with its transport wiring.
 ```
 
 **How you will know it worked:**

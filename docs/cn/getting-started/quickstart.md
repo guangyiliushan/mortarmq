@@ -38,7 +38,9 @@ moon test
 ## 第 2 步：启动 3 节点 broker（契约）
 
 ```bash
-# not runnable yet -- the broker package has no main.
+mortarmq serve '{"node_id": 1, "peers": [[1, "127.0.0.1:7188"]], "listen_admin": "127.0.0.1:7189"}'
+# 管理面已在 127.0.0.1:7189 监听：GET /healthz、/metrics、/stats?topic=..&group=..
+# 客户端协议面（7188）随其传输接线启用
 ```
 
 **怎么算成功：**
