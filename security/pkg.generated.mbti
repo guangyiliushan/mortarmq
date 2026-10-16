@@ -24,7 +24,7 @@ pub fn hmac_sha256(Bytes, BytesView) -> Bytes
 
 pub fn is_loopback(BytesView) -> Bool
 
-pub fn parse_tokens(BytesView) -> TokenStore
+pub fn parse_tokens(BytesView) -> TokenStore?
 
 pub fn sha256(BytesView) -> Bytes
 
