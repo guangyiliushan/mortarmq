@@ -60,5 +60,10 @@ test "declare payload goldens mirror in both directions from literal bytes" {
 ///|
 test "the unregistered-type golden stays refused from literal bytes" {
   let crafted : Bytes = b"MMML\x01\x01\x00\x00\x91\x91\x98\xf0\x00\x00\x00\x00\x12\x34\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-  assert_eq(@metadata.decode_mmml_record(crafted[:]) is Err(_), true)
+  // The type field is validated before the CRC, so an unregistered type
+  // is refused as Malformed regardless of the checksum bytes.
+  match @metadata.decode_mmml_record(crafted[:]) {
+    Err(@metadata.Malformed) => assert_eq(true, true)
+    _ => fail("expected the unregistered type to decode as Malformed")
+  }
 }
