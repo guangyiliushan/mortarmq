@@ -1,5 +1,6 @@
 import {
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/ports",
   "guangyiliushan/mortarmq/protocol",
   "guangyiliushan/mortarmq/storage",
   "moonbitlang/core/debug",

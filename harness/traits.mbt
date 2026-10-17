@@ -5,27 +5,9 @@
 /// in simulation tests.
 
 ///|
-/// Report the three disk capabilities observed on supported Windows paths.
-pub(all) struct DiskCapabilities {
-  file_fsync : Bool
-  atomic_rename : Bool
-  dir_fsync : Bool
-} derive(Eq, Debug)
-
-///|
-pub extend DiskCapabilities with Eq::{not_equal, equal}
-
-///|
-pub extend DiskCapabilities with @moonbitlang/core/debug.Debug::{to_repr}
-
-///|
-/// Report a deterministic harness fault without leaking an OS error.
+/// Report a deterministic simulation fault without leaking an OS error.
 pub(all) suberror HarnessFault {
-  PathMissing
   PeerPartitioned
-  DiskFull
-  /// Report a fired fake-disk kill point, standing in for process death.
-  Killed
 } derive(Eq, Debug)
 
 ///|
@@ -49,29 +31,6 @@ pub(open) trait Clock {
 pub(open) trait Net {
   async fn send(Self, peer : UInt16, data : Bytes) -> Result[Unit, HarnessFault]
   async fn receive(Self, peer : UInt16) -> Bytes?
-}
-
-///|
-/// Perform durable file operations through a capability-aware storage seam.
-pub(open) trait Disk {
-  async fn write(Self, path : Bytes, data : Bytes) -> Result[Unit, HarnessFault]
-  /// Append `data` at the file's end, creating the file when missing: the
-  /// log-shaped writers' O(data) path, versus `write`'s whole-file replace.
-  async fn append(Self, path : Bytes, data : Bytes) -> Result[
-    Unit,
-    HarnessFault,
-  ]
-  async fn read(Self, path : Bytes) -> Result[Bytes, HarnessFault]
-  async fn fsync(Self, path : Bytes) -> Result[Unit, HarnessFault]
-  async fn rename(Self, old_path : Bytes, new_path : Bytes) -> Result[
-    Unit,
-    HarnessFault,
-  ]
-  /// Delete a file so its bytes stop counting against the volume. A
-  /// missing path reports `PathMissing`; this is the relief valve
-  /// retention (`delete_before`) reclaims space through.
-  async fn remove(Self, path : Bytes) -> Result[Unit, HarnessFault]
-  fn capabilities(Self) -> DiskCapabilities
 }
 
 ///|

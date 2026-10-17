@@ -5,7 +5,7 @@
 ///|
 async test "a declared mutation journals before it applies" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let service = @metadata.MetadataService::new()
   let log = b"meta/mmml.log"
   assert_eq(
@@ -35,7 +35,7 @@ async test "a declared mutation journals before it applies" {
 ///|
 async test "a journal write failure applies nothing" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let service = @metadata.MetadataService::new()
   let log = b"meta/mmml.log"
   // Kill the very first change op: the journal write itself fails.
@@ -61,7 +61,7 @@ async test "a journal write failure applies nothing" {
 ///|
 async test "a journal fsync failure applies nothing" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let service = @metadata.MetadataService::new()
   let log = b"meta/mmml.log"
   // The record write is op 1 and the fsync is op 2: the journal lands
@@ -96,7 +96,7 @@ async test "a journal fsync failure applies nothing" {
 ///|
 async test "a refused set answers without journaling" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let service = @metadata.MetadataService::new()
   let log = b"meta/mmml.log"
   // A set the packed journal record cannot hold is refused and nothing
@@ -108,7 +108,7 @@ async test "a refused set answers without journaling" {
     ]),
     Err(@protocol.MutationNotPackable),
   )
-  assert_eq(disk.read(log) is Err(@harness.PathMissing), true)
+  assert_eq(disk.read(log) is Err(@ports.PathMissing), true)
   // Apply a real mutation, then fence the same id with a different
   // body: the refusal answers as an outcome and adds no journal record.
   assert_eq(

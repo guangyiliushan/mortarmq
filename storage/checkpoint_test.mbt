@@ -16,13 +16,13 @@ fn frozen() -> Bytes {
 }
 
 ///|
-async fn seed(disk : &@harness.Disk, path : Bytes, data : Bytes) -> Unit {
-  assert_eq(@harness.Disk::write(disk, path, data), Ok(()))
+async fn seed(disk : &@ports.Disk, path : Bytes, data : Bytes) -> Unit {
+  assert_eq(@ports.Disk::write(disk, path, data), Ok(()))
 }
 
 ///|
-async fn stored(disk : &@harness.Disk, path : Bytes) -> Bytes {
-  match @harness.Disk::read(disk, path) {
+async fn stored(disk : &@ports.Disk, path : Bytes) -> Bytes {
+  match @ports.Disk::read(disk, path) {
     Ok(bytes) => bytes
     Err(_) => fail("checkpoint file read failed")
   }
@@ -77,7 +77,7 @@ test "checkpoint decoder rejects corrupted payload and checksum bytes" {
 
 ///|
 async test "atomic checkpoint publish replaces the state and consumes its tmp" {
-  let disk : &@harness.Disk = @harness.FakeDisk::new()
+  let disk : &@ports.Disk = @harness.FakeDisk::new()
   let old = state(10UL, 620U)
   let new = state(11UL, 682U)
   seed(disk, b"segment.checkpoint", @storage.encode_checkpoint(old))
@@ -87,8 +87,8 @@ async test "atomic checkpoint publish replaces the state and consumes its tmp" {
     @storage.encode_checkpoint(new),
   )
   assert_eq(
-    @harness.Disk::read(disk, b"segment.checkpoint.tmp"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"segment.checkpoint.tmp"),
+    Err(@ports.PathMissing),
   )
   assert_eq(
     @storage.decode_checkpoint(stored(disk, b"segment.checkpoint")[:]),
@@ -109,17 +109,17 @@ async test "interrupted checkpoints leave exactly the old or the new state" {
     disk.set_kill_at(armed)
     assert_eq(
       @storage.write_checkpoint(disk, b"segment.checkpoint", new),
-      Err(@harness.Killed),
+      Err(@ports.Killed),
     )
     assert_eq(stored(disk, b"segment.checkpoint"), old_bytes)
     if armed == 2 {
       assert_eq(
-        @harness.Disk::read(disk, b"segment.checkpoint.tmp"),
-        Err(@harness.PathMissing),
+        @ports.Disk::read(disk, b"segment.checkpoint.tmp"),
+        Err(@ports.PathMissing),
       )
     } else {
       assert_eq(
-        @harness.Disk::read(disk, b"segment.checkpoint.tmp"),
+        @ports.Disk::read(disk, b"segment.checkpoint.tmp"),
         Ok(new_bytes),
       )
     }
@@ -132,7 +132,7 @@ async test "interrupted checkpoints leave exactly the old or the new state" {
   torn_disk.set_kill_at(3)
   assert_eq(
     @storage.write_checkpoint(torn_disk, b"segment.checkpoint", new),
-    Err(@harness.Killed),
+    Err(@ports.Killed),
   )
   assert_eq(stored(torn_disk, b"segment.checkpoint"), old_bytes)
   assert_eq(
@@ -164,7 +164,7 @@ async test "every armed kill point preserves the two-state invariant" {
     if armed == 5 {
       assert_eq(attempt, Ok(()))
     } else {
-      assert_eq(attempt, Err(@harness.Killed))
+      assert_eq(attempt, Err(@ports.Killed))
     }
     if armed == 5 {
       assert_eq(stored(disk, b"segment.checkpoint"), new_bytes)
@@ -173,13 +173,13 @@ async test "every armed kill point preserves the two-state invariant" {
     }
     if armed == 3 || armed == 4 {
       assert_eq(
-        @harness.Disk::read(disk, b"segment.checkpoint.tmp"),
+        @ports.Disk::read(disk, b"segment.checkpoint.tmp"),
         Ok(new_bytes),
       )
     } else {
       assert_eq(
-        @harness.Disk::read(disk, b"segment.checkpoint.tmp"),
-        Err(@harness.PathMissing),
+        @ports.Disk::read(disk, b"segment.checkpoint.tmp"),
+        Err(@ports.PathMissing),
       )
     }
   }
@@ -187,7 +187,7 @@ async test "every armed kill point preserves the two-state invariant" {
 
 ///|
 async test "rewriting an unchanged checkpoint is idempotent" {
-  let disk : &@harness.Disk = @harness.FakeDisk::new()
+  let disk : &@ports.Disk = @harness.FakeDisk::new()
   let value = state(10UL, 620U)
   seed(disk, b"segment.checkpoint", @storage.encode_checkpoint(value))
   assert_eq(
@@ -202,14 +202,14 @@ async test "rewriting an unchanged checkpoint is idempotent" {
   assert_eq(stored(disk, b"segment.checkpoint"), once)
   assert_eq(@storage.decode_checkpoint(once[:]), Ok(value))
   assert_eq(
-    @harness.Disk::read(disk, b"segment.checkpoint.tmp"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"segment.checkpoint.tmp"),
+    Err(@ports.PathMissing),
   )
 }
 
 ///|
 async test "recovery reads ignore a stale tmp left by an interrupted attempt" {
-  let disk : &@harness.Disk = @harness.FakeDisk::new()
+  let disk : &@ports.Disk = @harness.FakeDisk::new()
   let old = state(10UL, 620U)
   let new = state(11UL, 682U)
   seed(disk, b"segment.checkpoint", @storage.encode_checkpoint(old))
@@ -228,7 +228,7 @@ async test "recovery reads ignore a stale tmp left by an interrupted attempt" {
     @storage.encode_checkpoint(new),
   )
   assert_eq(
-    @harness.Disk::read(disk, b"segment.checkpoint.tmp"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"segment.checkpoint.tmp"),
+    Err(@ports.PathMissing),
   )
 }

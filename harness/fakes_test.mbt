@@ -52,62 +52,56 @@ async test "fake net consumes FIFO delivery and partitions without side effects"
 ///|
 async test "fake disk persists, syncs, renames, and reports Windows limits" {
   let disk = @harness.FakeDisk::new()
-  let capabilities = @harness.Disk::capabilities(disk)
+  let capabilities = @ports.Disk::capabilities(disk)
   assert_eq(capabilities.file_fsync, true)
   assert_eq(capabilities.atomic_rename, true)
   assert_eq(capabilities.dir_fsync, false)
-  assert_eq(@harness.Disk::write(disk, b"checkpoint.tmp", b"state"), Ok(()))
-  assert_eq(@harness.Disk::fsync(disk, b"checkpoint.tmp"), Ok(()))
+  assert_eq(@ports.Disk::write(disk, b"checkpoint.tmp", b"state"), Ok(()))
+  assert_eq(@ports.Disk::fsync(disk, b"checkpoint.tmp"), Ok(()))
+  assert_eq(@ports.Disk::rename(disk, b"checkpoint.tmp", b"checkpoint"), Ok(()))
+  assert_eq(@ports.Disk::read(disk, b"checkpoint"), Ok(b"state"))
+  assert_eq(@ports.Disk::read(disk, b"missing"), Err(@ports.PathMissing))
+  assert_eq(@ports.Disk::fsync(disk, b"missing"), Err(@ports.PathMissing))
   assert_eq(
-    @harness.Disk::rename(disk, b"checkpoint.tmp", b"checkpoint"),
-    Ok(()),
-  )
-  assert_eq(@harness.Disk::read(disk, b"checkpoint"), Ok(b"state"))
-  assert_eq(@harness.Disk::read(disk, b"missing"), Err(@harness.PathMissing))
-  assert_eq(@harness.Disk::fsync(disk, b"missing"), Err(@harness.PathMissing))
-  assert_eq(
-    @harness.Disk::rename(disk, b"missing", b"next"),
-    Err(@harness.PathMissing),
+    @ports.Disk::rename(disk, b"missing", b"next"),
+    Err(@ports.PathMissing),
   )
   disk.set_disk_full(true)
-  assert_eq(
-    @harness.Disk::write(disk, b"blocked", b"data"),
-    Err(@harness.DiskFull),
-  )
-  assert_eq(@harness.Disk::fsync(disk, b"checkpoint"), Err(@harness.DiskFull))
+  assert_eq(@ports.Disk::write(disk, b"blocked", b"data"), Err(@ports.DiskFull))
+  assert_eq(@ports.Disk::fsync(disk, b"checkpoint"), Err(@ports.DiskFull))
 }
 
 ///|
 async test "fake disk supports overwrite, replacement, and same-path rename" {
   let disk = @harness.FakeDisk::new()
-  assert_eq(@harness.Disk::write(disk, b"data", b"first"), Ok(()))
-  assert_eq(@harness.Disk::write(disk, b"data", b"second"), Ok(()))
-  assert_eq(@harness.Disk::read(disk, b"data"), Ok(b"second"))
-  assert_eq(@harness.Disk::write(disk, b"temp", b"next"), Ok(()))
-  assert_eq(@harness.Disk::rename(disk, b"temp", b"data"), Ok(()))
-  assert_eq(@harness.Disk::read(disk, b"data"), Ok(b"next"))
-  assert_eq(@harness.Disk::read(disk, b"temp"), Err(@harness.PathMissing))
-  assert_eq(@harness.Disk::rename(disk, b"data", b"data"), Ok(()))
-  assert_eq(@harness.Disk::read(disk, b"data"), Ok(b"next"))
+  assert_eq(@ports.Disk::write(disk, b"data", b"first"), Ok(()))
+  assert_eq(@ports.Disk::write(disk, b"data", b"second"), Ok(()))
+  assert_eq(@ports.Disk::read(disk, b"data"), Ok(b"second"))
+  assert_eq(@ports.Disk::write(disk, b"temp", b"next"), Ok(()))
+  assert_eq(@ports.Disk::rename(disk, b"temp", b"data"), Ok(()))
+  assert_eq(@ports.Disk::read(disk, b"data"), Ok(b"next"))
+  assert_eq(@ports.Disk::read(disk, b"temp"), Err(@ports.PathMissing))
+  assert_eq(@ports.Disk::rename(disk, b"data", b"data"), Ok(()))
+  assert_eq(@ports.Disk::read(disk, b"data"), Ok(b"next"))
 }
 
 ///|
 async test "fake disk kill point fails the armed and every later mutation" {
   let disk = @harness.FakeDisk::new()
   disk.set_kill_at(2)
-  assert_eq(@harness.Disk::write(disk, b"a", b"1"), Ok(()))
-  assert_eq(@harness.Disk::fsync(disk, b"a"), Err(@harness.Killed))
-  assert_eq(@harness.Disk::rename(disk, b"a", b"b"), Err(@harness.Killed))
-  assert_eq(@harness.Disk::write(disk, b"b", b"2"), Err(@harness.Killed))
-  assert_eq(@harness.Disk::read(disk, b"a"), Ok(b"1"))
-  assert_eq(@harness.Disk::read(disk, b"b"), Err(@harness.PathMissing))
+  assert_eq(@ports.Disk::write(disk, b"a", b"1"), Ok(()))
+  assert_eq(@ports.Disk::fsync(disk, b"a"), Err(@ports.Killed))
+  assert_eq(@ports.Disk::rename(disk, b"a", b"b"), Err(@ports.Killed))
+  assert_eq(@ports.Disk::write(disk, b"b", b"2"), Err(@ports.Killed))
+  assert_eq(@ports.Disk::read(disk, b"a"), Ok(b"1"))
+  assert_eq(@ports.Disk::read(disk, b"b"), Err(@ports.PathMissing))
   disk.set_kill_at(0)
-  assert_eq(@harness.Disk::rename(disk, b"a", b"b"), Ok(()))
+  assert_eq(@ports.Disk::rename(disk, b"a", b"b"), Ok(()))
   disk.set_kill_at(1)
-  assert_eq(@harness.Disk::fsync(disk, b"b"), Err(@harness.Killed))
+  assert_eq(@ports.Disk::fsync(disk, b"b"), Err(@ports.Killed))
   disk.set_disk_full(true)
-  assert_eq(@harness.Disk::write(disk, b"c", b"3"), Err(@harness.Killed))
-  assert_eq(@harness.Disk::read(disk, b"c"), Err(@harness.PathMissing))
+  assert_eq(@ports.Disk::write(disk, b"c", b"3"), Err(@ports.Killed))
+  assert_eq(@ports.Disk::read(disk, b"c"), Err(@ports.PathMissing))
 }
 
 ///|

@@ -2,6 +2,7 @@
 package "guangyiliushan/mortarmq/harness"
 
 import {
+  "guangyiliushan/mortarmq/ports",
   "moonbitlang/core/debug",
 }
 
@@ -10,25 +11,13 @@ pub async fn[T : Eq] reproducible(UInt64, async (SimEnv) -> T) -> Bool
 
 // Errors
 pub(all) suberror HarnessFault {
-  PathMissing
   PeerPartitioned
-  DiskFull
-  Killed
 } derive(Eq, @debug.Debug)
 pub fn HarnessFault::equal(Self, Self) -> Bool
 pub fn HarnessFault::not_equal(Self, Self) -> Bool
 pub fn HarnessFault::to_repr(Self) -> @debug.Repr
 
 // Types and methods
-pub(all) struct DiskCapabilities {
-  file_fsync : Bool
-  atomic_rename : Bool
-  dir_fsync : Bool
-} derive(Eq, @debug.Debug)
-pub fn DiskCapabilities::equal(Self, Self) -> Bool
-pub fn DiskCapabilities::not_equal(Self, Self) -> Bool
-pub fn DiskCapabilities::to_repr(Self) -> @debug.Repr
-
 pub(all) struct FakeClock {
   // private fields
 } derive(@debug.Debug)
@@ -44,13 +33,13 @@ pub impl Clock for FakeClock
 pub(all) struct FakeDisk {
   // private fields
 } derive(@debug.Debug)
-pub async fn FakeDisk::append(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
-pub fn FakeDisk::capabilities(Self) -> DiskCapabilities
-pub async fn FakeDisk::fsync(Self, Bytes) -> Result[Unit, HarnessFault]
+pub async fn FakeDisk::append(Self, Bytes, Bytes) -> Result[Unit, @ports.PortFault]
+pub fn FakeDisk::capabilities(Self) -> @ports.DiskCapabilities
+pub async fn FakeDisk::fsync(Self, Bytes) -> Result[Unit, @ports.PortFault]
 pub fn FakeDisk::new() -> Self
-pub async fn FakeDisk::read(Self, Bytes) -> Result[Bytes, HarnessFault]
-pub async fn FakeDisk::remove(Self, Bytes) -> Result[Unit, HarnessFault]
-pub async fn FakeDisk::rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
+pub async fn FakeDisk::read(Self, Bytes) -> Result[Bytes, @ports.PortFault]
+pub async fn FakeDisk::remove(Self, Bytes) -> Result[Unit, @ports.PortFault]
+pub async fn FakeDisk::rename(Self, Bytes, Bytes) -> Result[Unit, @ports.PortFault]
 pub fn FakeDisk::set_capacity(Self, UInt64) -> Unit
 pub fn FakeDisk::set_disk_full(Self, Bool) -> Unit
 pub fn FakeDisk::set_kill_at(Self, Int) -> Unit
@@ -58,9 +47,9 @@ pub fn FakeDisk::snapshot(Self) -> Array[(Bytes, Bytes)]
 pub fn FakeDisk::to_repr(Self) -> @debug.Repr
 pub fn FakeDisk::total_bytes(Self) -> UInt64
 pub fn FakeDisk::used_bytes(Self) -> UInt64
-pub async fn FakeDisk::write(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
-pub impl Disk for FakeDisk
+pub async fn FakeDisk::write(Self, Bytes, Bytes) -> Result[Unit, @ports.PortFault]
 pub impl DiskUsage for FakeDisk
+pub impl @ports.Disk for FakeDisk
 
 pub(all) struct FakeNet {
   // private fields
@@ -95,16 +84,6 @@ pub impl Rng for SplitMix64
 pub(open) trait Clock {
   async fn now_ms(Self) -> UInt64
   async fn sleep_until(Self, UInt64) -> Bool
-}
-
-pub(open) trait Disk {
-  async fn write(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
-  async fn append(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
-  async fn read(Self, Bytes) -> Result[Bytes, HarnessFault]
-  async fn fsync(Self, Bytes) -> Result[Unit, HarnessFault]
-  async fn rename(Self, Bytes, Bytes) -> Result[Unit, HarnessFault]
-  async fn remove(Self, Bytes) -> Result[Unit, HarnessFault]
-  fn capabilities(Self) -> DiskCapabilities
 }
 
 pub(open) trait DiskUsage {

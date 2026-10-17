@@ -107,7 +107,7 @@ pub extend SeriesRecovery with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 fn is_missing(fault : StorageFault) -> Bool {
   match fault {
-    DiskFault(@harness.PathMissing) => true
+    DiskFault(@ports.PathMissing) => true
     _ => false
   }
 }
@@ -126,12 +126,12 @@ fn is_missing(fault : StorageFault) -> Bool {
 /// * `DiskFault(PathMissing)` when the file does not exist.
 /// * `DiskFault(fault)` for any other disk read failure.
 pub async fn scan_segment(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   segment_path : Bytes,
 ) -> Result[SegmentScan, StorageFault] {
-  let segment = match @harness.Disk::read(disk, segment_path) {
+  let segment = match @ports.Disk::read(disk, segment_path) {
     Ok(bytes) => bytes
-    Err(@harness.PathMissing) => return Err(DiskFault(@harness.PathMissing))
+    Err(@ports.PathMissing) => return Err(DiskFault(@ports.PathMissing))
     Err(fault) => return Err(DiskFault(fault))
   }
   let view = segment[:]
@@ -204,7 +204,7 @@ pub async fn scan_segment(
 /// * `DiskFault(fault)` when a read fails for any reason other than a
 ///   missing sealed segment, or when a quarantine move fails.
 pub async fn recover_series(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   base_path : Bytes,
   segment_count : Int32,
 ) -> Result[SeriesRecovery, StorageFault] {

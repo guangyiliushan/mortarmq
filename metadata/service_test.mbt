@@ -35,7 +35,7 @@ async test "injected damage degrades the service and refuses later writes" {
   ])
   let log = m1 + svc_flip_byte(m2, 20)
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let service = @metadata.MetadataService::new()
   match service.recover(disk, b"meta", log) {
     Err(code) => assert_eq(code, @protocol.MetadataReadOnly)
@@ -63,7 +63,7 @@ async test "reads stay available while writes are refused" {
   ])
   let log = m1 + b"torn-tail"
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let service = @metadata.MetadataService::new()
   assert_eq(service.recover(disk, b"meta", log) is Ok(_), true)
   assert_eq(service.partition_count("orders"), Some(3U))
@@ -79,7 +79,7 @@ async test "a trustworthy rebuild reopens the write path" {
     @metadata.DeclareBody::Create("payments", 1),
   ])
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let service = @metadata.MetadataService::new()
   match service.recover(disk, b"meta", m1 + svc_flip_byte(m2, 20)) {
     Err(code) => assert_eq(code, @protocol.MetadataReadOnly)
@@ -101,7 +101,7 @@ async test "a degraded service refuses to publish snapshots" {
     @metadata.DeclareBody::Create("orders", 3),
   ])
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let service = @metadata.MetadataService::new()
   assert_eq(service.recover(disk, b"meta", m1 + b"torn") is Ok(_), true)
   assert_eq(service.save(disk, b"meta", 1UL, m1.length().to_uint64()), Ok(()))
@@ -134,7 +134,7 @@ fn m2_frag() -> Bytes raise {
 ///|
 async test "path-like log bytes recover an empty state that is checkable" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let service = @metadata.MetadataService::new()
   match service.recover(disk, b"meta", b"meta/mmml.log") {
     Ok(state) => {

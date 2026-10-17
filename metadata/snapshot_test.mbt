@@ -239,7 +239,7 @@ test "snapshot refuses records carrying a mutation id" {
 ///|
 async test "save publishes via part rename and keeps two generations" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let dir = b"meta"
   let m = @metadata.DeclareMachine::new()
   assert_eq(
@@ -283,7 +283,7 @@ async test "save publishes via part rename and keeps two generations" {
 ///|
 async test "a killed save leaves the previous generation intact" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let dir = b"meta"
   let log = join([
     mutation_record(1UL, 1UL, @metadata.DeclareBody::Create("orders", 3)),
@@ -306,7 +306,7 @@ async test "a killed save leaves the previous generation intact" {
       epoch: 2UL,
       end_offset: 99UL,
     }),
-    Err(@metadata.DiskFault(@harness.Killed)),
+    Err(@metadata.DiskFault(@ports.Killed)),
   )
   match @metadata.recover_snapshot(disk, dir, log) {
     Ok(state) => {
@@ -320,7 +320,7 @@ async test "a killed save leaves the previous generation intact" {
 ///|
 async test "recover falls back to the previous generation when the newest is corrupt" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let dir = b"meta"
   let m1 = mutation_record(1UL, 1UL, @metadata.DeclareBody::Create("orders", 3))
   let m2 = mutation_record(
@@ -364,7 +364,7 @@ async test "recover falls back to the previous generation when the newest is cor
     Ok(()),
   )
   assert_eq(
-    @harness.Disk::write(disk, b"meta/mmml-snapshot-b.checkpoint", b"garbage"),
+    @ports.Disk::write(disk, b"meta/mmml-snapshot-b.checkpoint", b"garbage"),
     Ok(()),
   )
   match @metadata.recover_snapshot(disk, dir, log) {
@@ -376,7 +376,7 @@ async test "recover falls back to the previous generation when the newest is cor
     Err(_) => fail("fallback recovery failed")
   }
   assert_eq(
-    @harness.Disk::write(disk, b"meta/mmml-snapshot-a.checkpoint", b"garbage"),
+    @ports.Disk::write(disk, b"meta/mmml-snapshot-a.checkpoint", b"garbage"),
     Ok(()),
   )
   match @metadata.recover_snapshot(disk, dir, log) {
@@ -398,7 +398,7 @@ async test "recover skips snapshot hints and other non-mutation records" {
     (2UL, @metadata.DeclareBody::Delete("orders")),
   ])
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   match @metadata.recover_snapshot(disk, b"meta", log) {
     Ok(state) => {
       assert_eq(state.end_offset, log.length().to_uint64())
@@ -420,7 +420,7 @@ async test "recover reports the offset of a corrupt log record" {
   let m3 = mutation_record(3UL, 1UL, @metadata.DeclareBody::Create("audit", 2))
   let log = join([m1, flip_byte(m2, 20), m3])
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   match @metadata.recover_snapshot(disk, b"meta", log) {
     Err(@metadata.Corruption(offset)) =>
       assert_eq(offset, m1.length().reinterpret_as_uint())
@@ -438,7 +438,7 @@ async test "recovery degradation drives the gate without skipping damage" {
   )
   let log = join([m1, flip_byte(m2, 20)])
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let gate = @metadata.MetadataGuard::new()
   match @metadata.recover_snapshot(disk, b"meta", log) {
     Err(@metadata.Corruption(offset)) => {
@@ -464,7 +464,7 @@ async test "a torn log tail is discarded as an unfinished append" {
   let log = join([m1, m2[:20].to_owned()])
   let machine = machine_with([(1UL, @metadata.DeclareBody::Create("orders", 3))])
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   match @metadata.recover_snapshot(disk, b"meta", log) {
     Ok(state) => {
       assert_eq(state.end_offset, m1.length().to_uint64())
@@ -484,7 +484,7 @@ async test "a decreasing leader epoch is corruption at its record" {
   )
   let log = join([m1, m2])
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   match @metadata.recover_snapshot(disk, b"meta", log) {
     Err(@metadata.Corruption(offset)) =>
       assert_eq(offset, m1.length().reinterpret_as_uint())
@@ -495,7 +495,7 @@ async test "a decreasing leader epoch is corruption at its record" {
 ///|
 async test "a snapshot past the log end falls back to full replay" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let dir = b"meta"
   let log = join([
     mutation_record(1UL, 1UL, @metadata.DeclareBody::Create("orders", 3)),
@@ -529,7 +529,7 @@ async test "concurrent serializations recover to one identical state" {
   ])
   for log in [join([m1, m2]), join([m2, m1])] {
     let fake = @harness.FakeDisk::new()
-    let disk : &@harness.Disk = fake
+    let disk : &@ports.Disk = fake
     match @metadata.recover_snapshot(disk, b"meta", log) {
       Ok(state) => {
         assert_eq(state.end_offset, log.length().to_uint64())
@@ -594,7 +594,7 @@ async test "a torn packed record never leaves half a pair" {
   let m3 = mutation_record(3UL, 1UL, @metadata.DeclareBody::Create("after", 1))
   let full = join([m0, packed, m3])
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   for cut in 1..<packed.length() {
     let log = join([m0, packed[:cut].to_owned()])
     match @metadata.recover_snapshot(disk, b"meta", log) {
@@ -630,7 +630,7 @@ async test "killed snapshot saves never expose half a pair" {
   ])
   for kill_at in 1..<4 {
     let fake = @harness.FakeDisk::new()
-    let disk : &@harness.Disk = fake
+    let disk : &@ports.Disk = fake
     let empty = @metadata.DeclareMachine::new()
     assert_eq(
       @metadata.save_snapshot(disk, b"meta", {
@@ -662,7 +662,7 @@ async test "killed snapshot saves never expose half a pair" {
     }
   }
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   assert_eq(
     @metadata.save_snapshot(disk, b"meta", {
       machine: pair,
@@ -742,7 +742,7 @@ async test "recovery continues tracking across the snapshot point" {
   )
   let log = join([m1, m2, m3])
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let mid_machine = machine_with([
     (1UL, @metadata.DeclareBody::Create("orders", 3)),
     (2UL, @metadata.DeclareBody::Delete("orders")),

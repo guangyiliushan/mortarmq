@@ -74,7 +74,7 @@ pub fn MetadataService::quarantine_entries(
 ///   journal record; nothing was journaled or applied.
 /// * `Internal` (0x000A) when the journal encode, append, or fsync
 ///   failed; nothing was applied.
-pub async fn[D : @harness.Disk] MetadataService::submit_mutation(
+pub async fn[D : @ports.Disk] MetadataService::submit_mutation(
   self : MetadataService,
   disk : D,
   log : Bytes,
@@ -130,7 +130,7 @@ fn journal_record_type(ops : Array[DeclareBody]) -> MmmlRecordType? {
 /// acknowledged mutation on the replay path. A failed append or a failed
 /// fsync surfaces as `Internal` and leaves the in-memory table
 /// untouched.
-async fn[D : @harness.Disk] journal_declare(
+async fn[D : @ports.Disk] journal_declare(
   disk : D,
   log : Bytes,
   mutation_id : UInt64,
@@ -172,7 +172,7 @@ async fn[D : @harness.Disk] journal_declare(
 ///   code.
 pub async fn MetadataService::save(
   self : MetadataService,
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   dir : Bytes,
   epoch : UInt64,
   end_offset : UInt64,
@@ -211,7 +211,7 @@ pub async fn MetadataService::save(
 /// * `Internal` (0x000A) for a disk fault during recovery.
 pub async fn MetadataService::recover(
   self : MetadataService,
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   dir : Bytes,
   log_bytes : Bytes,
 ) -> Result[SnapshotState, @protocol.ErrCode] {

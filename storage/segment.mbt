@@ -70,7 +70,7 @@ pub(all) suberror AppendFault {
   /// Wrap a record-validation fault raised while building the request.
   Record(StorageFault)
   /// Wrap a disk fault raised while publishing the new record area.
-  Disk(@harness.HarnessFault)
+  Disk(@ports.PortFault)
   /// Report a watermark-gate refusal decided before any disk operation
   /// ran. The wire mapping to 0x4004 STORAGE_HIGH_WATERMARK belongs to
   /// the protocol/delivery layer, not this module.
@@ -124,7 +124,7 @@ pub extend SegmentWriter with @moonbitlang/core/debug.Debug::{to_repr}
 ///
 /// ```mbt check
 /// async test {
-///   let disk : &@harness.Disk = @harness.FakeDisk::new()
+///   let disk : &@ports.Disk = @harness.FakeDisk::new()
 ///   let writer = @storage.SegmentWriter::new(b"part-0.segment")
 ///   let result = @storage.SegmentWriter::append(writer, disk, b"", b"abc")
 ///   let appended = match result {
@@ -228,7 +228,7 @@ pub fn SegmentWriter::segment_count(self : SegmentWriter) -> Int32 {
 ///
 /// ```mbt check
 /// async test {
-///   let disk : &@harness.Disk = @harness.FakeDisk::new()
+///   let disk : &@ports.Disk = @harness.FakeDisk::new()
 ///   let writer = @storage.SegmentWriter::new(
 ///     b"part-0.segment",
 ///     segment_max_bytes=100,
@@ -253,7 +253,7 @@ pub fn SegmentWriter::segment_count(self : SegmentWriter) -> Int32 {
 /// ```
 pub async fn SegmentWriter::append(
   self : SegmentWriter,
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   key : Bytes,
   value : Bytes,
   producer_id~ : UInt64 = 0UL,
@@ -301,7 +301,7 @@ pub async fn SegmentWriter::append(
   }
   let file_offset = base_len
   let path = segment_path_of(self.state.val.base_path, target_index)
-  match @harness.Disk::append(disk, path, record) {
+  match @ports.Disk::append(disk, path, record) {
     Ok(_) => ()
     Err(fault) => return Err(Disk(fault))
   }
@@ -310,7 +310,7 @@ pub async fn SegmentWriter::append(
   self.state.val.segment_index = target_index
   self.state.val.active_len = base_len + record.length()
   self.state.val.next_sequence = header.sequence + 1UL
-  match @harness.Disk::fsync(disk, path) {
+  match @ports.Disk::fsync(disk, path) {
     Ok(_) => ()
     Err(fault) => return Err(Disk(fault))
   }

@@ -53,7 +53,7 @@ pub fn DeclareOutcome::to_protocol(
 /// every op outcome to the protocol face, in op order. A refusal of
 /// the mutation (guard write-refusal or a whole-set fence) surfaces
 /// as its registered code and no acks at all.
-pub async fn[D : @harness.Disk] MetadataService::mediate_mutation(
+pub async fn[D : @ports.Disk] MetadataService::mediate_mutation(
   self : MetadataService,
   disk : D,
   log : Bytes,

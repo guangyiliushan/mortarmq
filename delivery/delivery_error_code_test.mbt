@@ -25,7 +25,7 @@ test "every delivery refusal maps to a registered wire code" {
     @delivery.DeliveryError::DlqUnavailable.to_err_code(),
     @delivery.DeliveryError::Capacity.to_err_code(),
     @delivery.DeliveryError::Malformed.to_err_code(),
-    @delivery.DeliveryError::DiskFault(@harness.DiskFull).to_err_code(),
+    @delivery.DeliveryError::DiskFault(@ports.DiskFull).to_err_code(),
   ]
   for code in mapped {
     assert_eq(delivery_registered(code), true)

@@ -130,8 +130,8 @@ async test "index file read back from disk keeps every entry block-aligned" {
   let file = index_file_bytes(written)
   assert_eq(file.length(), 5 * @storage.INDEX_ENTRY_BYTES)
   let disk = @harness.FakeDisk::new()
-  assert_eq(@harness.Disk::write(disk, b"partition-0.index", file), Ok(()))
-  let stored = match @harness.Disk::read(disk, b"partition-0.index") {
+  assert_eq(@ports.Disk::write(disk, b"partition-0.index", file), Ok(()))
+  let stored = match @ports.Disk::read(disk, b"partition-0.index") {
     Ok(bytes) => bytes
     Err(_) => fail("index file read failed")
   }
@@ -280,15 +280,15 @@ async test "randomized point reads over a stored segment hit every indexed seque
   let (entries, segment) = anchored_segment(sequences)
   let disk = @harness.FakeDisk::new()
   assert_eq(
-    @harness.Disk::write(disk, b"partition-0.index", index_file_bytes(entries)),
+    @ports.Disk::write(disk, b"partition-0.index", index_file_bytes(entries)),
     Ok(()),
   )
-  assert_eq(@harness.Disk::write(disk, b"partition-0.log", segment), Ok(()))
-  let stored_index = match @harness.Disk::read(disk, b"partition-0.index") {
+  assert_eq(@ports.Disk::write(disk, b"partition-0.log", segment), Ok(()))
+  let stored_index = match @ports.Disk::read(disk, b"partition-0.index") {
     Ok(bytes) => bytes
     Err(_) => fail("index file read failed")
   }
-  let stored_segment = match @harness.Disk::read(disk, b"partition-0.log") {
+  let stored_segment = match @ports.Disk::read(disk, b"partition-0.log") {
     Ok(bytes) => bytes
     Err(_) => fail("segment file read failed")
   }

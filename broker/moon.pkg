@@ -1,6 +1,6 @@
 import {
   "guangyiliushan/mortarmq/delivery",
-  "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/ports",
   "guangyiliushan/mortarmq/metadata",
   "guangyiliushan/mortarmq/protocol",
   "guangyiliushan/mortarmq/storage",

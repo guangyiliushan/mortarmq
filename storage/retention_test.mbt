@@ -13,7 +13,7 @@ fn rt_value(i : Int32) -> Bytes {
 }
 
 ///|
-async fn rt_build_series(disk : &@harness.Disk) -> @storage.SegmentWriter {
+async fn rt_build_series(disk : &@ports.Disk) -> @storage.SegmentWriter {
   // 58-byte records under a 120-byte cap: two per segment, so ten appends
   // fill segments 0..4 with segment 4 active ([0,1][2,3][4,5][6,7][8,9]).
   let writer = @storage.SegmentWriter::new(RT_BASE, segment_max_bytes=120)
@@ -39,18 +39,18 @@ async test "golden: delete_before removes exactly the sealed segments entirely b
   // Segments 0 (last sequence 1) and 1 (last sequence 3) lie below 4.
   assert_eq(removed, 2)
   assert_eq(
-    @harness.Disk::read(disk, b"rt-part.segment.0"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"rt-part.segment.0"),
+    Err(@ports.PathMissing),
   )
   assert_eq(
-    @harness.Disk::read(disk, b"rt-part.segment.1"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"rt-part.segment.1"),
+    Err(@ports.PathMissing),
   )
   // Segment 2 (last sequence 5) crosses the watermark and stays.
-  if @harness.Disk::read(disk, b"rt-part.segment.2") is Err(_) {
+  if @ports.Disk::read(disk, b"rt-part.segment.2") is Err(_) {
     fail("segment 2 must survive")
   }
-  if @harness.Disk::read(disk, b"rt-part.segment.4") is Err(_) {
+  if @ports.Disk::read(disk, b"rt-part.segment.4") is Err(_) {
     fail("the active segment must survive")
   }
   // The write path is unaffected and the holes stay visible.
@@ -78,7 +78,7 @@ async test "a segment whose last sequence equals the watermark stays" {
   }
   // Segment 2 holds sequence 5: entirely below 5 is false at the boundary.
   assert_eq(removed, 2)
-  if @harness.Disk::read(disk, b"rt-part.segment.2") is Err(_) {
+  if @ports.Disk::read(disk, b"rt-part.segment.2") is Err(_) {
     fail("boundary segment must survive")
   }
   let _ = writer
@@ -93,7 +93,7 @@ async test "the active segment is never deleted however high the watermark" {
     Err(_) => fail("delete_before failed")
   }
   assert_eq(removed, 4)
-  if @harness.Disk::read(disk, b"rt-part.segment.4") is Err(_) {
+  if @ports.Disk::read(disk, b"rt-part.segment.4") is Err(_) {
     fail("the active segment must survive")
   }
   let _ = writer
@@ -103,7 +103,7 @@ async test "the active segment is never deleted however high the watermark" {
 async test "quarantine twins and sidecar notes are reclaimed with their segment" {
   let disk = @harness.FakeDisk::new()
   let writer = rt_build_series(disk)
-  let damaged = match @harness.Disk::read(disk, b"rt-part.segment.1") {
+  let damaged = match @ports.Disk::read(disk, b"rt-part.segment.1") {
     Ok(bytes) => bytes
     Err(_) => fail("sealed segment unreadable")
   }
@@ -111,11 +111,7 @@ async test "quarantine twins and sidecar notes are reclaimed with their segment"
   buf.write_bytes(damaged[:63])
   buf.write_byte(damaged[63] ^ b'\xff')
   buf.write_bytes(damaged[64:])
-  let op_result = @harness.Disk::write(
-    disk,
-    b"rt-part.segment.1",
-    buf.contents(),
-  )
+  let op_result = @ports.Disk::write(disk, b"rt-part.segment.1", buf.contents())
   if op_result is Err(_) {
     fail("corruption write failed")
   }
@@ -123,10 +119,10 @@ async test "quarantine twins and sidecar notes are reclaimed with their segment"
   if recovery_result is Err(_) {
     fail("series recovery failed")
   }
-  if @harness.Disk::read(disk, b"rt-part.segment.1.quarantined") is Err(_) {
+  if @ports.Disk::read(disk, b"rt-part.segment.1.quarantined") is Err(_) {
     fail("quarantine twin missing")
   }
-  if @harness.Disk::read(disk, b"rt-part.segment.1.quarantine") is Err(_) {
+  if @ports.Disk::read(disk, b"rt-part.segment.1.quarantine") is Err(_) {
     fail("quarantine sidecar missing")
   }
   let removed = match @storage.delete_before(disk, RT_BASE, 5, 3UL) {
@@ -137,12 +133,12 @@ async test "quarantine twins and sidecar notes are reclaimed with their segment"
   // prefix ends at sequence 2) both lie below 3.
   assert_eq(removed, 2)
   assert_eq(
-    @harness.Disk::read(disk, b"rt-part.segment.1.quarantined"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"rt-part.segment.1.quarantined"),
+    Err(@ports.PathMissing),
   )
   assert_eq(
-    @harness.Disk::read(disk, b"rt-part.segment.1.quarantine"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"rt-part.segment.1.quarantine"),
+    Err(@ports.PathMissing),
   )
   let _ = writer
 }
@@ -150,7 +146,7 @@ async test "quarantine twins and sidecar notes are reclaimed with their segment"
 ///|
 async test "an orphan sidecar note is cleaned up" {
   let disk = @harness.FakeDisk::new()
-  let note_result = @harness.Disk::write(
+  let note_result = @ports.Disk::write(
     disk, b"rt-part.segment.0.quarantine", b"first_bad_offset=0\n",
   )
   if note_result is Err(_) {
@@ -162,8 +158,8 @@ async test "an orphan sidecar note is cleaned up" {
   }
   assert_eq(removed, 0)
   assert_eq(
-    @harness.Disk::read(disk, b"rt-part.segment.0.quarantine"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"rt-part.segment.0.quarantine"),
+    Err(@ports.PathMissing),
   )
 }
 

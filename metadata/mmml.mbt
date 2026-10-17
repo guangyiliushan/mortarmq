@@ -52,7 +52,7 @@ pub(all) suberror MetadataFault {
   /// Wrap a disk fault raised while reading or publishing metadata state;
   /// recovery fails closed instead of guessing over durable state it cannot
   /// read.
-  DiskFault(@harness.HarnessFault)
+  DiskFault(@ports.PortFault)
 } derive(Eq, Debug)
 
 ///|

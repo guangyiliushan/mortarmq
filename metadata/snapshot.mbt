@@ -428,7 +428,7 @@ fn slot_path(dir : Bytes, slot : Bytes) -> Bytes {
 /// * `DiskFault` -- the write, fsync, or rename step faulted. The
 ///   previous generations in both slots are left as they were.
 pub async fn save_snapshot(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   dir : Bytes,
   state : SnapshotState,
 ) -> Result[Unit, MetadataFault] {
@@ -451,15 +451,15 @@ pub async fn save_snapshot(
   }
   let target = slot_path(dir, older_slot)
   let part = target + b".part"
-  match @harness.Disk::write(disk, part, bytes) {
+  match @ports.Disk::write(disk, part, bytes) {
     Ok(_) => ()
     Err(fault) => return Err(DiskFault(fault))
   }
-  match @harness.Disk::fsync(disk, part) {
+  match @ports.Disk::fsync(disk, part) {
     Ok(_) => ()
     Err(fault) => return Err(DiskFault(fault))
   }
-  match @harness.Disk::rename(disk, part, target) {
+  match @ports.Disk::rename(disk, part, target) {
     Ok(_) => Ok(())
     Err(fault) => Err(DiskFault(fault))
   }
@@ -474,11 +474,11 @@ pub async fn save_snapshot(
 ///   when the slot has never been written).
 /// * `Malformed` -- the slot bytes failed snapshot validation.
 pub async fn load_snapshot(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   dir : Bytes,
   slot : Bytes,
 ) -> Result[SnapshotState, MetadataFault] {
-  let bytes = match @harness.Disk::read(disk, slot_path(dir, slot)) {
+  let bytes = match @ports.Disk::read(disk, slot_path(dir, slot)) {
     Ok(value) => value
     Err(fault) => return Err(DiskFault(fault))
   }
@@ -518,7 +518,7 @@ pub async fn load_snapshot(
 /// * `DiskFault` -- a slot failed to read for a reason other than a
 ///   missing path or a validation refusal (those fall through the chain).
 pub async fn recover_snapshot(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   dir : Bytes,
   log_bytes : Bytes,
 ) -> Result[SnapshotState, MetadataFault] {
@@ -536,7 +536,7 @@ pub async fn recover_snapshot(
           }
         }
       Err(Malformed) => ()
-      Err(DiskFault(@harness.PathMissing)) => ()
+      Err(DiskFault(@ports.PathMissing)) => ()
       Err(fault) => return Err(fault)
     }
   }

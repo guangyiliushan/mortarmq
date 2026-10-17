@@ -141,7 +141,7 @@ pub fn upgrade_cases() -> Array[UpgradeCase] {
 /// configuration loads unchanged across the upgrade, the cli output
 /// contract pins its api version, and a version-one data directory
 /// artifact round-trips through its identity check.
-async fn assert_narrow_contract(disk : &@harness.Disk) -> Unit {
+async fn assert_narrow_contract(disk : &@ports.Disk) -> Unit {
   let text = "{\"node_id\": 1, \"peers\": [[1, \"0.0.0.0:7188\"]]}"
   let before = match @config.load_config(text) {
     Ok(config) => config
@@ -229,14 +229,14 @@ pub async fn case_f2(env : @harness.SimEnv) -> Unit {
     Err(_) => fail("the third append failed")
   }
   let sealed_path = b"data/partitions/7/0003/partition.segment.0"
-  let body = match @harness.Disk::read(env.disk, sealed_path) {
+  let body = match @ports.Disk::read(env.disk, sealed_path) {
     Ok(bytes) => bytes
     Err(_) => fail("the sealed segment read failed")
   }
   // A future compatible-tier extension appends an unknown tail block
   // after the version-one records; their version bytes stay 1.
   let extended = body + b"\xab\xcd\xef"
-  if @harness.Disk::write(env.disk, sealed_path, extended) is Err(_) {
+  if @ports.Disk::write(env.disk, sealed_path, extended) is Err(_) {
     fail("the extension write failed")
   }
   let recovered = @storage.recover_series(

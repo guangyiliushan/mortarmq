@@ -70,7 +70,7 @@ pub extend RedeliverError with @moonbitlang/core/debug.Debug::{to_repr}
 /// // The executor's due-timer hop, once per popped key:
 /// // let attempt = await redeliver_one(machine, registry, disk, key, ...)
 /// ```
-pub async fn[D : @harness.Disk] redeliver_one(
+pub async fn[D : @ports.Disk] redeliver_one(
   machine : @delivery.DeliveryMachine,
   registry : CreditRegistry,
   disk : D,

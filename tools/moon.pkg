@@ -4,6 +4,7 @@ import {
   "guangyiliushan/mortarmq/security",
   "guangyiliushan/mortarmq/storage",
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/ports",
   "guangyiliushan/mortarmq/config",
   "guangyiliushan/mortarmq/cli",
   "guangyiliushan/mortarmq/metadata",

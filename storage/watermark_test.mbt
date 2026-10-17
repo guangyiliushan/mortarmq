@@ -9,7 +9,7 @@ async fn wm_disk(used : Int32, total : UInt64) -> @harness.FakeDisk {
   disk.set_capacity(total)
   if used > 0 {
     let filler = Bytes::make(used, b'\x00')
-    if @harness.Disk::write(disk, b"volume-fill", filler) is Err(_) {
+    if @ports.Disk::write(disk, b"volume-fill", filler) is Err(_) {
       fail("filler write failed")
     }
   }
@@ -76,7 +76,7 @@ async test "capacity refusal is distinct from the hard disk-full fault" {
   let writer = @storage.SegmentWriter::new(b"wm-distinct.segment")
   assert_eq(
     @storage.SegmentWriter::append(writer, disk, b"", b"abc"),
-    Err(@storage.Disk(@harness.DiskFull)),
+    Err(@storage.Disk(@ports.DiskFull)),
   )
 }
 
@@ -148,7 +148,7 @@ async test "disk-full injection rejects explicitly without OOM or silent loss" {
       Err(_) => fail("gate returned a non-capacity fault")
     }
     let path = b"ledger-" + wm_value(attempts)
-    if @harness.Disk::write(disk, path, payload) is Err(_) {
+    if @ports.Disk::write(disk, path, payload) is Err(_) {
       fail("accepted write must not fail")
     }
     accepted.push(path)
@@ -160,18 +160,14 @@ async test "disk-full injection rejects explicitly without OOM or silent loss" {
   // Non-OOM: accepted bytes stay bounded by the capacity accounting.
   assert_eq(disk.used_bytes() <= 300UL, true)
   for path in accepted {
-    if @harness.Disk::read(disk, path) is Err(_) {
+    if @ports.Disk::read(disk, path) is Err(_) {
       fail("accepted write must be readable")
     }
   }
   // The hard disk-full fault is a separate, equally explicit outcome.
   disk.set_disk_full(true)
-  let overflow = @harness.Disk::write(
-    disk,
-    b"overflow",
-    Bytes::make(1, b'\x01'),
-  )
-  assert_eq(overflow, Err(@harness.DiskFull))
+  let overflow = @ports.Disk::write(disk, b"overflow", Bytes::make(1, b'\x01'))
+  assert_eq(overflow, Err(@ports.DiskFull))
 }
 
 ///|

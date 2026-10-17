@@ -142,7 +142,7 @@ async test "a hard disk failure is not a capacity refusal" {
     Err(_) => fail("writer construction failed")
   }
   match writer.append(disk, sample_event(@delivery.Deliver), Some(gate)) {
-    Err(@delivery.LedgerFault::DiskFault(@harness.DiskFull)) =>
+    Err(@delivery.LedgerFault::DiskFault(@ports.DiskFull)) =>
       assert_eq(true, true)
     _ => fail("expected a disk fault distinct from Capacity")
   }

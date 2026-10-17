@@ -17,7 +17,7 @@ test "every metadata fault maps to a registered wire code" {
   let mapped = [
     @metadata.Malformed.to_err_code(),
     @metadata.Corruption(64U).to_err_code(),
-    @metadata.DiskFault(@harness.DiskFull).to_err_code(),
+    @metadata.DiskFault(@ports.DiskFull).to_err_code(),
   ]
   for code in mapped {
     assert_eq(md_registered(code), true)
@@ -32,11 +32,11 @@ test "metadata faults land in the registered 0x0xxx and 0x2xxx families" {
   assert_eq(@metadata.Corruption(0U).to_err_code(), @protocol.MetadataReadOnly)
   assert_eq(@metadata.Corruption(0U).to_err_code().to_uint16(), 0x2003U)
   assert_eq(
-    @metadata.DiskFault(@harness.Killed).to_err_code(),
+    @metadata.DiskFault(@ports.Killed).to_err_code(),
     @protocol.Internal,
   )
   assert_eq(
-    @metadata.DiskFault(@harness.Killed).to_err_code().to_uint16(),
+    @metadata.DiskFault(@ports.Killed).to_err_code().to_uint16(),
     0x000AU,
   )
   assert_eq(
@@ -50,7 +50,7 @@ test "the metadata fault mapping is injective" {
   let codes = [
     @metadata.Malformed.to_err_code(),
     @metadata.Corruption(0U).to_err_code(),
-    @metadata.DiskFault(@harness.DiskFull).to_err_code(),
+    @metadata.DiskFault(@ports.DiskFull).to_err_code(),
   ]
   for i in 0..<codes.length() {
     for j in 0..<codes.length() {

@@ -23,10 +23,7 @@
 /// async test {
 ///   let env = @harness.SimEnv::new(3UL)
 ///   env.disk.set_kill_at(1)
-///   assert_eq(
-///     @harness.Disk::write(env.disk, b"log", b"bytes"),
-///     Err(@harness.Killed),
-///   )
+///   assert_eq(@ports.Disk::write(env.disk, b"log", b"bytes"), Err(@ports.Killed))
 /// }
 /// ```
 pub(all) struct SimEnv {

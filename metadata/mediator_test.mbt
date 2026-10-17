@@ -39,7 +39,7 @@ test "refusals surface only as registered codes through the seam" {
 ///|
 async test "a mediated packed pair acks per op with the source first" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let log = b"meta/mmml.log"
   let service = @metadata.MetadataService::new()
   match
@@ -70,7 +70,7 @@ async test "a mediated packed pair acks per op with the source first" {
 ///|
 async test "a mediated refusal carries the registered code and zero acks" {
   let fake = @harness.FakeDisk::new()
-  let disk : &@harness.Disk = fake
+  let disk : &@ports.Disk = fake
   let log = b"meta/mmml.log"
   let service = @metadata.MetadataService::new()
   ignore(

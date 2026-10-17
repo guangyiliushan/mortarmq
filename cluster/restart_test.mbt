@@ -13,7 +13,7 @@
 
 ///|
 async fn recovered_term() -> UInt64 {
-  let disk : &@harness.Disk = @harness.FakeDisk::new()
+  let disk : &@ports.Disk = @harness.FakeDisk::new()
   let snapshot : @metadata.SnapshotState = {
     machine: @metadata.DeclareMachine::new(),
     tracker: @metadata.ChangeTracker::new(),

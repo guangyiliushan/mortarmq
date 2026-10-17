@@ -1,11 +1,12 @@
 import {
-  "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/ports",
   "guangyiliushan/mortarmq/protocol",
   "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
 }
 
 import {
+  "guangyiliushan/mortarmq/harness",
   "moonbitlang/async",
   "moonbitlang/core/quickcheck",
 } for "test"

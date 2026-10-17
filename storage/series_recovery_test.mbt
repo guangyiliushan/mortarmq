@@ -64,7 +64,7 @@ fn sr_values() -> Array[Bytes] {
 }
 
 ///|
-async fn sr_build_series(disk : &@harness.Disk) -> @storage.SegmentWriter {
+async fn sr_build_series(disk : &@ports.Disk) -> @storage.SegmentWriter {
   // 58-byte records under a 120-byte cap: two records per segment, so six
   // appends fill segments 0, 1 and leave 2 active.
   let writer = @storage.SegmentWriter::new(SR_BASE, segment_max_bytes=120)
@@ -93,7 +93,7 @@ async test "quarantine moves a sealed segment aside and records the first bad of
   let disk = @harness.FakeDisk::new()
   let path = b"sr-quarantine.0"
   let body = sr_join([sr_record_bytes(0UL, b"v0"), sr_record_bytes(1UL, b"v1")])
-  if @harness.Disk::write(disk, path, body) is Err(_) {
+  if @ports.Disk::write(disk, path, body) is Err(_) {
     fail("setup write failed")
   }
   let quarantine_result = @storage.quarantine_segment(
@@ -111,10 +111,10 @@ async test "quarantine moves a sealed segment aside and records the first bad of
   assert_eq(entry.sidecar_path, b"sr-quarantine.0.quarantine")
   assert_eq(entry.first_bad_offset, 42)
   assert_eq(entry.reason, @storage.CorruptRecord)
-  assert_eq(@harness.Disk::read(disk, path), Err(@harness.PathMissing))
-  assert_eq(@harness.Disk::read(disk, entry.quarantined_path), Ok(body))
+  assert_eq(@ports.Disk::read(disk, path), Err(@ports.PathMissing))
+  assert_eq(@ports.Disk::read(disk, entry.quarantined_path), Ok(body))
   assert_eq(
-    @harness.Disk::read(disk, entry.sidecar_path),
+    @ports.Disk::read(disk, entry.sidecar_path),
     Ok(sr_note(42, b"corrupt_record")),
   )
 }
@@ -124,11 +124,11 @@ async test "quarantine re-entry completes the missing sidecar" {
   let disk = @harness.FakeDisk::new()
   let path = b"sr-reentry.0"
   let body = sr_join([sr_record_bytes(0UL, b"v0")])
-  if @harness.Disk::write(disk, path, body) is Err(_) {
+  if @ports.Disk::write(disk, path, body) is Err(_) {
     fail("setup write failed")
   }
   // Simulate a crash between rename and sidecar write.
-  if @harness.Disk::rename(disk, path, b"sr-reentry.0.quarantined") is Err(_) {
+  if @ports.Disk::rename(disk, path, b"sr-reentry.0.quarantined") is Err(_) {
     fail("setup rename failed")
   }
   let reentry_result = @storage.quarantine_segment(
@@ -142,10 +142,10 @@ async test "quarantine re-entry completes the missing sidecar" {
     Err(_) => fail("re-entry quarantine failed")
   }
   assert_eq(
-    @harness.Disk::read(disk, entry.sidecar_path),
+    @ports.Disk::read(disk, entry.sidecar_path),
     Ok(sr_note(0, b"corrupt_record")),
   )
-  assert_eq(@harness.Disk::read(disk, b"sr-reentry.0.quarantined"), Ok(body))
+  assert_eq(@ports.Disk::read(disk, b"sr-reentry.0.quarantined"), Ok(body))
 }
 
 ///|
@@ -153,7 +153,7 @@ async test "quarantine fails closed when neither the segment nor its twin exists
   let disk = @harness.FakeDisk::new()
   assert_eq(
     @storage.quarantine_segment(disk, b"sr-absent.0", 0, @storage.CorruptRecord),
-    Err(@storage.DiskFault(@harness.PathMissing)),
+    Err(@storage.DiskFault(@ports.PathMissing)),
   )
 }
 
@@ -162,11 +162,11 @@ async test "a corrupt sealed segment is quarantined while the rest of the series
   let disk = @harness.FakeDisk::new()
   let writer = sr_build_series(disk)
   // Corrupt the CRC of the second record in sealed segment 1.
-  let damaged = match @harness.Disk::read(disk, b"sr-part.segment.1") {
+  let damaged = match @ports.Disk::read(disk, b"sr-part.segment.1") {
     Ok(bytes) => bytes
     Err(_) => fail("sealed segment unreadable")
   }
-  let op_result1 = @harness.Disk::write(
+  let op_result1 = @ports.Disk::write(
     disk,
     b"sr-part.segment.1",
     sr_flip(damaged, 63),
@@ -206,7 +206,7 @@ async test "a corrupt sealed segment is quarantined while the rest of the series
   assert_eq(recovery.active_truncated_at, None)
   assert_eq(recovery.next_sequence, 6UL)
   assert_eq(
-    @harness.Disk::read(disk, b"sr-part.segment.1.quarantine"),
+    @ports.Disk::read(disk, b"sr-part.segment.1.quarantine"),
     Ok(sr_note(sr_len(b"v2"), b"corrupt_record")),
   )
   // The write path is unaffected by the quarantine.
@@ -224,10 +224,10 @@ async test "an in-segment sequence jump quarantines the sealed segment as a gap"
     sr_record_bytes(1UL, b"v1"),
     sr_record_bytes(5UL, b"v5"),
   ])
-  if @harness.Disk::write(disk, b"sr-part.segment.0", body) is Err(_) {
+  if @ports.Disk::write(disk, b"sr-part.segment.0", body) is Err(_) {
     fail("setup write failed")
   }
-  let op_result2 = @harness.Disk::write(
+  let op_result2 = @ports.Disk::write(
     disk,
     b"sr-part.segment.1",
     sr_record_bytes(6UL, b"v6"),
@@ -260,7 +260,7 @@ async test "an in-segment sequence jump quarantines the sealed segment as a gap"
     },
   ])
   assert_eq(
-    @harness.Disk::read(disk, b"sr-part.segment.0.quarantine"),
+    @ports.Disk::read(disk, b"sr-part.segment.0.quarantine"),
     Ok(sr_note(sr_len(b"v0") * 2, b"sequence_gap")),
   )
 }
@@ -269,11 +269,11 @@ async test "an in-segment sequence jump quarantines the sealed segment as a gap"
 async test "the active segment truncates to the last valid record instead of quarantining" {
   let disk = @harness.FakeDisk::new()
   let writer = sr_build_series(disk)
-  let damaged = match @harness.Disk::read(disk, b"sr-part.segment.2") {
+  let damaged = match @ports.Disk::read(disk, b"sr-part.segment.2") {
     Ok(bytes) => bytes
     Err(_) => fail("active segment unreadable")
   }
-  let op_result3 = @harness.Disk::write(
+  let op_result3 = @ports.Disk::write(
     disk,
     b"sr-part.segment.2",
     sr_flip(damaged, 63),
@@ -304,7 +304,7 @@ async test "the active segment truncates to the last valid record instead of qua
 async test "a missing sealed segment surfaces as a visible hole" {
   let disk = @harness.FakeDisk::new()
   let writer = sr_build_series(disk)
-  let op_result4 = @harness.Disk::rename(
+  let op_result4 = @ports.Disk::rename(
     disk, b"sr-part.segment.1", b"sr-moved-away",
   )
   if op_result4 is Err(_) {
@@ -345,11 +345,11 @@ async test "a missing sealed segment surfaces as a visible hole" {
 async test "series recovery re-converges after a crash between rename and sidecar" {
   let disk = @harness.FakeDisk::new()
   let writer = sr_build_series(disk)
-  let damaged = match @harness.Disk::read(disk, b"sr-part.segment.1") {
+  let damaged = match @ports.Disk::read(disk, b"sr-part.segment.1") {
     Ok(bytes) => bytes
     Err(_) => fail("sealed segment unreadable")
   }
-  let op_result5 = @harness.Disk::write(
+  let op_result5 = @ports.Disk::write(
     disk,
     b"sr-part.segment.1",
     sr_flip(damaged, 63),
@@ -357,7 +357,7 @@ async test "series recovery re-converges after a crash between rename and sideca
   if op_result5 is Err(_) {
     fail("corruption write failed")
   }
-  let op_result6 = @harness.Disk::rename(
+  let op_result6 = @ports.Disk::rename(
     disk, b"sr-part.segment.1", b"sr-part.segment.1.quarantined",
   )
   if op_result6 is Err(_) {
@@ -372,7 +372,7 @@ async test "series recovery re-converges after a crash between rename and sideca
   assert_eq(recovery.quarantined[0].first_bad_offset, sr_len(b"v2"))
   assert_eq(recovery.quarantined[0].reason, @storage.CorruptRecord)
   assert_eq(
-    @harness.Disk::read(disk, b"sr-part.segment.1.quarantine"),
+    @ports.Disk::read(disk, b"sr-part.segment.1.quarantine"),
     Ok(sr_note(sr_len(b"v2"), b"corrupt_record")),
   )
   let _ = writer
@@ -388,11 +388,11 @@ async test "every kill point leaves a recoverable series and the writer keeps wr
   while arm <= 5 {
     let disk = @harness.FakeDisk::new()
     let writer = sr_build_series(disk)
-    let damaged = match @harness.Disk::read(disk, b"sr-part.segment.1") {
+    let damaged = match @ports.Disk::read(disk, b"sr-part.segment.1") {
       Ok(bytes) => bytes
       Err(_) => fail("sealed segment unreadable")
     }
-    let op_result7 = @harness.Disk::write(
+    let op_result7 = @ports.Disk::write(
       disk,
       b"sr-part.segment.1",
       sr_flip(damaged, 63),
@@ -474,12 +474,12 @@ async test "bit-flip sweep quarantines every flip at the record that holds it" {
     while bit < 8 {
       let disk = @harness.FakeDisk::new()
       let _ = sr_build_series(disk)
-      let original = match @harness.Disk::read(disk, b"sr-part.segment.1") {
+      let original = match @ports.Disk::read(disk, b"sr-part.segment.1") {
         Ok(bytes) => bytes
         Err(_) => fail("sealed segment unreadable")
       }
       let flipped = sr_flip_bit(original, byte_index, bit)
-      let op_result = @harness.Disk::write(disk, b"sr-part.segment.1", flipped)
+      let op_result = @ports.Disk::write(disk, b"sr-part.segment.1", flipped)
       if op_result is Err(_) {
         fail("flip write failed")
       }
@@ -508,13 +508,13 @@ async test "bit-flip sweep quarantines every flip at the record that holds it" {
 async test "a torn tail in a sealed segment is quarantined and localized" {
   let disk = @harness.FakeDisk::new()
   let writer = sr_build_series(disk)
-  let damaged = match @harness.Disk::read(disk, b"sr-part.segment.1") {
+  let damaged = match @ports.Disk::read(disk, b"sr-part.segment.1") {
     Ok(bytes) => bytes
     Err(_) => fail("sealed segment unreadable")
   }
   // Keep the first record complete and tear the second one.
   let torn = damaged[:sr_len(b"v2") + 30].to_owned()
-  let op_result = @harness.Disk::write(disk, b"sr-part.segment.1", torn)
+  let op_result = @ports.Disk::write(disk, b"sr-part.segment.1", torn)
   if op_result is Err(_) {
     fail("tear write failed")
   }
@@ -556,12 +556,12 @@ async test "a torn tail in a sealed segment is quarantined and localized" {
 async test "a torn tail on the active segment is a normal crash boundary" {
   let disk = @harness.FakeDisk::new()
   let writer = sr_build_series(disk)
-  let damaged = match @harness.Disk::read(disk, b"sr-part.segment.2") {
+  let damaged = match @ports.Disk::read(disk, b"sr-part.segment.2") {
     Ok(bytes) => bytes
     Err(_) => fail("active segment unreadable")
   }
   let torn = damaged[:sr_len(b"v4") + 30].to_owned()
-  let op_result = @harness.Disk::write(disk, b"sr-part.segment.2", torn)
+  let op_result = @ports.Disk::write(disk, b"sr-part.segment.2", torn)
   if op_result is Err(_) {
     fail("tear write failed")
   }

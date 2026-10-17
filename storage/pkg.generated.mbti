@@ -3,6 +3,7 @@ package "guangyiliushan/mortarmq/storage"
 
 import {
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/ports",
   "moonbitlang/core/debug",
 }
 
@@ -19,7 +20,7 @@ pub const RECORD_HEADER_BYTES : Int = 56
 
 pub const SEGMENT_MAX_BYTES : Int = 67108864
 
-pub async fn complete_quarantine(&@harness.Disk, Bytes, Int, QuarantineReason) -> Result[QuarantineRecord, StorageFault]
+pub async fn complete_quarantine(&@ports.Disk, Bytes, Int, QuarantineReason) -> Result[QuarantineRecord, StorageFault]
 
 pub fn decode_checkpoint(BytesView) -> Result[SegmentCheckpoint, StorageFault]
 
@@ -29,7 +30,7 @@ pub fn decode_index_file(BytesView) -> Result[Array[IndexEntry], StorageFault]
 
 pub fn decode_record_header(BytesView) -> Result[RecordHeader, StorageFault]
 
-pub async fn delete_before(&@harness.Disk, Bytes, Int, UInt64) -> Result[Int, StorageFault]
+pub async fn delete_before(&@ports.Disk, Bytes, Int, UInt64) -> Result[Int, StorageFault]
 
 pub fn encode_checkpoint(SegmentCheckpoint) -> Bytes
 
@@ -45,26 +46,26 @@ pub fn lookup_index_view(BytesView, UInt64) -> Result[IndexEntry?, StorageFault]
 
 pub fn quarantine_paths(Bytes) -> (Bytes, Bytes)
 
-pub async fn quarantine_segment(&@harness.Disk, Bytes, Int, QuarantineReason) -> Result[QuarantineRecord, StorageFault]
+pub async fn quarantine_segment(&@ports.Disk, Bytes, Int, QuarantineReason) -> Result[QuarantineRecord, StorageFault]
 
 pub fn read_record_header_at(BytesView, IndexEntry) -> Result[RecordHeader, StorageFault]
 
-pub async fn recover_segment(&@harness.Disk, Bytes, Bytes) -> Result[SegmentRecovery, StorageFault]
+pub async fn recover_segment(&@ports.Disk, Bytes, Bytes) -> Result[SegmentRecovery, StorageFault]
 
-pub async fn recover_series(&@harness.Disk, Bytes, Int) -> Result[SeriesRecovery, StorageFault]
+pub async fn recover_series(&@ports.Disk, Bytes, Int) -> Result[SeriesRecovery, StorageFault]
 
-pub async fn scan_segment(&@harness.Disk, Bytes) -> Result[SegmentScan, StorageFault]
+pub async fn scan_segment(&@ports.Disk, Bytes) -> Result[SegmentScan, StorageFault]
 
 pub fn segment_path_of(Bytes, Int) -> Bytes
 
 pub fn validate_segment_identity(BytesView) -> Result[Unit, StorageFault]
 
-pub async fn write_checkpoint(&@harness.Disk, Bytes, SegmentCheckpoint) -> Result[Unit, @harness.HarnessFault]
+pub async fn write_checkpoint(&@ports.Disk, Bytes, SegmentCheckpoint) -> Result[Unit, @ports.PortFault]
 
 // Errors
 pub(all) suberror AppendFault {
   Record(StorageFault)
-  Disk(@harness.HarnessFault)
+  Disk(@ports.PortFault)
   Capacity
 } derive(Eq, @debug.Debug)
 pub fn AppendFault::equal(Self, Self) -> Bool
@@ -73,7 +74,7 @@ pub fn AppendFault::to_repr(Self) -> @debug.Repr
 
 pub(all) suberror StorageFault {
   Malformed
-  DiskFault(@harness.HarnessFault)
+  DiskFault(@ports.PortFault)
 } derive(Eq, @debug.Debug)
 pub fn StorageFault::equal(Self, Self) -> Bool
 pub fn StorageFault::not_equal(Self, Self) -> Bool
@@ -204,7 +205,7 @@ pub(all) struct SegmentWriter {
 } derive(@debug.Debug)
 pub fn SegmentWriter::active_bytes(Self) -> Int
 pub fn SegmentWriter::active_path(Self) -> Bytes
-pub async fn SegmentWriter::append(Self, &@harness.Disk, Bytes, Bytes, producer_id? : UInt64, producer_seq? : UInt64, timestamp_unix_ms? : UInt64, leader_epoch? : UInt, replication_flags? : Byte, watermark? : Watermark) -> Result[AppendedRecord, AppendFault]
+pub async fn SegmentWriter::append(Self, &@ports.Disk, Bytes, Bytes, producer_id? : UInt64, producer_seq? : UInt64, timestamp_unix_ms? : UInt64, leader_epoch? : UInt, replication_flags? : Byte, watermark? : Watermark) -> Result[AppendedRecord, AppendFault]
 pub fn SegmentWriter::new(Bytes, segment_max_bytes? : Int, start_sequence? : UInt64) -> Self
 pub fn SegmentWriter::next_sequence(Self) -> UInt64
 pub fn SegmentWriter::segment_count(Self) -> Int

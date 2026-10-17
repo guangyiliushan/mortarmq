@@ -188,7 +188,7 @@ async fn run_l4_case(kill_at : Int32) -> Array[@delivery.LedgerEvent] {
   let mut delivered = match
     machine.begin_delivery(disk, key(1), 7, 1000, None) {
     Ok(bundle) => bundle
-    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) => {
+    Err(@delivery.DeliveryError::DiskFault(@ports.Killed)) => {
       disk.set_kill_at(0)
       machine = match
         @delivery.DeliveryMachine::recover(
@@ -214,7 +214,7 @@ async fn run_l4_case(kill_at : Int32) -> Array[@delivery.LedgerEvent] {
   let acked = match
     machine.ack(disk, key(1), delivered.delivery_id, 2000, None) {
     Ok(_) => true
-    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) => {
+    Err(@delivery.DeliveryError::DiskFault(@ports.Killed)) => {
       disk.set_kill_at(0)
       machine = match
         @delivery.DeliveryMachine::recover(
@@ -253,7 +253,7 @@ async fn run_l4_case(kill_at : Int32) -> Array[@delivery.LedgerEvent] {
   // op 3: the flush itself.
   match machine.sync(disk) {
     Ok(_) => ()
-    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) => {
+    Err(@delivery.DeliveryError::DiskFault(@ports.Killed)) => {
       disk.set_kill_at(0)
       machine = match
         @delivery.DeliveryMachine::recover(
@@ -365,13 +365,13 @@ async test "the delivery bundle is returned only after the durable write" {
   // Kill at the DELIVER write: no bundle exists, so nothing can be
   // emitted before it is durable.
   match machine.begin_delivery(disk, key(1), 7, 1000, None) {
-    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) =>
+    Err(@delivery.DeliveryError::DiskFault(@ports.Killed)) =>
       assert_eq(true, true)
     _ => fail("expected the kill at the DELIVER write")
   }
   match @delivery.scan_ledger(disk, path) {
     Ok(scan) => assert_eq(scan.events.length(), 0)
-    Err(@delivery.LedgerFault::DiskFault(@harness.PathMissing)) =>
+    Err(@delivery.LedgerFault::DiskFault(@ports.PathMissing)) =>
       assert_eq(true, true)
     Err(_) => fail("unexpected ledger scan outcome")
   }

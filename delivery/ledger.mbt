@@ -44,7 +44,7 @@ const GROUP_COMMIT_EVENTS : Int32 = 128
 pub(all) suberror LedgerFault {
   Malformed
   Capacity
-  DiskFault(@harness.HarnessFault)
+  DiskFault(@ports.PortFault)
 } derive(Eq, Debug)
 
 ///|
@@ -445,7 +445,7 @@ fn LedgerWriter::heal(
 /// writer's call shape); a refusal is `Capacity` and runs no disk
 /// operation. A writer flagged with mid-stream damage refuses until
 /// recovery repairs the log.
-pub async fn[D : @harness.Disk] LedgerWriter::append(
+pub async fn[D : @ports.Disk] LedgerWriter::append(
   self : LedgerWriter,
   disk : D,
   event : LedgerEvent,
@@ -479,7 +479,7 @@ pub async fn[D : @harness.Disk] LedgerWriter::append(
 
 ///|
 /// Force the group commit now.
-pub async fn[D : @harness.Disk] LedgerWriter::sync(
+pub async fn[D : @ports.Disk] LedgerWriter::sync(
   self : LedgerWriter,
   disk : D,
 ) -> Result[Unit, LedgerFault] {
@@ -516,7 +516,7 @@ pub extend LedgerScan with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 /// Scan a ledger stream per the `LedgerScan` contract. A missing file is
 /// an empty scan's caller decision: `recover` folds it as a fresh log.
-pub async fn[D : @harness.Disk] scan_ledger(
+pub async fn[D : @ports.Disk] scan_ledger(
   disk : D,
   path : Bytes,
 ) -> Result[LedgerScan, LedgerFault] {

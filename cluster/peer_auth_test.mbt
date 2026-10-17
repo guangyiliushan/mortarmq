@@ -68,7 +68,7 @@ async fn dial_loopback(port : Int32) -> Result[&@net.Conn, @protocol.ErrCode] {
     _ => return Err(@protocol.Internal)
   }
   // The coercion is spelled as a type ascription, the same way the
-  // storage tests hand a `FakeDisk` to a `&@harness.Disk` parameter.
+  // storage tests hand a `FakeDisk` to a `&@ports.Disk` parameter.
   let concrete : LoopConn = { tcp, }
   let conn : &@net.Conn = concrete
   Ok(conn)

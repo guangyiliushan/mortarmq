@@ -200,7 +200,7 @@ pub(all) struct FakeDisk {
 pub extend FakeDisk with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
-pub extend FakeDisk with Disk::{
+pub extend FakeDisk with @ports.Disk::{
   write,
   append,
   read,
@@ -247,8 +247,8 @@ pub fn FakeDisk::new() -> FakeDisk {
 /// async test {
 ///   let disk = @harness.FakeDisk::new()
 ///   disk.set_kill_at(1)
-///   assert_eq(@harness.Disk::write(disk, b"a", b"1"), Err(@harness.Killed))
-///   assert_eq(@harness.Disk::read(disk, b"a"), Err(@harness.PathMissing))
+///   assert_eq(@ports.Disk::write(disk, b"a", b"1"), Err(@ports.Killed))
+///   assert_eq(@ports.Disk::read(disk, b"a"), Err(@ports.PathMissing))
 /// }
 /// ```
 pub fn FakeDisk::set_kill_at(self : FakeDisk, op_number : Int32) -> Unit {
@@ -304,30 +304,32 @@ fn count_op_and_check_kill(state : DiskState) -> Bool {
 }
 
 ///|
-pub impl Disk for FakeDisk with fn write(self, path : Bytes, data : Bytes) -> Result[
-  Unit,
-  HarnessFault,
-] {
+pub impl @ports.Disk for FakeDisk with fn write(
+  self,
+  path : Bytes,
+  data : Bytes,
+) -> Result[Unit, @ports.PortFault] {
   if count_op_and_check_kill(self.state.val) {
-    return Err(Killed)
+    return Err(@ports.Killed)
   }
   if self.state.val.disk_full {
-    return Err(DiskFull)
+    return Err(@ports.DiskFull)
   }
   self.state.val.files[path] = data
   Ok(())
 }
 
 ///|
-pub impl Disk for FakeDisk with fn append(self, path : Bytes, data : Bytes) -> Result[
-  Unit,
-  HarnessFault,
-] {
+pub impl @ports.Disk for FakeDisk with fn append(
+  self,
+  path : Bytes,
+  data : Bytes,
+) -> Result[Unit, @ports.PortFault] {
   if count_op_and_check_kill(self.state.val) {
-    return Err(Killed)
+    return Err(@ports.Killed)
   }
   if self.state.val.disk_full {
-    return Err(DiskFull)
+    return Err(@ports.DiskFull)
   }
   let existing = match self.state.val.files.get(path) {
     Some(data) => data
@@ -338,46 +340,46 @@ pub impl Disk for FakeDisk with fn append(self, path : Bytes, data : Bytes) -> R
 }
 
 ///|
-pub impl Disk for FakeDisk with fn read(self, path : Bytes) -> Result[
+pub impl @ports.Disk for FakeDisk with fn read(self, path : Bytes) -> Result[
   Bytes,
-  HarnessFault,
+  @ports.PortFault,
 ] {
   match self.state.val.files.get(path) {
     Some(data) => Ok(data)
-    None => Err(PathMissing)
+    None => Err(@ports.PathMissing)
   }
 }
 
 ///|
-pub impl Disk for FakeDisk with fn fsync(self, path : Bytes) -> Result[
+pub impl @ports.Disk for FakeDisk with fn fsync(self, path : Bytes) -> Result[
   Unit,
-  HarnessFault,
+  @ports.PortFault,
 ] {
   if count_op_and_check_kill(self.state.val) {
-    return Err(Killed)
+    return Err(@ports.Killed)
   }
   if self.state.val.disk_full {
-    return Err(DiskFull)
+    return Err(@ports.DiskFull)
   }
   match self.state.val.files.get(path) {
     Some(_) => Ok(())
-    None => Err(PathMissing)
+    None => Err(@ports.PathMissing)
   }
 }
 
 ///|
-pub impl Disk for FakeDisk with fn rename(
+pub impl @ports.Disk for FakeDisk with fn rename(
   self,
   old_path : Bytes,
   new_path : Bytes,
-) -> Result[Unit, HarnessFault] {
+) -> Result[Unit, @ports.PortFault] {
   if count_op_and_check_kill(self.state.val) {
-    return Err(Killed)
+    return Err(@ports.Killed)
   }
   if old_path == new_path {
     match self.state.val.files.get(old_path) {
       Some(_) => return Ok(())
-      None => return Err(PathMissing)
+      None => return Err(@ports.PathMissing)
     }
   }
   match self.state.val.files.get(old_path) {
@@ -386,17 +388,17 @@ pub impl Disk for FakeDisk with fn rename(
       self.state.val.files.remove(old_path)
       Ok(())
     }
-    None => Err(PathMissing)
+    None => Err(@ports.PathMissing)
   }
 }
 
 ///|
-pub impl Disk for FakeDisk with fn remove(self, path : Bytes) -> Result[
+pub impl @ports.Disk for FakeDisk with fn remove(self, path : Bytes) -> Result[
   Unit,
-  HarnessFault,
+  @ports.PortFault,
 ] {
   if count_op_and_check_kill(self.state.val) {
-    return Err(Killed)
+    return Err(@ports.Killed)
   }
   // Removal is the capacity relief valve and runs even on a full disk.
   match self.state.val.files.get(path) {
@@ -404,12 +406,12 @@ pub impl Disk for FakeDisk with fn remove(self, path : Bytes) -> Result[
       self.state.val.files.remove(path)
       Ok(())
     }
-    None => Err(PathMissing)
+    None => Err(@ports.PathMissing)
   }
 }
 
 ///|
-pub impl Disk for FakeDisk with fn capabilities(_self) -> DiskCapabilities {
+pub impl @ports.Disk for FakeDisk with fn capabilities(_self) -> @ports.DiskCapabilities {
   // Windows PoC proved file fsync and atomic rename; directory fsync is denied.
   { file_fsync: true, atomic_rename: true, dir_fsync: false, }
 }

@@ -58,12 +58,12 @@ fn later_sequence(a : UInt64?, b : UInt64?) -> UInt64? {
 ///|
 /// Remove one file if it exists; report whether it was there.
 async fn remove_if_present(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   path : Bytes,
 ) -> Result[Bool, StorageFault] {
-  match @harness.Disk::remove(disk, path) {
+  match @ports.Disk::remove(disk, path) {
     Ok(_) => Ok(true)
-    Err(@harness.PathMissing) => Ok(false)
+    Err(@ports.PathMissing) => Ok(false)
     Err(fault) => Err(DiskFault(fault))
   }
 }
@@ -86,7 +86,7 @@ async fn remove_if_present(
 /// * `DiskFault(fault)` when a scan or a removal fails for any reason
 ///   other than a missing file.
 pub async fn delete_before(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   base_path : Bytes,
   segment_count : Int32,
   before_sequence : UInt64,

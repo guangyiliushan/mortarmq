@@ -42,7 +42,7 @@
 /// // The event loop's commit step, after every state change:
 /// // let _ = persist_group_state(disk, log, coordinator, leader_epoch)
 /// ```
-pub async fn[D : @harness.Disk] persist_group_state(
+pub async fn[D : @ports.Disk] persist_group_state(
   disk : D,
   log : Bytes,
   coordinator : GroupCoordinator,
@@ -63,7 +63,7 @@ pub async fn[D : @harness.Disk] persist_group_state(
   }
   let existing = match disk.read(log) {
     Ok(data) => data
-    Err(@harness.PathMissing) => b""
+    Err(@ports.PathMissing) => b""
     Err(_) => return Err(@protocol.Internal)
   }
   match disk.write(log, existing + record) {
@@ -120,13 +120,13 @@ pub fn scan_group_state(log : BytesView) -> GroupCoordinator? {
 /// Returns `None` when the log holds no decodable group record (a fresh
 /// log, or one whose group records were never written): the group starts
 /// empty and the members re-join, the degraded path of the matrix.
-pub async fn[D : @harness.Disk] load_group_state(
+pub async fn[D : @ports.Disk] load_group_state(
   disk : D,
   log : Bytes,
 ) -> Result[GroupCoordinator?, @protocol.ErrCode] {
   match disk.read(log) {
     Ok(data) => Ok(scan_group_state(data[:]))
-    Err(@harness.PathMissing) => Ok(None)
+    Err(@ports.PathMissing) => Ok(None)
     Err(_) => Err(@protocol.Internal)
   }
 }
@@ -141,7 +141,7 @@ pub async fn[D : @harness.Disk] load_group_state(
 ///
 /// * The join refusals (`GroupMemberLimit`, `GroupAssignmentLimit`).
 /// * `Internal` -- the state append failed.
-pub async fn[D : @harness.Disk] GroupCoordinator::join_persisted(
+pub async fn[D : @ports.Disk] GroupCoordinator::join_persisted(
   self : GroupCoordinator,
   disk : D,
   log : Bytes,
@@ -169,7 +169,7 @@ pub async fn[D : @harness.Disk] GroupCoordinator::join_persisted(
 ///
 /// * `UnknownMember` -- no member holds the id.
 /// * `Internal` -- the state append failed.
-pub async fn[D : @harness.Disk] GroupCoordinator::leave_persisted(
+pub async fn[D : @ports.Disk] GroupCoordinator::leave_persisted(
   self : GroupCoordinator,
   disk : D,
   log : Bytes,

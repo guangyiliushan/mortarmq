@@ -81,13 +81,13 @@ pub fn encode_quarantine_note(
 /// sidecar write: the segment is already out of the replay path, and the
 /// note is rewritten from the caller's rediscovered damage facts.
 pub async fn complete_quarantine(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   segment_path : Bytes,
   first_bad_offset : Int32,
   reason : QuarantineReason,
 ) -> Result[QuarantineRecord, StorageFault] {
   let (quarantined_path, sidecar_path) = quarantine_paths(segment_path)
-  let write_result = @harness.Disk::write(
+  let write_result = @ports.Disk::write(
     disk,
     sidecar_path,
     encode_quarantine_note(first_bad_offset, reason),
@@ -115,18 +115,18 @@ pub async fn complete_quarantine(
 ///   the segment in the replay path, and a failed sidecar write leaves the
 ///   rename done with the note missing.
 pub async fn quarantine_segment(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   segment_path : Bytes,
   first_bad_offset : Int32,
   reason : QuarantineReason,
 ) -> Result[QuarantineRecord, StorageFault] {
   let (quarantined_path, _sidecar_path) = quarantine_paths(segment_path)
-  match @harness.Disk::rename(disk, segment_path, quarantined_path) {
+  match @ports.Disk::rename(disk, segment_path, quarantined_path) {
     Ok(_) => ()
-    Err(@harness.PathMissing) =>
-      match @harness.Disk::read(disk, quarantined_path) {
+    Err(@ports.PathMissing) =>
+      match @ports.Disk::read(disk, quarantined_path) {
         Ok(_) => ()
-        Err(_) => return Err(DiskFault(@harness.PathMissing))
+        Err(_) => return Err(DiskFault(@ports.PathMissing))
       }
     Err(fault) => return Err(DiskFault(fault))
   }

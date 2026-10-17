@@ -192,7 +192,7 @@ pub(all) suberror DeliveryError {
   DlqUnavailable
   Capacity
   Malformed
-  DiskFault(@harness.HarnessFault)
+  DiskFault(@ports.PortFault)
 } derive(Eq, Debug)
 
 ///|
@@ -325,7 +325,7 @@ fn ledger_to_delivery_error(code : LedgerFault) -> DeliveryError {
 /// fresh `delivery_id`. An entry already in flight, and an already-acked
 /// entry (the no-ghost rule), are both refused with `InvalidTransition`;
 /// the acked waterline answers the same refusal for pruned history.
-pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
+pub async fn[D : @ports.Disk] DeliveryMachine::begin_delivery(
   self : DeliveryMachine,
   disk : D,
   key : DeliveryKey,
@@ -407,7 +407,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::begin_delivery(
 /// contiguous-acked prefix prunes an entry, the waterline itself answers
 /// `Duplicate` for it -- the message is acknowledged and no fence can
 /// revive it.
-pub async fn[D : @harness.Disk] DeliveryMachine::ack(
+pub async fn[D : @ports.Disk] DeliveryMachine::ack(
   self : DeliveryMachine,
   disk : D,
   key : DeliveryKey,
@@ -504,7 +504,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::ack(
 /// contiguous-acked prefix prunes the entry, after which the acked history
 /// answers `Duplicate`. Entries already `Acked` or not owned by `old_owner`
 /// are untouched.
-pub async fn[D : @harness.Disk] DeliveryMachine::on_ownership_changed(
+pub async fn[D : @ports.Disk] DeliveryMachine::on_ownership_changed(
   self : DeliveryMachine,
   disk : D,
   group_id : UInt16,
@@ -633,7 +633,7 @@ fn[R : @harness.Rng] backoff_delay(attempt : UInt16, rng : R) -> UInt32 {
 /// `Slow` is refused. The fenced delivery's NACK answers `StaleOwner` for
 /// as long as its entry lives; a NACK for a resolved or non-current
 /// delivery is the same idempotent no-op as its ACK twin.
-pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
+pub async fn[D : @ports.Disk, R : @harness.Rng] DeliveryMachine::nack(
   self : DeliveryMachine,
   disk : D,
   rng : R,
@@ -709,7 +709,7 @@ pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::nack(
 /// Same backoff, cap, and idempotent no-op rules as `nack`; the durable
 /// event is `TIMEOUT` and the attempt still counts -- a timeout never
 /// decrements the billed attempt.
-pub async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::timeout(
+pub async fn[D : @ports.Disk, R : @harness.Rng] DeliveryMachine::timeout(
   self : DeliveryMachine,
   disk : D,
   rng : R,
@@ -796,7 +796,7 @@ pub extend DeadLetterResult with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 /// The shared failure transition: journal the failure, then either
 /// schedule the next attempt or exhaust the budget into `DeadLetterQueued`.
-async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
+async fn[D : @ports.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
   self : DeliveryMachine,
   disk : D,
   rng : R,
@@ -858,7 +858,7 @@ async fn[D : @harness.Disk, R : @harness.Rng] DeliveryMachine::resolve_failure(
 /// is the fence the parked entry remembers: the just-journaled FENCED id
 /// on the ownership path, the entry's existing fence on the nack and
 /// failure paths.
-async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
+async fn[D : @ports.Disk] DeliveryMachine::mark_dead_letter_pending(
   self : DeliveryMachine,
   disk : D,
   key : DeliveryKey,
@@ -901,7 +901,7 @@ async fn[D : @harness.Disk] DeliveryMachine::mark_dead_letter_pending(
 /// Journal `SOURCE_TERMINATED` without a DLQ record and park the entry in
 /// `Quarantined`: the loop guards refused re-entry and the message awaits
 /// human intervention (0x0030 semantics).
-async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
+async fn[D : @ports.Disk] DeliveryMachine::journal_quarantine(
   self : DeliveryMachine,
   disk : D,
   key : DeliveryKey,
@@ -965,7 +965,7 @@ async fn[D : @harness.Disk] DeliveryMachine::journal_quarantine(
 /// it appends -- the envelope's source identity is the idempotence key --
 /// mirroring the idempotent-producer rule, so re-running the completion
 /// lands the DLQ record exactly once.
-pub async fn[D : @harness.Disk] DeliveryMachine::complete_dead_letter(
+pub async fn[D : @ports.Disk] DeliveryMachine::complete_dead_letter(
   self : DeliveryMachine,
   disk : D,
   key : DeliveryKey,
@@ -1166,7 +1166,7 @@ fn entry_fence(group : GroupState, sequence : UInt64) -> UInt64 {
 /// their ACKs after restart are plain `UnknownDelivery` no-ops and the
 /// message redelivers (at-least-once). The fenced delivery id survives
 /// redeliveries. `rebuild_timers` reconstructs the due retries.
-pub async fn[D : @harness.Disk] DeliveryMachine::recover(
+pub async fn[D : @ports.Disk] DeliveryMachine::recover(
   disk : D,
   topic_id : UInt16,
   partition : UInt16,
@@ -1174,7 +1174,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
 ) -> Result[DeliveryMachine, DeliveryError] {
   let scan = match scan_ledger(disk, writer.path()) {
     Ok(scan) => scan
-    Err(DiskFault(@harness.PathMissing)) => { events: [], first_invalid: None, }
+    Err(DiskFault(@ports.PathMissing)) => { events: [], first_invalid: None, }
     Err(code) => return Err(ledger_to_delivery_error(code))
   }
   let machine = DeliveryMachine::new(topic_id, partition, writer)
@@ -1187,7 +1187,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
   // stay folded above.
   let raw = match disk.read(writer.path()) {
     Ok(data) => data
-    Err(@harness.PathMissing) => b""
+    Err(@ports.PathMissing) => b""
     Err(code) => return Err(ledger_to_delivery_error(DiskFault(code)))
   }
   match scan.first_invalid {
@@ -1428,7 +1428,7 @@ pub async fn[D : @harness.Disk] DeliveryMachine::recover(
 
 ///|
 /// Force the pending group commit.
-pub async fn[D : @harness.Disk] DeliveryMachine::sync(
+pub async fn[D : @ports.Disk] DeliveryMachine::sync(
   self : DeliveryMachine,
   disk : D,
 ) -> Result[Unit, DeliveryError] {

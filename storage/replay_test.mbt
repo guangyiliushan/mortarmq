@@ -82,17 +82,17 @@ fn reserialize(records : Array[@storage.RecoveredRecord]) -> Bytes raise {
 
 ///|
 /// Run one scheduled disk step; false means the kill fired and death follows.
-fn survive(step : Result[Unit, @harness.HarnessFault]) -> Bool raise {
+fn survive(step : Result[Unit, @ports.PortFault]) -> Bool raise {
   match step {
     Ok(_) => true
-    Err(@harness.Killed) => false
+    Err(@ports.Killed) => false
     Err(_) => fail("schedule hit an unexpected fault")
   }
 }
 
 ///|
-async fn stored_segment(disk : &@harness.Disk) -> Bytes {
-  match @harness.Disk::read(disk, SEGMENT_PATH) {
+async fn stored_segment(disk : &@ports.Disk) -> Bytes {
+  match @ports.Disk::read(disk, SEGMENT_PATH) {
     Ok(bytes) => bytes
     Err(_) => b""
   }
@@ -100,7 +100,7 @@ async fn stored_segment(disk : &@harness.Disk) -> Bytes {
 
 ///|
 async test "a fresh disk recovers an empty partition from zero" {
-  let disk : &@harness.Disk = @harness.FakeDisk::new()
+  let disk : &@ports.Disk = @harness.FakeDisk::new()
   assert_eq(
     @storage.recover_segment(disk, SEGMENT_PATH, CHECKPOINT_PATH),
     Ok(recovery_of(0UL, 0U, [])),
@@ -114,7 +114,7 @@ async test "a missing checkpoint replays the whole segment from zero" {
     test_record(1UL, b"k1", b"v1"),
     test_record(2UL, b"k2", b"v2"),
   ])
-  assert_eq(@harness.Disk::write(disk, SEGMENT_PATH, segment), Ok(()))
+  assert_eq(@ports.Disk::write(disk, SEGMENT_PATH, segment), Ok(()))
   let expected = Ok(
     recovery_of(3UL, segment.length().reinterpret_as_uint(), [
       expected_record(1UL, b"k1", b"v1"),
@@ -128,7 +128,7 @@ async test "a missing checkpoint replays the whole segment from zero" {
   // A torn tmp sibling is never checkpoint state; recovery still starts
   // from zero and ignores it.
   assert_eq(
-    @harness.Disk::write(
+    @ports.Disk::write(
       disk,
       CHECKPOINT_PATH + b".tmp",
       b"torn checkpoint bytes",
@@ -145,9 +145,9 @@ async test "a missing checkpoint replays the whole segment from zero" {
 async test "an unreadable checkpoint fails recovery closed" {
   let segment = test_record(1UL, b"k1", b"v1")
   let corrupt = @harness.FakeDisk::new()
-  assert_eq(@harness.Disk::write(corrupt, SEGMENT_PATH, segment), Ok(()))
+  assert_eq(@ports.Disk::write(corrupt, SEGMENT_PATH, segment), Ok(()))
   assert_eq(
-    @harness.Disk::write(
+    @ports.Disk::write(
       corrupt,
       CHECKPOINT_PATH,
       b"MMQC foreign bytes that never decode",
@@ -164,9 +164,9 @@ async test "an unreadable checkpoint fails recovery closed" {
     next_sequence: 2UL,
     durable_offset: segment.length().reinterpret_as_uint(),
   })
-  assert_eq(@harness.Disk::write(flipped, SEGMENT_PATH, segment), Ok(()))
+  assert_eq(@ports.Disk::write(flipped, SEGMENT_PATH, segment), Ok(()))
   assert_eq(
-    @harness.Disk::write(
+    @ports.Disk::write(
       flipped,
       CHECKPOINT_PATH,
       valid[:9].to_owned() + b"\xff" + valid[10:].to_owned(),
@@ -186,7 +186,7 @@ async test "a checkpoint at offset zero replays every record" {
     test_record(1UL, b"k1", b"v1"),
     test_record(2UL, b"k2", b"v2"),
   ])
-  assert_eq(@harness.Disk::write(disk, SEGMENT_PATH, segment), Ok(()))
+  assert_eq(@ports.Disk::write(disk, SEGMENT_PATH, segment), Ok(()))
   assert_eq(
     @storage.write_checkpoint(disk, CHECKPOINT_PATH, {
       next_sequence: 1UL,
@@ -209,7 +209,7 @@ async test "a checkpoint at offset zero replays every record" {
 async test "a checkpoint covering the segment leaves nothing to replay" {
   let disk = @harness.FakeDisk::new()
   let segment = test_record(1UL, b"k1", b"v1")
-  assert_eq(@harness.Disk::write(disk, SEGMENT_PATH, segment), Ok(()))
+  assert_eq(@ports.Disk::write(disk, SEGMENT_PATH, segment), Ok(()))
   assert_eq(
     @storage.write_checkpoint(disk, CHECKPOINT_PATH, {
       next_sequence: 2UL,
@@ -231,7 +231,7 @@ async test "recovered next_sequence continues the replayed sequences" {
     test_record(2UL, b"k2", b"v2"),
     test_record(3UL, b"k3", b"v3"),
   ])
-  assert_eq(@harness.Disk::write(disk, SEGMENT_PATH, first + rest), Ok(()))
+  assert_eq(@ports.Disk::write(disk, SEGMENT_PATH, first + rest), Ok(()))
   assert_eq(
     @storage.write_checkpoint(disk, CHECKPOINT_PATH, {
       next_sequence: 2UL,
@@ -271,7 +271,7 @@ async test "a stale checkpoint sequence yields to the replayed records" {
     test_record(1UL, b"k1", b"v1"),
     test_record(2UL, b"k2", b"v2"),
   ])
-  assert_eq(@harness.Disk::write(disk, SEGMENT_PATH, segment), Ok(()))
+  assert_eq(@ports.Disk::write(disk, SEGMENT_PATH, segment), Ok(()))
   assert_eq(
     @storage.write_checkpoint(disk, CHECKPOINT_PATH, {
       next_sequence: 9UL,
@@ -306,7 +306,7 @@ async test "truncated tails stop replay at the last complete record" {
   // Fewer than four trailing bytes cannot hold a length prefix.
   let short = @harness.FakeDisk::new()
   assert_eq(
-    @harness.Disk::write(short, SEGMENT_PATH, complete + b"\x01\x02"),
+    @ports.Disk::write(short, SEGMENT_PATH, complete + b"\x01\x02"),
     Ok(()),
   )
   assert_eq(
@@ -316,7 +316,7 @@ async test "truncated tails stop replay at the last complete record" {
   // A valid length prefix whose record body extends past the segment end.
   let torn_body = @harness.FakeDisk::new()
   assert_eq(
-    @harness.Disk::write(
+    @ports.Disk::write(
       torn_body,
       SEGMENT_PATH,
       complete + second[:20].to_owned(),
@@ -331,7 +331,7 @@ async test "truncated tails stop replay at the last complete record" {
   // not the bytes past it.
   let garbage = @harness.FakeDisk::new()
   assert_eq(
-    @harness.Disk::write(
+    @ports.Disk::write(
       garbage,
       SEGMENT_PATH,
       complete + b"\x00\x00\x00\x3a\x00garbage",
@@ -356,7 +356,7 @@ async test "records with empty key and value replay bit-exact" {
   let disk = @harness.FakeDisk::new()
   let record = test_record(1UL, b"", b"")
   assert_eq(record.length(), @storage.RECORD_HEADER_BYTES)
-  assert_eq(@harness.Disk::write(disk, SEGMENT_PATH, record), Ok(()))
+  assert_eq(@ports.Disk::write(disk, SEGMENT_PATH, record), Ok(()))
   assert_eq(
     @storage.recover_segment(disk, SEGMENT_PATH, CHECKPOINT_PATH),
     Ok(
@@ -373,7 +373,7 @@ async test "a complete but corrupt record fails recovery closed" {
   let good = test_record(1UL, b"k1", b"v1")
   let bad = test_record(2UL, b"k2", b"v2")
   assert_eq(
-    @harness.Disk::write(
+    @ports.Disk::write(
       disk,
       SEGMENT_PATH,
       good + bad[:30].to_owned() + b"\xff" + bad[31:].to_owned(),
@@ -390,11 +390,11 @@ async test "a complete but corrupt record fails recovery closed" {
 async test "a checkpoint past the segment end fails recovery closed" {
   let disk = @harness.FakeDisk::new()
   assert_eq(
-    @harness.Disk::write(disk, SEGMENT_PATH, test_record(1UL, b"k1", b"v1")),
+    @ports.Disk::write(disk, SEGMENT_PATH, test_record(1UL, b"k1", b"v1")),
     Ok(()),
   )
   assert_eq(
-    @harness.Disk::write(
+    @ports.Disk::write(
       disk,
       CHECKPOINT_PATH,
       @storage.encode_checkpoint({ next_sequence: 9UL, durable_offset: 4096U, }),
@@ -419,7 +419,7 @@ async test "a missing segment under a nonzero durable prefix fails closed" {
   )
   assert_eq(
     @storage.recover_segment(disk, SEGMENT_PATH, CHECKPOINT_PATH),
-    Err(@storage.DiskFault(@harness.PathMissing)),
+    Err(@storage.DiskFault(@ports.PathMissing)),
   )
   // A zero offset covers no bytes, so a missing segment is an empty replay.
   let fresh = @harness.FakeDisk::new()
@@ -444,7 +444,7 @@ async test "replay re-serializes the recovered prefix byte-identically" {
     test_record(2UL, b"k2", b"v2"),
   ])
   let appended = test_record(3UL, b"k3", b"v3")
-  assert_eq(@harness.Disk::write(disk, SEGMENT_PATH, durable), Ok(()))
+  assert_eq(@ports.Disk::write(disk, SEGMENT_PATH, durable), Ok(()))
   assert_eq(
     @storage.write_checkpoint(disk, CHECKPOINT_PATH, {
       next_sequence: 3UL,
@@ -454,17 +454,14 @@ async test "replay re-serializes the recovered prefix byte-identically" {
   )
   // The append lands as disk op 5; the kill then stops the next publish, so
   // the restart finds one uncovered record behind a stale checkpoint.
-  assert_eq(
-    @harness.Disk::write(disk, SEGMENT_PATH, durable + appended),
-    Ok(()),
-  )
+  assert_eq(@ports.Disk::write(disk, SEGMENT_PATH, durable + appended), Ok(()))
   disk.set_kill_at(6)
   assert_eq(
     @storage.write_checkpoint(disk, CHECKPOINT_PATH, {
       next_sequence: 4UL,
       durable_offset: (durable + appended).length().reinterpret_as_uint(),
     }),
-    Err(@harness.Killed),
+    Err(@ports.Killed),
   )
   let recovered = match
     @storage.recover_segment(disk, SEGMENT_PATH, CHECKPOINT_PATH) {
@@ -523,7 +520,7 @@ async test "restart after any kill seam recovers exactly one state" {
     let disk = @harness.FakeDisk::new()
     disk.set_kill_at(armed)
     let mut alive = survive(
-      @harness.Disk::write(disk, SEGMENT_PATH, prefix_bytes),
+      @ports.Disk::write(disk, SEGMENT_PATH, prefix_bytes),
     )
     if alive {
       alive = survive(
@@ -534,7 +531,7 @@ async test "restart after any kill seam recovers exactly one state" {
     if alive {
       for record in suffix {
         current = current + record
-        alive = survive(@harness.Disk::write(disk, SEGMENT_PATH, current))
+        alive = survive(@ports.Disk::write(disk, SEGMENT_PATH, current))
         if !alive {
           break
         }
@@ -547,7 +544,7 @@ async test "restart after any kill seam recovers exactly one state" {
           durable_offset: full_len,
         }) {
         Ok(_) => ()
-        Err(@harness.Killed) => ()
+        Err(@ports.Killed) => ()
         Err(_) => fail("final publish hit an unexpected fault")
       }
     }
@@ -607,7 +604,7 @@ async test "seeded kill points recover one state across independent replays" {
       1
     let disk = @harness.FakeDisk::new()
     disk.set_kill_at(armed)
-    let mut alive = survive(@harness.Disk::write(disk, SEGMENT_PATH, durable))
+    let mut alive = survive(@ports.Disk::write(disk, SEGMENT_PATH, durable))
     if alive {
       alive = survive(
         @storage.write_checkpoint(disk, CHECKPOINT_PATH, {
@@ -620,7 +617,7 @@ async test "seeded kill points recover one state across independent replays" {
     if alive {
       for record in appended_bytes {
         current = current + record
-        alive = survive(@harness.Disk::write(disk, SEGMENT_PATH, current))
+        alive = survive(@ports.Disk::write(disk, SEGMENT_PATH, current))
         if !alive {
           break
         }
@@ -633,7 +630,7 @@ async test "seeded kill points recover one state across independent replays" {
           durable_offset: current.length().reinterpret_as_uint(),
         }) {
         Ok(_) => ()
-        Err(@harness.Killed) => ()
+        Err(@ports.Killed) => ()
         Err(_) => fail("sweep publish hit an unexpected fault")
       }
     }
@@ -686,7 +683,7 @@ async test "seeded kill points recover one state across independent replays" {
     )
     let mirror = @harness.FakeDisk::new()
     for (path, bytes) in disk.snapshot() {
-      ignore(@harness.Disk::write(mirror, path, bytes))
+      ignore(@ports.Disk::write(mirror, path, bytes))
     }
     assert_eq(
       @storage.recover_segment(mirror, SEGMENT_PATH, CHECKPOINT_PATH),

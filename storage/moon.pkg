@@ -1,6 +1,7 @@
 import {
   "guangyiliushan/mortarmq/protocol",
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/ports",
   "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
 }

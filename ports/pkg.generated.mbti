@@ -1,0 +1,41 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "guangyiliushan/mortarmq/ports"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+pub(all) suberror PortFault {
+  PathMissing
+  DiskFull
+  Killed
+} derive(Eq, @debug.Debug)
+pub fn PortFault::equal(Self, Self) -> Bool
+pub fn PortFault::not_equal(Self, Self) -> Bool
+pub fn PortFault::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct DiskCapabilities {
+  file_fsync : Bool
+  atomic_rename : Bool
+  dir_fsync : Bool
+} derive(Eq, @debug.Debug)
+pub fn DiskCapabilities::equal(Self, Self) -> Bool
+pub fn DiskCapabilities::not_equal(Self, Self) -> Bool
+pub fn DiskCapabilities::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits
+pub(open) trait Disk {
+  async fn write(Self, Bytes, Bytes) -> Result[Unit, PortFault]
+  async fn append(Self, Bytes, Bytes) -> Result[Unit, PortFault]
+  async fn read(Self, Bytes) -> Result[Bytes, PortFault]
+  async fn fsync(Self, Bytes) -> Result[Unit, PortFault]
+  async fn rename(Self, Bytes, Bytes) -> Result[Unit, PortFault]
+  async fn remove(Self, Bytes) -> Result[Unit, PortFault]
+  fn capabilities(Self) -> DiskCapabilities
+}

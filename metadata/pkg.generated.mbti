@@ -2,7 +2,7 @@
 package "guangyiliushan/mortarmq/metadata"
 
 import {
-  "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/ports",
   "guangyiliushan/mortarmq/protocol",
   "moonbitlang/core/debug",
 }
@@ -38,17 +38,17 @@ pub fn encode_mmml_record(MmmlHeader, BytesView) -> Result[Bytes, MetadataFault]
 
 pub fn encode_snapshot(SnapshotState) -> Result[Bytes, MetadataFault]
 
-pub async fn load_snapshot(&@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
+pub async fn load_snapshot(&@ports.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
 
-pub async fn recover_snapshot(&@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
+pub async fn recover_snapshot(&@ports.Disk, Bytes, Bytes) -> Result[SnapshotState, MetadataFault]
 
-pub async fn save_snapshot(&@harness.Disk, Bytes, SnapshotState) -> Result[Unit, MetadataFault]
+pub async fn save_snapshot(&@ports.Disk, Bytes, SnapshotState) -> Result[Unit, MetadataFault]
 
 // Errors
 pub(all) suberror MetadataFault {
   Malformed
   Corruption(UInt)
-  DiskFault(@harness.HarnessFault)
+  DiskFault(@ports.PortFault)
 } derive(Eq, @debug.Debug)
 pub fn MetadataFault::equal(Self, Self) -> Bool
 pub fn MetadataFault::not_equal(Self, Self) -> Bool
@@ -144,15 +144,15 @@ pub(all) struct MetadataService {
 pub fn MetadataService::downgrade_preconditions(Self, UInt64) -> Array[PreconditionCheck]
 pub fn MetadataService::has_changes_since(Self, UInt64) -> Bool
 pub fn MetadataService::is_finalized(Self, String) -> Bool
-pub async fn[D : @harness.Disk] MetadataService::mediate_mutation(Self, D, Bytes, UInt64, UInt64, Array[DeclareBody]) -> Result[Array[DeclareAck], @protocol.ErrCode]
+pub async fn[D : @ports.Disk] MetadataService::mediate_mutation(Self, D, Bytes, UInt64, UInt64, Array[DeclareBody]) -> Result[Array[DeclareAck], @protocol.ErrCode]
 pub fn MetadataService::new() -> Self
 pub fn MetadataService::one_way_changes(Self) -> Array[TrackedChange]
 pub fn MetadataService::partition_count(Self, String) -> UInt?
 pub fn MetadataService::quarantine_entries(Self) -> Array[QuarantineEntry]
 pub fn MetadataService::read_face(Self) -> MetadataMode
-pub async fn MetadataService::recover(Self, &@harness.Disk, Bytes, Bytes) -> Result[SnapshotState, @protocol.ErrCode]
-pub async fn MetadataService::save(Self, &@harness.Disk, Bytes, UInt64, UInt64) -> Result[Unit, @protocol.ErrCode]
-pub async fn[D : @harness.Disk] MetadataService::submit_mutation(Self, D, Bytes, UInt64, UInt64, Array[DeclareBody]) -> Result[Array[DeclareOutcome], @protocol.ErrCode]
+pub async fn MetadataService::recover(Self, &@ports.Disk, Bytes, Bytes) -> Result[SnapshotState, @protocol.ErrCode]
+pub async fn MetadataService::save(Self, &@ports.Disk, Bytes, UInt64, UInt64) -> Result[Unit, @protocol.ErrCode]
+pub async fn[D : @ports.Disk] MetadataService::submit_mutation(Self, D, Bytes, UInt64, UInt64, Array[DeclareBody]) -> Result[Array[DeclareOutcome], @protocol.ErrCode]
 
 pub(all) struct MmmlHeader {
   format_version : Byte

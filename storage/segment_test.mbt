@@ -71,7 +71,7 @@ fn writer_recovery(
 
 ///|
 async test "append assigns sequences from the start and reports its extent" {
-  let disk : &@harness.Disk = @harness.FakeDisk::new()
+  let disk : &@ports.Disk = @harness.FakeDisk::new()
   let writer = @storage.SegmentWriter::new(
     SEG_BASE_PATH,
     segment_max_bytes=1000,
@@ -118,7 +118,7 @@ async test "append assigns sequences from the start and reports its extent" {
 
 ///|
 async test "the threshold rolls a fresh segment and carries sequences across" {
-  let disk : &@harness.Disk = @harness.FakeDisk::new()
+  let disk : &@ports.Disk = @harness.FakeDisk::new()
   let writer = @storage.SegmentWriter::new(SEG_BASE_PATH, segment_max_bytes=100)
   let r1 = match @storage.SegmentWriter::append(writer, disk, b"", b"abc") {
     Ok(record) => record
@@ -164,7 +164,7 @@ async test "a sealed segment stays readable at its original path after rotation"
   }
   // With 59-byte records under a 120-byte cap: segment 0 holds abc+def and
   // segment 1 holds ghi+jkl.
-  let sealed_bytes = match @harness.Disk::read(disk, b"part-0.segment.0") {
+  let sealed_bytes = match @ports.Disk::read(disk, b"part-0.segment.0") {
     Ok(bytes) => bytes
     Err(_) => fail("sealed segment unreadable")
   }
@@ -187,7 +187,7 @@ async test "a sealed segment stays readable at its original path after rotation"
   if @storage.SegmentWriter::append(writer, disk, b"", b"pqr") is Err(_) {
     fail("append after rotation failed")
   }
-  assert_eq(@harness.Disk::read(disk, b"part-0.segment.0"), Ok(sealed_bytes))
+  assert_eq(@ports.Disk::read(disk, b"part-0.segment.0"), Ok(sealed_bytes))
   assert_eq(
     @storage.recover_segment(disk, b"part-0.segment.0", SEG_CHECKPOINT),
     Ok(
@@ -234,7 +234,7 @@ async test "an oversize record starts its own segment instead of being refused" 
 
 ///|
 async test "records exactly at the threshold share the segment" {
-  let disk : &@harness.Disk = @harness.FakeDisk::new()
+  let disk : &@ports.Disk = @harness.FakeDisk::new()
   let size = record_len(b"", b"abc")
   let writer = @storage.SegmentWriter::new(
     SEG_BASE_PATH,
@@ -259,7 +259,7 @@ async test "records exactly at the threshold share the segment" {
 
 ///|
 async test "a non-positive threshold gives every record its own segment" {
-  let disk : &@harness.Disk = @harness.FakeDisk::new()
+  let disk : &@ports.Disk = @harness.FakeDisk::new()
   let writer = @storage.SegmentWriter::new(SEG_BASE_PATH, segment_max_bytes=0)
   let mut n = 0
   while n < 3 {
@@ -279,14 +279,14 @@ async test "a refused write leaves the writer state unchanged" {
   disk.set_disk_full(true)
   assert_eq(
     @storage.SegmentWriter::append(writer, disk, b"", b"abc"),
-    Err(@storage.Disk(@harness.DiskFull)),
+    Err(@storage.Disk(@ports.DiskFull)),
   )
   assert_eq(writer.next_sequence(), 0UL)
   assert_eq(writer.active_bytes(), 0)
   assert_eq(writer.segment_count(), 1)
   assert_eq(
-    @harness.Disk::read(disk, b"part-0.segment.0"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"part-0.segment.0"),
+    Err(@ports.PathMissing),
   )
   disk.set_disk_full(false)
   if @storage.SegmentWriter::append(writer, disk, b"", b"abc") is Err(_) {
@@ -305,7 +305,7 @@ async test "a refused roll write leaves the series exactly as it was" {
   disk.set_disk_full(true)
   assert_eq(
     @storage.SegmentWriter::append(writer, disk, b"", b"def"),
-    Err(@storage.Disk(@harness.DiskFull)),
+    Err(@storage.Disk(@ports.DiskFull)),
   )
   assert_eq(writer.segment_count(), 1)
   assert_eq(writer.active_path(), b"part-0.segment.0")
@@ -328,7 +328,7 @@ async test "a refused fsync keeps the published record and the next append build
   disk.set_kill_at(2)
   assert_eq(
     @storage.SegmentWriter::append(writer, disk, b"", b"abc"),
-    Err(@storage.Disk(@harness.Killed)),
+    Err(@storage.Disk(@ports.Killed)),
   )
   // The record is in the file and in the writer state despite the failed
   // fsync; only the durability signal is missing.
@@ -368,8 +368,8 @@ async test "a rejected record leaves the writer unchanged and writes nothing" {
   assert_eq(writer.active_bytes(), 0)
   assert_eq(writer.segment_count(), 1)
   assert_eq(
-    @harness.Disk::read(disk, b"part-0.segment.0"),
-    Err(@harness.PathMissing),
+    @ports.Disk::read(disk, b"part-0.segment.0"),
+    Err(@ports.PathMissing),
   )
 }
 

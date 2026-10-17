@@ -785,7 +785,7 @@ async test "a failed DLQ write re-runs its completion after restart" {
   }
   // The DLQ write fails: the envelope never becomes durable.
   let broken = (_bytes : Bytes) => {
-    Err(@delivery.DeliveryError::DiskFault(@harness.DiskFull))
+    Err(@delivery.DeliveryError::DiskFault(@ports.DiskFull))
   }
   match
     machine.complete_dead_letter(
@@ -1024,7 +1024,7 @@ async test "an interrupted completion only finishes the source termination" {
       3000,
       None,
     ) {
-    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) =>
+    Err(@delivery.DeliveryError::DiskFault(@ports.Killed)) =>
       assert_eq(true, true)
     _ => fail("expected the kill at the source termination")
   }
@@ -1112,7 +1112,7 @@ async test "a crashed completion retries without duplicating the DLQ record" {
       3000,
       None,
     ) {
-    Err(@delivery.DeliveryError::DiskFault(@harness.Killed)) =>
+    Err(@delivery.DeliveryError::DiskFault(@ports.Killed)) =>
       assert_eq(true, true)
     _ => fail("expected the kill at the DLQ journal")
   }

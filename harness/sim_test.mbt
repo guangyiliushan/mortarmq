@@ -24,21 +24,21 @@ async fn kill_restart(env : @harness.SimEnv) -> KillRestartOutcome {
   for index in 0..<planned {
     let length = (@harness.Rng::next_uint64(env.rng) % 7UL).to_int()
     let payload = PAYLOAD_ALPHABET[:length].to_owned()
-    match @harness.Disk::write(env.disk, paths[index], payload) {
+    match @ports.Disk::write(env.disk, paths[index], payload) {
       Ok(_) => ()
-      Err(@harness.Killed) => break
+      Err(@ports.Killed) => break
       Err(_) => fail("kill-restart cycle hit an unexpected disk fault")
     }
   }
   let mirror = @harness.FakeDisk::new()
   for (path, data) in env.disk.snapshot() {
-    assert_eq(@harness.Disk::write(mirror, path, data), Ok(()))
+    assert_eq(@ports.Disk::write(mirror, path, data), Ok(()))
   }
   let recovered : Array[Bytes] = []
   for index in 0..<planned {
-    match @harness.Disk::read(mirror, paths[index]) {
+    match @ports.Disk::read(mirror, paths[index]) {
       Ok(data) => recovered.push(data)
-      Err(@harness.PathMissing) => ()
+      Err(@ports.PathMissing) => ()
       Err(_) => fail("the restarted disk holds bytes or nothing")
     }
   }
@@ -64,8 +64,8 @@ async test "the same seed wires identical fresh environments" {
   assert_eq(first.net.sent_messages().length(), 0)
   assert_eq(first.disk.snapshot().length(), 0)
   assert_eq(
-    @harness.Disk::capabilities(first.disk),
-    @harness.Disk::capabilities(second.disk),
+    @ports.Disk::capabilities(first.disk),
+    @ports.Disk::capabilities(second.disk),
   )
 }
 
@@ -94,7 +94,7 @@ async test "reproducible reports agreement for a deterministic scenario" {
   let scenario = async fn(
     env : @harness.SimEnv,
   ) -> (UInt64, Array[(Bytes, Bytes)]) {
-    assert_eq(@harness.Disk::write(env.disk, b"state", b"payload"), Ok(()))
+    assert_eq(@ports.Disk::write(env.disk, b"state", b"payload"), Ok(()))
     (@harness.Rng::next_uint64(env.rng), env.disk.snapshot())
   }
   assert_eq(@harness.reproducible(0x5EEDUL, scenario), true)

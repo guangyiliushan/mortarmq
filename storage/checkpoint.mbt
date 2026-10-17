@@ -169,7 +169,7 @@ pub fn decode_checkpoint(
 ///
 /// ```mbt check
 /// async test {
-///   let disk : &@harness.Disk = @harness.FakeDisk::new()
+///   let disk : &@ports.Disk = @harness.FakeDisk::new()
 ///   let state : @storage.SegmentCheckpoint = {
 ///     next_sequence: 7UL,
 ///     durable_offset: 4096U,
@@ -179,24 +179,24 @@ pub fn decode_checkpoint(
 ///     Ok(()),
 ///   )
 ///   assert_eq(
-///     @harness.Disk::read(disk, b"segment.checkpoint"),
+///     @ports.Disk::read(disk, b"segment.checkpoint"),
 ///     Ok(@storage.encode_checkpoint(state)),
 ///   )
 /// }
 /// ```
 pub async fn write_checkpoint(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   path : Bytes,
   checkpoint : SegmentCheckpoint,
-) -> Result[Unit, @harness.HarnessFault] {
+) -> Result[Unit, @ports.PortFault] {
   let tmp_path = path + b".tmp"
-  match @harness.Disk::write(disk, tmp_path, encode_checkpoint(checkpoint)) {
+  match @ports.Disk::write(disk, tmp_path, encode_checkpoint(checkpoint)) {
     Err(fault) => return Err(fault)
     Ok(_) => ()
   }
-  match @harness.Disk::fsync(disk, tmp_path) {
+  match @ports.Disk::fsync(disk, tmp_path) {
     Err(fault) => return Err(fault)
     Ok(_) => ()
   }
-  @harness.Disk::rename(disk, tmp_path, path)
+  @ports.Disk::rename(disk, tmp_path, path)
 }

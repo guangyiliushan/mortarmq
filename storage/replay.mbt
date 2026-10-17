@@ -104,7 +104,7 @@ pub extend SegmentRecovery with @moonbitlang/core/debug.Debug::{to_repr}
 ///
 /// ```mbt check
 /// async test {
-///   let disk : &@harness.Disk = @harness.FakeDisk::new()
+///   let disk : &@ports.Disk = @harness.FakeDisk::new()
 ///   let header = @storage.RecordHeader::new(
 ///     flags=0,
 ///     key_length=0,
@@ -120,7 +120,7 @@ pub extend SegmentRecovery with @moonbitlang/core/debug.Debug::{to_repr}
 ///     Ok(bytes) => bytes
 ///     Err(_) => fail("example record encoding failed")
 ///   }
-///   assert_eq(@harness.Disk::write(disk, b"partition.segment", record), Ok(()))
+///   assert_eq(@ports.Disk::write(disk, b"partition.segment", record), Ok(()))
 ///   assert_eq(
 ///     @storage.recover_segment(
 ///       disk, b"partition.segment", b"partition.checkpoint",
@@ -133,27 +133,27 @@ pub extend SegmentRecovery with @moonbitlang/core/debug.Debug::{to_repr}
 /// }
 /// ```
 pub async fn recover_segment(
-  disk : &@harness.Disk,
+  disk : &@ports.Disk,
   segment_path : Bytes,
   checkpoint_path : Bytes,
 ) -> Result[SegmentRecovery, StorageFault] {
-  let checkpoint = match @harness.Disk::read(disk, checkpoint_path) {
+  let checkpoint = match @ports.Disk::read(disk, checkpoint_path) {
     Ok(bytes) =>
       match decode_checkpoint(bytes[:]) {
         Ok(state) => Some(state)
         Err(code) => return Err(code)
       }
-    Err(@harness.PathMissing) => None
+    Err(@ports.PathMissing) => None
     Err(fault) => return Err(DiskFault(fault))
   }
-  let segment = match @harness.Disk::read(disk, segment_path) {
+  let segment = match @ports.Disk::read(disk, segment_path) {
     Ok(bytes) => bytes
-    Err(@harness.PathMissing) => {
+    Err(@ports.PathMissing) => {
       match checkpoint {
         Some(state) =>
           // A nonzero durable prefix names bytes the segment must hold.
           if state.durable_offset > 0U {
-            return Err(DiskFault(@harness.PathMissing))
+            return Err(DiskFault(@ports.PathMissing))
           }
         None => ()
       }

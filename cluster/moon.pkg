@@ -24,6 +24,7 @@ import {
 
 import {
   "guangyiliushan/mortarmq/harness",
+  "guangyiliushan/mortarmq/ports",
   "moonbitlang/async/io",
   "moonbitlang/async/socket",
   "moonbitlang/core/quickcheck",
